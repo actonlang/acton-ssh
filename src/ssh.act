@@ -1,0 +1,12 @@
+import testing
+
+def version() -> str:
+    """Get the libssh version"""
+    NotImplemented
+
+def _test_version():
+    testing.assertEqual("0.11.0", version())
+
+actor main(env):
+    print(version())
+    env.exit(0)

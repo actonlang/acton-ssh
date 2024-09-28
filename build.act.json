@@ -1,0 +1,12 @@
+{
+    "dependencies": {},
+    "zig_dependencies": {
+        "libssh": {
+            "url": "https://github.com/precla/libssh/archive/refs/heads/zig-build.tar.gz",
+            "hash": "122064d1294b60e7609b97fea65540eb45c5e47519e72f0136d712af28ae63b571f4",
+            "artifacts": [
+                "ssh"
+            ]
+        }
+    }
+}
