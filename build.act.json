@@ -2,8 +2,8 @@
     "dependencies": {},
     "zig_dependencies": {
         "libssh": {
-            "url": "https://github.com/precla/libssh/archive/refs/heads/zig-build.tar.gz",
-            "hash": "122064d1294b60e7609b97fea65540eb45c5e47519e72f0136d712af28ae63b571f4",
+            "url": "https://github.com/actonlang/libssh/archive/refs/heads/zig-build.tar.gz",
+            "hash": "122076b4676ec7d777e5efc24ae4b7f1ab4fa3df407ab9649fdd55f9fc594ca053ec",
             "artifacts": [
                 "ssh"
             ]
