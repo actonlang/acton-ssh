@@ -1,3 +1,4 @@
+import net
 import testing
 
 def version() -> str:
@@ -7,6 +8,62 @@ def version() -> str:
 def _test_version():
     testing.assertEqual("0.11.0", version())
 
+actor Client(cap: net.TCPConnectCap,
+             host: str,
+             username: str,
+             on_connect: action(Client) -> None,
+             on_close: action(Client, str) -> None,
+             key: ?str=None,
+             password: ?str=None,
+             port: u16=22,
+             ):
+    """SSH Client"""
+
+    # haha, this is really a pointer :P
+    var _ssh_session: u64 = 0
+
+    proc def _init() -> None:
+        """Initialize the SSH client"""
+        NotImplemented
+    _init()
+    print("SSH Client connected")
+
+#    action def close(on_close: action(TLSConnection) -> None) -> None:
+#        """Close the connection"""
+#        NotImplemented
+#
+#    def reconnect():
+#        close(_connect)
+#
+#    def _connect(c):
+#        NotImplemented
+#
+
+# TODO: implement support for channels
+# AFAIK, all things over ssh are done via channels, so need some channel
+# primitive, maybe an actor per channel that then multiplexes into the Client
+# session? Prolly need some higher level wrappers for common things like
+# starting a shell or running a single command. SFTP / SCP would be nice too,
+# but for sometime in the future. Custom subsystems need to be supported too.
+
+
+
+
 actor main(env):
+    def on_connect(client: Client):
+        print("Connected")
+
+    def on_close(client: Client, error: str):
+        print("Error", error)
+
     print(version())
+    c = Client(
+        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+        "localhost",
+        "foo",
+        on_connect,
+        on_close,
+        password="bar",
+        port=2223,
+    )
     env.exit(0)
