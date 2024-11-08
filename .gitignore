@@ -1,0 +1,5 @@
+.acton.lock
+.build
+out
+zig-cache
+zig-out
