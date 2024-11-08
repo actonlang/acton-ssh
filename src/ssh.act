@@ -1,12 +1,15 @@
 import net
 import testing
 
+
 def version() -> str:
     """Get the libssh version"""
     NotImplemented
 
+
 def _test_version():
     testing.assertEqual("0.11.0", version())
+
 
 actor Client(cap: net.TCPConnectCap,
              host: str,
@@ -22,10 +25,14 @@ actor Client(cap: net.TCPConnectCap,
     # haha, this is really a pointer :P
     var _ssh_session: u64 = 0
 
+    def get_ssh_session():
+        return _ssh_session
+
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
     _init()
+
     print("SSH Client connected")
 
 #    action def close(on_close: action(TLSConnection) -> None) -> None:
@@ -37,7 +44,6 @@ actor Client(cap: net.TCPConnectCap,
 #
 #    def _connect(c):
 #        NotImplemented
-#
 
 # TODO: implement support for channels
 # AFAIK, all things over ssh are done via channels, so need some channel
@@ -45,13 +51,23 @@ actor Client(cap: net.TCPConnectCap,
 # session? Prolly need some higher level wrappers for common things like
 # starting a shell or running a single command. SFTP / SCP would be nice too,
 # but for sometime in the future. Custom subsystems need to be supported too.
+actor Channel(cap: Client):
+    """SSH Channel"""
 
+    var _ssh_channel: u64 = 0
+    var _ssh_session: u64 = cap.get_ssh_session()
 
+    proc def _init() -> None:
+        """Initialize the SSH Channel"""
+        NotImplemented
+    _init()
+
+    print("SSH Channel created")
 
 
 actor main(env):
     def on_connect(client: Client):
-        print("Connected")
+        print("Connected on_connect")
 
     def on_close(client: Client, error: str):
         print("Error", error)
@@ -66,4 +82,7 @@ actor main(env):
         password="bar",
         port=2223,
     )
+
+    cc = Channel(c)
+
     env.exit(0)
