@@ -3,7 +3,7 @@ import testing
 
 
 def version() -> str:
-    """Get the libssh version"""
+    """Get the acton-ssh version"""
     NotImplemented
 
 actor Client(cap: net.TCPConnectCap,

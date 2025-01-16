@@ -25,11 +25,11 @@ void sshQ___ext_init__() {
 }
 
 B_str sshQ_version() {
-    return to$str("libssh 0.11.0\n");
+    return to$str("0.1.0");
 }
 
 // TODO: crap function for test, to be replaced with something
-int show_remote_processes(ssh_session session)
+int show_remote_load(ssh_session session)
 {
   ssh_channel channel = { 0 };
   char buffer[256] = { 0 };
@@ -109,6 +109,7 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
 }
 
 $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
+    int err = 0;
     ssh_session session = ssh_new();
     if (session == NULL) {
         printf("Failed to create SSH session\n");
@@ -117,37 +118,45 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
 
     self->_ssh_session = toB_u64((unsigned long)session);
 
-    int err = 0;
     err = ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
-    if (err < 0)
+    if (err < 0) {
         printf("Error setting SSH option 'SSH_OPTIONS_HOST': %d\n", err);
+        return $R_CONT(c$cont, B_None);
+    }
     err = ssh_options_set(session, SSH_OPTIONS_PORT, &self->port->val);
-    if (err < 0)
+    if (err < 0) {
         printf("Error setting SSH option 'SSH_OPTIONS_PORT': %d\n", err);
+        return $R_CONT(c$cont, B_None);
+    }
     err = ssh_options_set(session, SSH_OPTIONS_USER, fromB_str(self->username));
-    if (err < 0)
+    if (err < 0) {
         printf("Error setting SSH option 'SSH_OPTIONS_USER': %d\n", err);
+        return $R_CONT(c$cont, B_None);
+    }
 
     ssh_set_blocking(session, 1);
     printf("Connecting to SSH server '%s'\n", fromB_str(self->host));
-    int rc = ssh_connect(session);
-    if (rc != SSH_OK) {
+    err = ssh_connect(session);
+    if (err != SSH_OK) {
         printf("Error connecting to SSH server: %s\n", ssh_get_error(session));
         $action2 f = ($action2) self->on_close;
         f->$class->__asyn__(f, self, to$str(ssh_get_error(session)));
         return $R_CONT(c$cont, B_None);
     }
 
-    rc = ssh_userauth_password(session, NULL, fromB_str(self->password));
-    if (rc == SSH_OK) {
-        ($action) self->on_connect;
-        show_remote_processes(session);
-    } else {
+    err = ssh_userauth_password(session, NULL, fromB_str(self->password));
+    if (err != SSH_OK) {
         printf("Error: %s\n", ssh_get_error(session));
     }
 
-//    self->_connected = true;
-//    $action f = ($action) self->on_connect;
-//    f->$class->__asyn__(f, self);
+    $action f = ($action) self->on_connect;
+    f->$class->__asyn__(f, self);
+
+    err = show_remote_load(session);
+    if (err != SSH_OK) {
+        printf("Error setting SSH option 'SSH_OPTIONS_USER': %d\n", err);
+        return $R_CONT(c$cont, B_None);
+    }
+
     return $R_CONT(c$cont, B_None);
 }
