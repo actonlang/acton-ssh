@@ -58,7 +58,7 @@ int show_remote_processes(ssh_session session)
   nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
   while (nbytes > 0)
   {
-      if (write(1, buffer, nbytes) != (unsigned int) nbytes)
+      if (write(STDOUT_FILENO, buffer, nbytes) != (unsigned int) nbytes)
       {
           ssh_channel_close(channel);
           ssh_channel_free(channel);
