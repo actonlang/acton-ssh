@@ -31,10 +31,10 @@ B_str sshQ_version() {
 // TODO: crap function for test, to be replaced with something
 int show_remote_processes(ssh_session session)
 {
-  ssh_channel channel;
-  int rc;
-  char buffer[256];
-  int nbytes;
+  ssh_channel channel = { 0 };
+  char buffer[256] = { 0 };
+  int rc = 0;
+  int nbytes = 0;
 
   channel = ssh_channel_new(session);
   if (channel == NULL)
