@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <libssh/libssh.h>
 #include <libssh/libssh_version.h>
 #include <stdio.h>
@@ -40,7 +41,7 @@ void sshQ___ext_init__() {
     if (r != SSH_OK)
         printf("SSH init failed (%d)\n", r);
     else
-        printf("SSH extension successfully initialized (retval: %d)\n", r);
+        printf("SSH extension successfully initialized\n");
 }
 
 B_str sshQ_version() {
@@ -56,12 +57,15 @@ int show_remote_load(ssh_session session)
   int nbytes = 0;
 
   channel = ssh_channel_new(session);
-  if (channel == NULL)
+  if (channel == NULL) {
+      printf("%s ssh_channel_new error (NULL)", __FUNCTION__);
       return SSH_ERROR;
+  }
 
   rc = ssh_channel_open_session(channel);
   if (rc != SSH_OK)
   {
+      printf("%s ssh_channel_open_session error (%d)", __FUNCTION__, rc);
       ssh_channel_free(channel);
       return rc;
   }
@@ -69,6 +73,7 @@ int show_remote_load(ssh_session session)
   rc = ssh_channel_request_exec(channel, "uptime");
   if (rc != SSH_OK)
   {
+      printf("%s ssh_channel_request_exec error (%d)", __FUNCTION__, rc);
       ssh_close_free(channel);
       return rc;
   }
@@ -78,6 +83,7 @@ int show_remote_load(ssh_session session)
   {
       if (write(STDOUT_FILENO, buffer, nbytes) != (unsigned int) nbytes)
       {
+          printf("%s write() error (bytes written not matching expectation)", __FUNCTION__);
           ssh_close_free(channel);
           return SSH_ERROR;
       }
@@ -86,12 +92,12 @@ int show_remote_load(ssh_session session)
 
   if (nbytes < 0)
   {
+      printf("%s write() error (%d)", __FUNCTION__, errno);
       ssh_close_free(channel);
       return SSH_ERROR;
   }
 
   ssh_close_free_eof(channel);
-
   return SSH_OK;
 }
 
@@ -116,13 +122,11 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
     if (ssh_channel_request_exec(channel, "touch /tmp/bla"))
     {
         printf("%s Error executing '%s' : %s\n", __FUNCTION__, "touch /tmp/bla", ssh_get_error((struct ssh_session_struct *)fromB_u64(self->_ssh_session)));
-        // ssh_channel_free(channel);
+        ssh_channel_free(channel);
         return $R_CONT(c$cont, B_None);
     }
-    ssh_channel_send_eof(channel);
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
 
+    ssh_close_free_eof(channel);
     return $R_CONT(c$cont, B_None);
 }
 
@@ -160,6 +164,7 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
 
     ssh_set_blocking(session, 1);
     printf("Connecting to SSH server '%s'\n", fromB_str(self->host));
+
     err = ssh_connect(session);
     if (err != SSH_OK)
     {
@@ -172,7 +177,8 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     err = ssh_userauth_password(session, NULL, fromB_str(self->password));
     if (err != SSH_OK)
     {
-        printf("%s Error: %s\n", __FUNCTION__, ssh_get_error(session));
+        printf("%s ssh_userauth_password error: %s\n", __FUNCTION__, ssh_get_error(session));
+        return $R_CONT(c$cont, B_None);
     }
 
     $action f = ($action) self->on_connect;
@@ -181,7 +187,7 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     err = show_remote_load(session);
     if (err != SSH_OK)
     {
-        printf("%s Error setting SSH option 'SSH_OPTIONS_USER': %d\n", __FUNCTION__, err);
+        printf("%s show_remote_load error: %d\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
 

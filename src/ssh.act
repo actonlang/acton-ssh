@@ -6,6 +6,7 @@ def version() -> str:
     """Get the acton-ssh version"""
     NotImplemented
 
+
 actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,
@@ -40,6 +41,7 @@ actor Client(cap: net.TCPConnectCap,
 #    def _connect(c):
 #        NotImplemented
 
+
 # TODO: implement support for channels
 # AFAIK, all things over ssh are done via channels, so need some channel
 # primitive, maybe an actor per channel that then multiplexes into the Client
@@ -67,7 +69,7 @@ actor main(env):
     def on_close(client: Client, error: str):
         print("Error", error)
 
-    print(version())
+    # print(version())
     c = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
