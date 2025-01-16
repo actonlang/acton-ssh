@@ -19,15 +19,13 @@ void sshQ___ext_init__() {
         acton_gc_strndup);
     int r = ssh_init();
     if (r != SSH_OK)
-      printf("SSH init failed (%d)\n", r);
+        printf("SSH init failed (%d)\n", r);
     else
-      printf("SSH extension successfully initialized (retval: %d)\n", r);
+        printf("SSH extension successfully initialized (retval: %d)\n", r);
 }
 
 B_str sshQ_version() {
-    if (LIBSSH_VERSION_MAJOR != 0 || LIBSSH_VERSION_MINOR != 11 || LIBSSH_VERSION_MICRO != 0)
-        return to$str("unsupported version\n");
-    return to$str("libssh 0.11.0 supported\n");
+    return to$str("libssh 0.11.0\n");
 }
 
 // TODO: crap function for test, to be replaced with something
@@ -40,40 +38,40 @@ int show_remote_processes(ssh_session session)
 
   channel = ssh_channel_new(session);
   if (channel == NULL)
-    return SSH_ERROR;
+      return SSH_ERROR;
 
   rc = ssh_channel_open_session(channel);
   if (rc != SSH_OK)
   {
-    ssh_channel_free(channel);
-    return rc;
+      ssh_channel_free(channel);
+      return rc;
   }
 
   rc = ssh_channel_request_exec(channel, "uptime");
   if (rc != SSH_OK)
   {
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
-    return rc;
+      ssh_channel_close(channel);
+      ssh_channel_free(channel);
+      return rc;
   }
 
   nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
   while (nbytes > 0)
   {
-    if (write(1, buffer, nbytes) != (unsigned int) nbytes)
-    {
-      ssh_channel_close(channel);
-      ssh_channel_free(channel);
-      return SSH_ERROR;
-    }
-    nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
+      if (write(1, buffer, nbytes) != (unsigned int) nbytes)
+      {
+          ssh_channel_close(channel);
+          ssh_channel_free(channel);
+          return SSH_ERROR;
+      }
+      nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
   }
 
   if (nbytes < 0)
   {
-    ssh_channel_close(channel);
-    ssh_channel_free(channel);
-    return SSH_ERROR;
+      ssh_channel_close(channel);
+      ssh_channel_free(channel);
+      return SSH_ERROR;
   }
 
   ssh_channel_send_eof(channel);
@@ -85,10 +83,9 @@ int show_remote_processes(ssh_session session)
 
 $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
     int err = 0;
-    ssh_channel channel = ssh_channel_new(self->_ssh_session);
+    ssh_channel channel = ssh_channel_new((struct ssh_session_struct *)fromB_u64(self->_ssh_session));
     if (channel == NULL) {
-        LOG_ERR("Failed to create SSH channel");
-        printf("ssh_get_error: %s\n\n" , ssh_get_error(self->_ssh_session));
+        printf("Failed to create SSH channel. ssh_get_error: %s\n\n" , ssh_get_error((struct ssh_session_struct *)fromB_u64(self->_ssh_session)));
         return $R_CONT(c$cont, B_None);
     }
 
@@ -100,7 +97,7 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
     if (ssh_channel_request_exec(channel, "touch /tmp/bla")) {
-        printf("\t%s Error executing '%s' : %s\n", __FUNCTION__, "touch /tmp/bla", ssh_get_error(self->_ssh_session));
+        printf("\t%s Error executing '%s' : %s\n", __FUNCTION__, "touch /tmp/bla", ssh_get_error((struct ssh_session_struct *)fromB_u64(self->_ssh_session)));
         // ssh_channel_free(channel);
         return $R_CONT(c$cont, B_None);
     }
@@ -114,23 +111,28 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
 $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     ssh_session session = ssh_new();
     if (session == NULL) {
-        LOG_ERR("Failed to create SSH session");
+        printf("Failed to create SSH session\n");
         return $R_CONT(c$cont, B_None);
     }
-    // casting via toB_u64((unsigned long)..) leads to an invalid value in self->_ssh_session
-    // self->_ssh_session = toB_u64((unsigned long)session);
-    // instead do direct assignment
-    self->_ssh_session = session;
 
-    ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
-    ssh_options_set(session, SSH_OPTIONS_PORT, &self->port->val);
-    ssh_options_set(session, SSH_OPTIONS_USER, fromB_str(self->username));
+    self->_ssh_session = toB_u64((unsigned long)session);
+
+    int err = 0;
+    err = ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
+    if (err < 0)
+        printf("Error setting SSH option 'SSH_OPTIONS_HOST': %d\n", err);
+    err = ssh_options_set(session, SSH_OPTIONS_PORT, &self->port->val);
+    if (err < 0)
+        printf("Error setting SSH option 'SSH_OPTIONS_PORT': %d\n", err);
+    err = ssh_options_set(session, SSH_OPTIONS_USER, fromB_str(self->username));
+    if (err < 0)
+        printf("Error setting SSH option 'SSH_OPTIONS_USER': %d\n", err);
 
     ssh_set_blocking(session, 1);
     printf("Connecting to SSH server '%s'\n", fromB_str(self->host));
     int rc = ssh_connect(session);
     if (rc != SSH_OK) {
-        //log_error("Error connecting to SSH server: %s", ssh_get_error(session));
+        printf("Error connecting to SSH server: %s\n", ssh_get_error(session));
         $action2 f = ($action2) self->on_close;
         f->$class->__asyn__(f, self, to$str(ssh_get_error(session)));
         return $R_CONT(c$cont, B_None);
