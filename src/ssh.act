@@ -6,11 +6,6 @@ def version() -> str:
     """Get the libssh version"""
     NotImplemented
 
-
-def _test_version():
-    testing.assertEqual("0.11.0", version())
-
-
 actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,

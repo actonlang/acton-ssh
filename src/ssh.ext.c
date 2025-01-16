@@ -1,8 +1,5 @@
 #include <libssh/libssh.h>
 #include <libssh/libssh_version.h>
-// TODO: figure out how to include rts/log so we get access to log_error etc
-
-#define LOG_ERR(msg) printf("ERR\t%s\n", (msg))
 
 void noop_free(void *ptr) {
 }
@@ -27,9 +24,9 @@ void sshQ___ext_init__() {
       printf("SSH extension successfully initialized (retval: %d)\n", r);
 }
 
-B_str sshQ_version () {
+B_str sshQ_version() {
     if (LIBSSH_VERSION_MAJOR != 0 || LIBSSH_VERSION_MINOR != 11 || LIBSSH_VERSION_MICRO != 0)
-        return to$str("unsupported version");
+        return to$str("unsupported version\n");
     return to$str("libssh 0.11.0 supported\n");
 }
 
@@ -95,9 +92,7 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
 
-    printf("\t%s channel: %p\n", __FUNCTION__, channel);
     self->_ssh_channel = channel;
-    printf("\t%s self->_ssh_channel:\t%p\n", __FUNCTION__, self->_ssh_channel);
 
     err = ssh_channel_open_session(channel);
     if (err != SSH_OK) {
@@ -126,9 +121,6 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     // self->_ssh_session = toB_u64((unsigned long)session);
     // instead do direct assignment
     self->_ssh_session = session;
-
-    printf("\t%s session:\t\t%p\n", __FUNCTION__, session);
-    printf("\t%s self->session:\t%p\n", __FUNCTION__, self->_ssh_session);
 
     ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
     ssh_options_set(session, SSH_OPTIONS_PORT, &self->port->val);
