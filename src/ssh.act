@@ -51,13 +51,13 @@ actor Client(cap: net.TCPConnectCap,
 # session? Prolly need some higher level wrappers for common things like
 # starting a shell or running a single command. SFTP / SCP would be nice too,
 # but for sometime in the future. Custom subsystems need to be supported too.
-actor Channel(cap: Client,
+actor Channel(client: Client,
               nc_payload: str):
     """SSH Channel"""
 
     var _ssh_channel: u64 = 0
-    var _ssh_session: u64 = cap.get_ssh_session()
-    var _password: str = cap.get_password()
+    var _ssh_session: u64 = client.get_ssh_session()
+    var _password: str = client.get_password()
 
     proc def _init() -> None:
         """Initialize the SSH Channel"""
