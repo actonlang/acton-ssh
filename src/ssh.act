@@ -13,7 +13,7 @@ actor Client(cap: net.TCPConnectCap,
              on_connect: action(Client) -> None,
              on_close: action(Client, str) -> None,
              key: ?str=None,
-             password: ?str=None,
+             password: str,
              port: u16=22,
              ):
     """SSH Client"""
@@ -23,6 +23,9 @@ actor Client(cap: net.TCPConnectCap,
 
     def get_ssh_session():
         return _ssh_session
+
+    def get_password() -> str:
+        return password
 
     proc def _init() -> None:
         """Initialize the SSH client"""
@@ -48,11 +51,13 @@ actor Client(cap: net.TCPConnectCap,
 # session? Prolly need some higher level wrappers for common things like
 # starting a shell or running a single command. SFTP / SCP would be nice too,
 # but for sometime in the future. Custom subsystems need to be supported too.
-actor Channel(cap: Client):
+actor Channel(cap: Client,
+              nc_payload: str):
     """SSH Channel"""
 
     var _ssh_channel: u64 = 0
     var _ssh_session: u64 = cap.get_ssh_session()
+    var _password: str = cap.get_password()
 
     proc def _init() -> None:
         """Initialize the SSH Channel"""
@@ -80,6 +85,6 @@ actor main(env):
         port=2223,
     )
 
-    cc = Channel(c)
+    cc = Channel(c, '<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
 
     env.exit(0)
