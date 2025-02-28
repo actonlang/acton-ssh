@@ -4,13 +4,18 @@
 #include <string.h>
 #include <unistd.h>
 
-#define USLEEP_100MS 100
+#ifndef DEBUG_MODE
+//#define DEBUG_MODE    // uncomment for pretty prints
+#endif
+
+#define TIMEOUT 1500000         // microseconds: 1.5 seconds
+#define USLEEP_INTERVAL 5000    // microseconds: 0.005 seconds
 
 void ssh_close_free(ssh_channel channel) {
     int err = ssh_channel_close(channel);
     if (err != SSH_OK)
     {
-        printf("%s ssh_channel_close() error (%d)\n", __FUNCTION__, err);
+        printf("%s: ssh_channel_close() error (%d)\n", __FUNCTION__, err);
     }
     ssh_channel_free(channel);
 }
@@ -19,7 +24,7 @@ void ssh_close_free_eof(ssh_channel channel) {
     int err = ssh_channel_send_eof(channel);
     if (err != SSH_OK)
     {
-        printf("%s ssh_channel_send_eof() error (%d)\n", __FUNCTION__, err);
+        printf("%s: ssh_channel_send_eof() error (%d)\n", __FUNCTION__, err);
     }
     ssh_close_free(channel);
 }
@@ -43,8 +48,10 @@ void sshQ___ext_init__() {
     int r = ssh_init();
     if (r != SSH_OK)
         printf("SSH init failed (%d)\n", r);
+#ifdef DEBUG_MODE
     else
         printf("SSH extension successfully initialized\n");
+#endif
 }
 
 B_str sshQ_version() {
@@ -59,14 +66,14 @@ B_str sshQ_version() {
  */
 int send_nc_payload(ssh_channel channel, const char *payload)
 {
-    char buffer[256] = { 0 };
+    char buffer[4096] = { 0 };
     int rc = 0;
     int nbytes = 0;
 
     rc = ssh_channel_write(channel, payload, strlen(payload) + 1);
     if (rc == SSH_ERROR)
     {
-        printf("%s ssh_channel_write error (%d)\n", __FUNCTION__, rc);
+        printf("%s: ssh_channel_write() error (%d)\n", __FUNCTION__, rc);
         ssh_close_free(channel);
         return rc;
     }
@@ -76,16 +83,20 @@ int send_nc_payload(ssh_channel channel, const char *payload)
     {
         if (write(STDOUT_FILENO, buffer, nbytes) != (unsigned int) nbytes)
         {
-            printf("%s write() error (bytes written not matching expectation)\n", __FUNCTION__);
+            printf("%s: write() error (bytes written not matching expectation)\n", __FUNCTION__);
             ssh_close_free(channel);
             return SSH_ERROR;
+        }
+        // find end of netconf reply
+        if (strstr(buffer, "]]>]]>")) {
+            break;
         }
         nbytes = ssh_channel_read(channel, buffer, sizeof(buffer), 0);
     }
 
     if (nbytes < 0)
     {
-        printf("%s write() error (%d)\n", __FUNCTION__, errno);
+        printf("%s: ssh_channel_read() error (%d)\n", __FUNCTION__, errno);
         ssh_close_free(channel);
         return SSH_ERROR;
     }
@@ -99,7 +110,7 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     ssh_session session = ssh_new();
     if (session == NULL)
     {
-        printf("%s Failed to create SSH session\n", __FUNCTION__);
+        printf("%s: ssh_new() Failed to create SSH session\n", __FUNCTION__);
         return $R_CONT(c$cont, B_None);
     }
 
@@ -108,42 +119,23 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     err = ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
     if (err < 0)
     {
-        printf("%s Error setting SSH option 'SSH_OPTIONS_HOST': %d\n", __FUNCTION__, err);
+        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_HOST': %d\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
 
     err = ssh_options_set(session, SSH_OPTIONS_PORT, &self->port->val);
     if (err < 0)
     {
-        printf("%s Error setting SSH option 'SSH_OPTIONS_PORT': %d\n", __FUNCTION__, err);
+        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_PORT': %d\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
 
     err = ssh_options_set(session, SSH_OPTIONS_USER, fromB_str(self->username));
     if (err < 0)
     {
-        printf("%s Error setting SSH option 'SSH_OPTIONS_USER': %d\n", __FUNCTION__, err);
+        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_USER': %d\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
-
-    // ssh_set_blocking(session, 1);
-    // printf("Connecting to SSH server '%s'\n", fromB_str(self->host));
-    //
-    // err = ssh_connect(session);
-    // if (err != SSH_OK)
-    // {
-    //     printf("%s Error connecting to SSH server: %s\n", __FUNCTION__, ssh_get_error(session));
-    //     $action2 f = ($action2) self->on_close;
-    //     f->$class->__asyn__(f, self, to$str(ssh_get_error(session)));
-    //     return $R_CONT(c$cont, B_None);
-    // }
-
-    // err = ssh_userauth_password(session, NULL, fromB_str(self->password));
-    // if (err != SSH_OK)
-    // {
-    //     printf("%s ssh_userauth_password error: %s\n", __FUNCTION__, ssh_get_error(session));
-    //     return $R_CONT(c$cont, B_None);
-    // }
 
     $action f = ($action) self->on_connect;
     f->$class->__asyn__(f, self);
@@ -153,65 +145,77 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
 
 $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
     int err = 0;
-    int timeout = 2000000; // microseconds: 2 seconds
     ssh_session session = { 0 };
     ssh_channel channel = { 0 };
 
     session = (struct ssh_session_struct *)fromB_u64(self->_ssh_session);
 
     ssh_set_blocking(session, 1);
+
+#ifdef DEBUG_MODE
     printf("Connecting to SSH server\n");
+#endif
 
     err = ssh_connect(session);
     if (err != SSH_OK)
     {
-        printf("%s Error connecting to SSH server: %s\n", __FUNCTION__, ssh_get_error(session));
+        printf("%s: ssh_connect() Error connecting to SSH server: %s\n", __FUNCTION__, ssh_get_error(session));
         return $R_CONT(c$cont, B_None);
     }
 
     err = ssh_userauth_password(session, NULL, (const char *)fromB_str(self->_password));
     if (err != SSH_OK)
     {
-        printf("%s ssh_userauth_password error: %s\n", __FUNCTION__, ssh_get_error(session));
+        printf("%s: ssh_userauth_password() error: %s\n", __FUNCTION__, ssh_get_error(session));
         return $R_CONT(c$cont, B_None);
     }
 
     channel = ssh_channel_new(session);
     if (channel == NULL)
     {
-        printf("%s Failed to create SSH channel\n", __FUNCTION__);
+        printf("%s: ssh_channel_new() Failed to create SSH channel\n", __FUNCTION__);
         return $R_CONT(c$cont, B_None);
     }
 
     err = ssh_channel_open_session(channel);
     if (err != SSH_OK)
     {
-        printf("%s ssh_channel_open_session() error (%d)\n", __FUNCTION__, err);
+        printf("%s: ssh_channel_open_session() ssh_channel_open_session() error (%d)\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
 
     self->_ssh_channel = toB_u64((unsigned long)channel);
 
-    while ((err = ssh_channel_request_subsystem(channel, "netconf")) == SSH_AGAIN)
-    {
-        err = usleep(100);
-        if (err) {
-            printf("usleep() error '%s' (%d)\n", strerror(errno), errno);
+    return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ChannelD_sendPayloadG_local (sshQ_Channel self, $Cont c$cont) {
+    int err = 0;
+    int timeout = TIMEOUT;
+    ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
+
+    if (self->_subsystem && !strcmp((const char *)fromB_str(self->_subsystem), "netconf")) {
+        while ((err = ssh_channel_request_subsystem(channel, "netconf")) == SSH_AGAIN && timeout > 0)
+        {
+            err = usleep(USLEEP_INTERVAL);
+            if (err) {
+                printf("%s: usleep() error '%s' (%d)\n", __FUNCTION__, strerror(errno), errno);
+                return $R_CONT(c$cont, B_None);
+            }
+            timeout -= USLEEP_INTERVAL;
+        }
+        if (err != SSH_OK)
+        {
+            printf("%s: ssh_channel_request_subsystem() Error setting SSH subsystem 'netconf': %d\n", __FUNCTION__, err);
             return $R_CONT(c$cont, B_None);
         }
-        timeout += USLEEP_100MS;
-    }
-    if (err != SSH_OK)
-    {
-        printf("%s Error setting SSH subsystem 'netconf': %d\n", __FUNCTION__, err);
-        return $R_CONT(c$cont, B_None);
-    }
 
-    err = send_nc_payload(channel, fromB_str(self->nc_payload));
-    if (err != SSH_OK)
-    {
-        printf("%s send_nc_payload error: %d\n", __FUNCTION__, err);
-        return $R_CONT(c$cont, B_None);
+        err = send_nc_payload(channel, (const char *)fromB_str(self->payload));
+        if (err != SSH_OK)
+        {
+            printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+            return $R_CONT(c$cont, B_None);
+        }
     }
 
     ssh_close_free_eof(channel);

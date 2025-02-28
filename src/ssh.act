@@ -1,5 +1,4 @@
 import net
-import testing
 
 
 def version() -> str:
@@ -15,6 +14,7 @@ actor Client(cap: net.TCPConnectCap,
              key: ?str=None,
              password: str,
              port: u16=22,
+             subsystem: str
              ):
     """SSH Client"""
 
@@ -27,12 +27,15 @@ actor Client(cap: net.TCPConnectCap,
     def get_password() -> str:
         return password
 
+    def get_subsystem() -> str:
+        return subsystem
+
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
     _init()
 
-    print("SSH Client connected")
+    # print("SSH Client connected")
 
 #    action def close(on_close: action(TLSConnection) -> None) -> None:
 #        """Close the connection"""
@@ -52,29 +55,40 @@ actor Client(cap: net.TCPConnectCap,
 # starting a shell or running a single command. SFTP / SCP would be nice too,
 # but for sometime in the future. Custom subsystems need to be supported too.
 actor Channel(client: Client,
-              nc_payload: str):
+              payload: ?str):
     """SSH Channel"""
 
     var _ssh_channel: u64 = 0
     var _ssh_session: u64 = client.get_ssh_session()
     var _password: str = client.get_password()
+    var _subsystem: str = client.get_subsystem()
 
     proc def _init() -> None:
         """Initialize the SSH Channel"""
         NotImplemented
     _init()
 
-    print("SSH Channel created")
+    # print("SSH Channel created")
+
+    def setPayload(p: str):
+        payload = p
+
+    def sendPayload() -> None:
+        """Send payload"""
+        NotImplemented
 
 
 actor main(env):
     def on_connect(client: Client):
-        print("Connected on_connect")
+        # print("Client connected")
+        return
 
     def on_close(client: Client, error: str):
-        print("Error", error)
+        # print("Connection closed", error)
+        return
 
     # print(version())
+
     c = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
@@ -82,9 +96,18 @@ actor main(env):
         on_connect,
         on_close,
         password="bar",
-        port=2223,
+        port=830,
+        subsystem="netconf",
     )
 
-    cc = Channel(c, '<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
+    cc = Channel(c)
+
+    print("setting payload\n")
+    cc.setPayload('<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
+    print("sending payload...\n")
+    cc.sendPayload()
+
+    print("sending payload again...\n")
+    cc.sendPayload()
 
     env.exit(0)
