@@ -18,6 +18,10 @@ actor Client(cap: net.TCPConnectCap,
              ):
     """SSH Client"""
 
+    proc def _pin_affinity() -> None:
+        NotImplemented
+    _pin_affinity()
+
     # haha, this is really a pointer :P
     var _ssh_session: u64 = 0
 
@@ -47,6 +51,10 @@ actor Client(cap: net.TCPConnectCap,
 #    def _connect(c):
 #        NotImplemented
 
+    proc def disconnect() -> None:
+        """Disconnect the SSH client"""
+        NotImplemented
+
 
 # TODO: implement support for channels
 # AFAIK, all things over ssh are done via channels, so need some channel
@@ -54,14 +62,18 @@ actor Client(cap: net.TCPConnectCap,
 # session? Prolly need some higher level wrappers for common things like
 # starting a shell or running a single command. SFTP / SCP would be nice too,
 # but for sometime in the future. Custom subsystems need to be supported too.
-actor Channel(client: Client,
-              payload: ?str):
+actor Channel(client: Client):
     """SSH Channel"""
 
     var _ssh_channel: u64 = 0
     var _ssh_session: u64 = client.get_ssh_session()
     var _password: str = client.get_password()
     var _subsystem: str = client.get_subsystem()
+    var payload = None
+
+    proc def _pin_affinity() -> None:
+        NotImplemented
+    _pin_affinity()
 
     proc def _init() -> None:
         """Initialize the SSH Channel"""
@@ -73,7 +85,7 @@ actor Channel(client: Client,
     def setPayload(p: str):
         payload = p
 
-    def sendPayload() -> None:
+    def sendPayload() -> str:
         """Send payload"""
         NotImplemented
 
@@ -101,13 +113,14 @@ actor main(env):
     )
 
     cc = Channel(c)
+    reply = None
 
-    print("setting payload\n")
+    print("setting payload")
     cc.setPayload('<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
-    print("sending payload...\n")
-    cc.sendPayload()
+    print("sending payload")
+    buf = cc.sendPayload()
+    print(buf)
 
-    print("sending payload again...\n")
-    cc.sendPayload()
+    c.disconnect()
 
     env.exit(0)
