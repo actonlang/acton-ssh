@@ -3,13 +3,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+// acton includes
 #include <rts/rts.h>
 
 #ifndef DEBUG_MODE
-#define DEBUG_MODE    /* uncomment for pretty prints */
+// #define DEBUG_MODE    /* uncomment for pretty prints */
 #endif
 
-#define BUF_SIZE 65536
+#define BUF_SIZE 65536          // this will definitely not be enough, find a better way. maybe chunks like libyang does?
 #define TIMEOUT 1500000         // microseconds: 1.5 seconds
 #define USLEEP_INTERVAL 5000    // microseconds: 0.005 seconds
 
@@ -95,11 +96,6 @@ int send_nc_payload(ssh_channel channel, const char *payload, char *buf)
     nbytes = ssh_channel_read(channel, tmp, sizeof(tmp), 0);
     while (nbytes > 0)
     {
-#ifdef DEBUG_MODE
-        printf("\n\nstrlen buf: %u\n", strlen(buf));
-        printf("strlen tmp: %u\n", strlen(tmp));
-        printf("sizeof tmp: %u\n", sizeof(tmp));
-#endif
         // sometimes the string tmp has invalid characters from the 1024th element
         if (strlen(tmp) > sizeof(tmp)) {
             tmp[1024] = '\0';
@@ -109,11 +105,6 @@ int send_nc_payload(ssh_channel channel, const char *payload, char *buf)
         len = snprintf(buf + buflen, BUF_SIZE - buflen, "%s", tmp);
         buflen = strlen(buf);
 
-#ifdef DEBUG_MODE
-        // TODO: sometimes the strlen() of buf is lower than in the previous iteration
-        // which breaks the appending and the result is invalid
-        printf("strlen buffer after snprintf: %u\n\n", buflen);
-#endif
         if (len > BUF_SIZE)
         {
             printf("%s: snprintf() error %u\n", __FUNCTION__, buflen);
@@ -247,7 +238,7 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
 $R sshQ_ChannelD_sendPayloadG_local (sshQ_Channel self, $Cont c$cont) {
     int err = 0;
     int timeout = TIMEOUT;
-    char *buffer = (char*)acton_calloc(0, BUF_SIZE * sizeof(char));
+    char buffer[BUF_SIZE] = {0};
     ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
 
     if (self->_subsystem && !strcmp((const char *)fromB_str(self->_subsystem), "netconf")) {
@@ -275,8 +266,5 @@ $R sshQ_ChannelD_sendPayloadG_local (sshQ_Channel self, $Cont c$cont) {
     }
 
     ssh_close_free_eof(channel);
-#ifdef DEBUG_MODE
-    printf("\n\nbuffer:\n%s\n\n", buffer);
-#endif
     return $R_CONT(c$cont, to$str(buffer));
 }

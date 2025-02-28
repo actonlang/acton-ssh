@@ -115,11 +115,10 @@ actor main(env):
     cc = Channel(c)
     reply = None
 
-    print("setting payload")
+    # print("setting payload")
     cc.setPayload('<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
-    print("sending payload")
-    buf = cc.sendPayload()
-    print(buf)
+    # print("sending payload")
+    print(cc.sendPayload())
 
     c.disconnect()
 
