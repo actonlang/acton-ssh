@@ -198,6 +198,13 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     }
 #endif
 
+    err = ssh_session_set_disconnect_message(session, "Disconnecting SSH, powered by Acton");
+    if (err != SSH_OK)
+    {
+        printf("%s: ssh_session_set_disconnect_message() Error setting disconnect message: %d\n", __FUNCTION__, err);
+        return $R_CONT(c$cont, B_None);
+    }
+
     err = ssh_options_set(session, SSH_OPTIONS_HOST, fromB_str(self->host));
     if (err != SSH_OK)
     {
