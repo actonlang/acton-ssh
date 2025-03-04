@@ -41,13 +41,13 @@ void sshQ___ext_init__() {
     // All things related to buffers for receiving data and similarly would have
     // to be allocated on the GC-heap though since that data is passed outside
     // of the SSH actor
-    libssh_replace_allocator(
-        acton_gc_malloc,
-        acton_gc_realloc,
-        acton_gc_calloc,
-        noop_free,
-        acton_gc_strdup,
-        acton_gc_strndup);
+    // libssh_replace_allocator(
+    //     acton_gc_malloc,
+    //     acton_gc_realloc,
+    //     acton_gc_calloc,
+    //     noop_free,
+    //     acton_gc_strdup,
+    //     acton_gc_strndup);
     int r = ssh_init();
     if (r != SSH_OK)
         printf("SSH init failed (%d)\n", r);

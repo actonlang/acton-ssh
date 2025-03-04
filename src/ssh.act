@@ -102,8 +102,6 @@ actor main(env):
         # print("Connection closed", error)
         return
 
-    # print(version())
-
     c = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
