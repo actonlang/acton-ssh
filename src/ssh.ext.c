@@ -10,6 +10,22 @@
 // #define DEBUG_MODE    /* uncomment for pretty prints */
 #endif
 
+// NETCONF <hello> message
+#define NETCONF_HELLO_MSG \
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" \
+    "<hello xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n" \
+    "  <capabilities>\n" \
+    "    <capability>urn:ietf:params:netconf:base:1.0</capability>\n" \
+    "  </capabilities>\n" \
+    "</hello>]]>]]>"
+
+// NETCONF <close-session> message
+#define NETCONF_CLOSE_SESSION_MSG \
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" \
+    "<rpc message-id=\"9999\" xmlns=\"urn:ietf:params:xml:ns:netconf:base:1.0\">\n" \
+    "  <close-session/>\n" \
+    "</rpc>]]>]]>"
+
 #define BUF_SIZE 65536          // this will definitely not be enough, find a better way. maybe chunks like libyang does?
 #define TIMEOUT 1500000         // microseconds: 1.5 seconds
 #define USLEEP_INTERVAL 5000    // microseconds: 0.005 seconds
@@ -76,8 +92,10 @@ $R sshQ_ChannelD__pin_affinityG_local (sshQ_Channel self, $Cont c$cont) {
  *
  * @param[in] channel ssh_channel
  * @param[in] payload The Netconf Payload, for example the hello message
+ * @param[in,out] response response will not be returned if NULL
+ * @param[in] response_len buffer length
  */
-int send_nc_payload(ssh_channel channel, const char *payload, char *buf)
+int send_nc_payload(ssh_channel channel, const char *payload, char *response, size_t response_len)
 {
     int err = 0;
     int nbytes = 0;
@@ -101,14 +119,16 @@ int send_nc_payload(ssh_channel channel, const char *payload, char *buf)
             tmp[sizeof(tmp)-1] = '\0';
         }
 
-        // append string
-        len = snprintf(buf + buflen, BUF_SIZE - buflen, "%s", tmp);
-        buflen = strlen(buf);
+        if (response) {
+            // append string
+            len = snprintf(response + buflen, response_len - buflen, "%s", tmp);
+            buflen = strlen(response);
 
-        if (len > BUF_SIZE)
-        {
-            printf("%s: snprintf() error %lu\n", __FUNCTION__, buflen);
-            goto error;
+            if (len > BUF_SIZE)
+            {
+                printf("%s: snprintf() error %lu\n", __FUNCTION__, buflen);
+                goto error;
+            }
         }
 #ifdef DEBUG_MODE
         if (write(STDOUT_FILENO, tmp, (size_t)nbytes) != (ssize_t) nbytes)
@@ -301,20 +321,44 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
         }
     }
 
-    return $R_CONT(c$cont, B_None);
-}
-
-$R sshQ_ChannelD_sendNCPayloadG_local (sshQ_Channel self, $Cont c$cont) {
-    int err = 0;
-    char buffer[BUF_SIZE] = {0};
-    ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
-
-    err = send_nc_payload(channel, (const char *)fromB_str(self->payload), buffer);
+    // send hello message
+    err = send_nc_payload(channel, NETCONF_HELLO_MSG, NULL, 0);
     if (err != SSH_OK)
     {
         printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
         return $R_CONT(c$cont, B_None);
     }
 
-    return $R_CONT(c$cont, to$str(buffer));
+    return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ChannelD_disconnectG_local (sshQ_Channel self, $Cont c$cont) {
+    int err = 0;
+    ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
+    
+    // send close-session message
+    err = send_nc_payload(channel, NETCONF_CLOSE_SESSION_MSG, NULL, 0);
+    if (err != SSH_OK)
+    {
+        printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+    }
+
+    ssh_channel_close_free_eof(channel);
+
+    return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ChannelD_sendNCPayloadG_local (sshQ_Channel self, $Cont c$cont) {
+    int err = 0;
+    char response[BUF_SIZE] = {0};
+    ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
+
+    err = send_nc_payload(channel, (const char *)fromB_str(self->payload), response, sizeof(response));
+    if (err != SSH_OK)
+    {
+        printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+        return $R_CONT(c$cont, B_None);
+    }
+
+    return $R_CONT(c$cont, to$str(response));
 }
