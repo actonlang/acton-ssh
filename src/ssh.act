@@ -85,7 +85,10 @@ actor Channel(client: Client):
     def setPayload(p: str):
         payload = p
 
-    def sendPayload() -> str:
+    def getPayload():
+        return payload
+
+    def sendNCPayload() -> str:
         """Send payload"""
         NotImplemented
 
@@ -113,12 +116,21 @@ actor main(env):
     )
 
     cc = Channel(c)
-    reply = None
 
-    # print("setting payload")
+    # send hello message
     cc.setPayload('<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>')
-    # print("sending payload")
-    print(cc.sendPayload())
+    print("\n\npayload 1:\n", cc.getPayload(), "\n\npayload 1 end")
+    print("\nNC response 1:\n", cc.sendNCPayload(), "\n\nNC response 1 end \n\n")
+
+    # get netconf server's capabilities
+    cc.setPayload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
+    print("\n\npayload 2:\n", cc.getPayload(), "\n\npayload 2 end")
+    print("\nNC response 2:\n", cc.sendNCPayload(), "\n\nNC response 2 end \n\n")
+
+    # gracefully close a channel
+    cc.setPayload('<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><close-session/></rpc>]]>]]>')
+    print("\n\npayload 3:\n", cc.getPayload(), "\n\npayload 3 end")
+    print("\nNC response 3:\n", cc.sendNCPayload(), "\n\nNC response 3 end \n\n")
 
     c.disconnect()
 
