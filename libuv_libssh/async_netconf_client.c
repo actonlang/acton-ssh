@@ -42,19 +42,24 @@ typedef struct {
     uv_poll_t poll_handle;
     char read_buffer[BUFFER_SIZE];
     message_buffer_t message_buffer;
-    int state;  // 0: not connected, 1: hello sent, 2: get-config sent, 3: close-session sent
+    const char *subsystem;
+    void *subsystem_ctx;
     uv_loop_t *loop;
+} client_context_t;
+
+typedef struct {
+    int state;  // 0: not connected, 1: hello sent, 2: get-config sent, 3: close-session sent
 } netconf_context_t;
 
 void on_ssh_event(uv_poll_t *handle, int status, int events);
-void send_hello(netconf_context_t *context);
-void send_get_config(netconf_context_t *context);
-void send_close_session(netconf_context_t *context);
-void process_reply(netconf_context_t *context, const char *data, size_t len);
-void cleanup(netconf_context_t *context);
+void send_hello(client_context_t *context);
+void send_get_config(client_context_t *context);
+void send_close_session(client_context_t *context);
+void process_reply(client_context_t *context, const char *data, size_t len);
+void cleanup(client_context_t *context);
 void close_walk_cb(uv_handle_t* handle, void* arg);
 
-int init_ssh(netconf_context_t *context, const char *hostname, const char *username, const char *password) {
+int init_ssh(client_context_t *context, const char *hostname, const char *username, const char *password) {
     int rc;
 
     context->ssh = ssh_new();
@@ -65,7 +70,9 @@ int init_ssh(netconf_context_t *context, const char *hostname, const char *usern
 
     ssh_options_set(context->ssh, SSH_OPTIONS_HOST, hostname);
     ssh_options_set(context->ssh, SSH_OPTIONS_USER, username);
-    ssh_options_set(context->ssh, SSH_OPTIONS_PORT, &(int){NETCONF_PORT});
+    if (context->subsystem && !strcmp(context->subsystem, "netconf")) {
+        ssh_options_set(context->ssh, SSH_OPTIONS_PORT, &(int){NETCONF_PORT});
+    }
 
     int verbosity = SSH_LOG_PROTOCOL;
     ssh_options_set(context->ssh, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
@@ -108,29 +115,42 @@ int init_ssh(netconf_context_t *context, const char *hostname, const char *usern
         return -1;
     }
 
-    printf("Channel opened, requesting NETCONF subsystem...\n");
+    if (context->subsystem && strlen(context->subsystem) > 0) {
+        printf("Channel opened, requesting %s subsystem...\n", context->subsystem);
 
-    // Request subsystem (NETCONF)
-    rc = ssh_channel_request_subsystem(context->channel, "netconf");
-    if (rc != SSH_OK) {
-        fprintf(stderr, "Failed to request NETCONF subsystem: %s\n", ssh_get_error(context->ssh));
-        ssh_channel_close(context->channel);
-        ssh_channel_free(context->channel);
-        ssh_disconnect(context->ssh);
-        ssh_free(context->ssh);
-        return -1;
+        rc = ssh_channel_request_subsystem(context->channel, context->subsystem);
+        if (rc != SSH_OK) {
+            fprintf(stderr, "Failed to request %s subsystem: %s\n", context->subsystem, ssh_get_error(context->ssh));
+            ssh_channel_close(context->channel);
+            ssh_channel_free(context->channel);
+            ssh_disconnect(context->ssh);
+            ssh_free(context->ssh);
+            return -1;
+        }
+
+        printf("%s subsystem established\n", context->subsystem);
+
+	if (!strcmp("netconf", context->subsystem)) {
+            printf("Sending NETCONF hello message...\n");
+            send_hello(context);
+	}
+    } else {
+        rc = ssh_channel_request_shell(context->channel);
+        if (rc != SSH_OK) {
+            fprintf(stderr, "Failed to request shell: %s\n", ssh_get_error(context->ssh));
+            ssh_channel_close(context->channel);
+            ssh_channel_free(context->channel);
+            ssh_disconnect(context->ssh);
+            ssh_free(context->ssh);
+            return -1;
+	}
     }
-
-    printf("NETCONF subsystem established\n");
-
-    printf("Sending NETCONF hello message...\n");
-    send_hello(context);
 
     return 0;
 }
 
 // Setup libuv poll for SSH socket
-int setup_poll(netconf_context_t *context) {
+int setup_poll(client_context_t *context) {
     int socket_fd = ssh_get_fd(context->ssh);
     if (socket_fd < 0) {
         fprintf(stderr, "Failed to get SSH socket file descriptor\n");
@@ -149,7 +169,7 @@ int setup_poll(netconf_context_t *context) {
 
 // Callback for SSH socket events
 void on_ssh_event(uv_poll_t *handle, int status, int events) {
-    netconf_context_t *context = (netconf_context_t *)handle->data;
+    client_context_t *context = (client_context_t *)handle->data;
 
     if (status < 0) {
         fprintf(stderr, "Poll error: %s\n", uv_strerror(status));
@@ -192,7 +212,7 @@ void on_ssh_event(uv_poll_t *handle, int status, int events) {
     }
 }
 
-void send_hello(netconf_context_t *context) {
+void send_hello(client_context_t *context) {
     printf("Sending NETCONF hello message...\n");
 
     int rc = ssh_channel_write(context->channel, NETCONF_HELLO, strlen(NETCONF_HELLO));
@@ -201,10 +221,11 @@ void send_hello(netconf_context_t *context) {
         return;
     }
 
-    context->state = 2;
+    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    netconf_ctx->state = 2;
 }
 
-void send_get_config(netconf_context_t *context) {
+void send_get_config(client_context_t *context) {
     printf("Sending NETCONF get-config message...\n");
 
     int rc = ssh_channel_write(context->channel, NETCONF_GET_CONFIG, strlen(NETCONF_GET_CONFIG));
@@ -213,10 +234,11 @@ void send_get_config(netconf_context_t *context) {
         return;
     }
 
-    context->state = 2;
+    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    netconf_ctx->state = 2;
 }
 
-void send_close_session(netconf_context_t *context) {
+void send_close_session(client_context_t *context) {
     printf("Sending NETCONF close-session message...\n");
 
     int rc = ssh_channel_write(context->channel, NETCONF_CLOSE_SESSION, strlen(NETCONF_CLOSE_SESSION));
@@ -225,46 +247,50 @@ void send_close_session(netconf_context_t *context) {
         return;
     }
 
-    context->state = 3;
+    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    netconf_ctx->state = 3;
 }
 
 // Process NETCONF reply
-void process_reply(netconf_context_t *context, const char *data, size_t len) {
-    printf("Processing NETCONF reply (%zu bytes)\n", len);
+void process_reply(client_context_t *context, const char *data, size_t len) {
+    if (context->subsystem && !strcmp(context->subsystem, "netconf")) {
+        netconf_context_t *netconf_ctx = context->subsystem_ctx;
+        printf("Processing NETCONF reply (%zu bytes)\n", len);
 
-    // Check for the end of message delimiter
-    if (strstr(data, "]]>]]>") != NULL) {
-        printf("Found NETCONF message delimiter\n");
+        // Check for the end of message delimiter
+        if (strstr(data, "]]>]]>") != NULL) {
+            printf("Found NETCONF message delimiter\n");
 
-        if (context->state == 1) {
-            // Already sent hello, now send get-config
-            printf("Received server response after our hello, sending get-config\n");
-            send_get_config(context);
-        } else if (context->state == 2) {
-            // Received get-config reply, now send close-session
-            printf("Get-config completed successfully, closing session...\n");
+            if (netconf_ctx->state == 1) {
+                // Already sent hello, now send get-config
+                printf("Received server response after our hello, sending get-config\n");
+                send_get_config(context);
+            } else if (netconf_ctx->state == 2) {
+                // Received get-config reply, now send close-session
+                printf("Get-config completed successfully, closing session...\n");
 
-            // TODO so something with retreived data?
+                // TODO so something with retreived data?
 
-            // Send close-session to gracefully terminate the NETCONF session
-            send_close_session(context);
-        } else if (context->state == 3) {
-            // Received close-session reply, we're done
-            printf("NETCONF session closed gracefully\n");
+                // Send close-session to gracefully terminate the NETCONF session
+                send_close_session(context);
+            } else if (netconf_ctx->state == 3) {
+                // Received close-session reply, we're done
+                printf("NETCONF session closed gracefully\n");
 
-            // Stop polling and prepare to exit
-            uv_poll_stop(&context->poll_handle);
-            uv_stop(context->loop);
+                // Stop polling and prepare to exit
+                uv_poll_stop(&context->poll_handle);
+                uv_stop(context->loop);
+            }
+        } else {
+            printf("WARNING: No NETCONF message delimiter found in the response\n");
+            // It's possible we received a partial message, which is normal in async I/O
+            // We will accumulate more data on subsequent reads
         }
-    } else {
-        printf("WARNING: No NETCONF message delimiter found in the response\n");
-        // It's possible we received a partial message, which is normal in async I/O
-        // We will accumulate more data on subsequent reads
     }
 }
 
 // Cleanup resources
-void cleanup(netconf_context_t *context) {
+void cleanup(client_context_t *context) {
     // Stop polling if still active
     uv_poll_stop(&context->poll_handle);
 
@@ -285,19 +311,28 @@ void cleanup(netconf_context_t *context) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <hostname> <username> <password>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr, "Usage: %s <hostname> <username> <password> [subsystem]\n", argv[0]);
         return 1;
     }
 
     const char *hostname = argv[1];
     const char *username = argv[2];
     const char *password = argv[3];
+    const char *subsystem = NULL;
+
+    if (argc == 5) {
+        subsystem = argv[4];
+    }
 
     uv_loop_t loop;
     uv_loop_init(&loop);
 
-    netconf_context_t context = {0};
+    client_context_t context = {0};
+    context.subsystem = subsystem;
+    if (subsystem && !strcmp(subsystem, "netconf")) {
+        context.subsystem_ctx = &((netconf_context_t){0}); 
+    }
     context.loop = &loop;
     context.message_buffer.length = 0;
 
@@ -313,7 +348,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    printf("Connected to NETCONF server at %s and sent hello message\n", hostname);
+    if (subsystem) {
+	if (!strcmp(subsystem, "netconf")) {
+    	    printf("Connected to NETCONF server at %s and sent hello\n", hostname);
+	} else {
+    	    printf("Connected to %s server at %s\n", subsystem, hostname);
+	}
+    } else {
+        printf("Connected to SSH server at %s\n", hostname);
+    }
     printf("Waiting for server response...\n");
 
     uv_run(&loop, UV_RUN_DEFAULT);
