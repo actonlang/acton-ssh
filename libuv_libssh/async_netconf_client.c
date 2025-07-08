@@ -45,11 +45,8 @@ typedef struct {
     const char *subsystem;
     void *subsystem_ctx;
     uv_loop_t *loop;
-} client_context_t;
-
-typedef struct {
     int state;  // 0: not connected, 1: hello sent, 2: get-config sent, 3: close-session sent
-} netconf_context_t;
+} client_context_t;
 
 void on_ssh_event(uv_poll_t *handle, int status, int events);
 void send_hello(client_context_t *context);
@@ -130,10 +127,10 @@ int init_ssh(client_context_t *context, const char *hostname, const char *userna
 
         printf("%s subsystem established\n", context->subsystem);
 
-	if (!strcmp("netconf", context->subsystem)) {
+        if (!strcmp("netconf", context->subsystem)) {
             printf("Sending NETCONF hello message...\n");
             send_hello(context);
-	}
+        }
     } else {
         rc = ssh_channel_request_shell(context->channel);
         if (rc != SSH_OK) {
@@ -143,7 +140,8 @@ int init_ssh(client_context_t *context, const char *hostname, const char *userna
             ssh_disconnect(context->ssh);
             ssh_free(context->ssh);
             return -1;
-	}
+	    }
+        printf("Shell successfully aquired\n");
     }
 
     return 0;
@@ -221,7 +219,7 @@ void send_hello(client_context_t *context) {
         return;
     }
 
-    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    client_context_t *netconf_ctx = context->subsystem_ctx;
     netconf_ctx->state = 2;
 }
 
@@ -234,7 +232,7 @@ void send_get_config(client_context_t *context) {
         return;
     }
 
-    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    client_context_t *netconf_ctx = context->subsystem_ctx;
     netconf_ctx->state = 2;
 }
 
@@ -247,14 +245,14 @@ void send_close_session(client_context_t *context) {
         return;
     }
 
-    netconf_context_t *netconf_ctx = context->subsystem_ctx;
+    client_context_t *netconf_ctx = context->subsystem_ctx;
     netconf_ctx->state = 3;
 }
 
 // Process NETCONF reply
 void process_reply(client_context_t *context, const char *data, size_t len) {
     if (context->subsystem && !strcmp(context->subsystem, "netconf")) {
-        netconf_context_t *netconf_ctx = context->subsystem_ctx;
+        client_context_t *netconf_ctx = context->subsystem_ctx;
         printf("Processing NETCONF reply (%zu bytes)\n", len);
 
         // Check for the end of message delimiter
@@ -331,7 +329,7 @@ int main(int argc, char *argv[]) {
     client_context_t context = {0};
     context.subsystem = subsystem;
     if (subsystem && !strcmp(subsystem, "netconf")) {
-        context.subsystem_ctx = &((netconf_context_t){0}); 
+        context.subsystem_ctx = &((client_context_t){0});
     }
     context.loop = &loop;
     context.message_buffer.length = 0;
@@ -349,11 +347,11 @@ int main(int argc, char *argv[]) {
     }
 
     if (subsystem) {
-	if (!strcmp(subsystem, "netconf")) {
-    	    printf("Connected to NETCONF server at %s and sent hello\n", hostname);
-	} else {
-    	    printf("Connected to %s server at %s\n", subsystem, hostname);
-	}
+        if (!strcmp(subsystem, "netconf")) {
+            printf("Connected to NETCONF server at %s and sent hello\n", hostname);
+        } else {
+            printf("Connected to %s server at %s\n", subsystem, hostname);
+        }
     } else {
         printf("Connected to SSH server at %s\n", hostname);
     }
