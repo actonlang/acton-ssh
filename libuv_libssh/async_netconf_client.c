@@ -40,7 +40,9 @@ typedef struct {
     ssh_session ssh;
     ssh_channel channel;
     uv_poll_t poll_handle;
+    uv_tty_t tty_handle;
     char read_buffer[BUFFER_SIZE];
+    char input_buffer[BUFFER_SIZE];
     message_buffer_t message_buffer;
     const char *subsystem;
     void *subsystem_ctx;
@@ -49,6 +51,8 @@ typedef struct {
 } client_context_t;
 
 void on_ssh_event(uv_poll_t *handle, int status, int events);
+void on_stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf);
+void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf);
 void send_hello(client_context_t *context);
 void send_get_config(client_context_t *context);
 void send_close_session(client_context_t *context);
@@ -140,8 +144,32 @@ int init_ssh(client_context_t *context, const char *hostname, const char *userna
             ssh_disconnect(context->ssh);
             ssh_free(context->ssh);
             return -1;
-	    }
-        printf("Shell successfully aquired\n");
+      }
+        printf("Shell successfully acquired\n");
+    }
+
+    return 0;
+}
+
+// Setup stdin input handling for interactive shell
+int setup_stdin(client_context_t *context) {
+    if (context->subsystem) {
+        // Skip stdin setup for subsystem sessions
+        return 0;
+    }
+
+    int rc = uv_tty_init(context->loop, &context->tty_handle, 0, 1);
+    if (rc != 0) {
+        fprintf(stderr, "Failed to initialize TTY: %s\n", uv_strerror(rc));
+        return -1;
+    }
+
+    context->tty_handle.data = context;
+
+    rc = uv_read_start((uv_stream_t*)&context->tty_handle, alloc_buffer, on_stdin_read);
+    if (rc != 0) {
+        fprintf(stderr, "Failed to start reading from stdin: %s\n", uv_strerror(rc));
+        return -1;
     }
 
     return 0;
@@ -267,7 +295,7 @@ void process_reply(client_context_t *context, const char *data, size_t len) {
                 // Received get-config reply, now send close-session
                 printf("Get-config completed successfully, closing session...\n");
 
-                // TODO so something with retreived data?
+                // TODO do something with retreived data?
 
                 // Send close-session to gracefully terminate the NETCONF session
                 send_close_session(context);
@@ -287,10 +315,45 @@ void process_reply(client_context_t *context, const char *data, size_t len) {
     }
 }
 
+// Buffer allocation callback for libuv
+void alloc_buffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
+    client_context_t *context = (client_context_t *)handle->data;
+    buf->base = context->input_buffer;
+    buf->len = sizeof(context->input_buffer);
+}
+
+// Handle stdin input and forward to SSH channel
+void on_stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
+    client_context_t *context = (client_context_t *)stream->data;
+
+    if (nread < 0) {
+        if (nread == UV_EOF) {
+            printf("EOF received from stdin\n");
+            uv_stop(context->loop);
+        } else {
+            fprintf(stderr, "Error reading from stdin: %s\n", uv_strerror(nread));
+        }
+        return;
+    }
+
+    if (nread > 0) {
+        int rc = ssh_channel_write(context->channel, buf->base, nread);
+        if (rc != nread) {
+            fprintf(stderr, "Failed to write to SSH channel: %s\n", ssh_get_error(context->ssh));
+        }
+    }
+}
+
 // Cleanup resources
 void cleanup(client_context_t *context) {
     // Stop polling if still active
     uv_poll_stop(&context->poll_handle);
+
+    // Stop stdin reading if active
+    if (!context->subsystem) {
+        uv_read_stop((uv_stream_t*)&context->tty_handle);
+        uv_close((uv_handle_t*)&context->tty_handle, NULL);
+    }
 
     // Close the poll handle (needs to be closed before the loop can be closed properly)
     uv_close((uv_handle_t*)&context->poll_handle, NULL);
@@ -341,6 +404,13 @@ int main(int argc, char *argv[]) {
 
     // Setup polling for SSH socket
     if (setup_poll(&context) < 0) {
+        cleanup(&context);
+        uv_loop_close(&loop);
+        return 1;
+    }
+
+    // Setup stdin input handling for shell sessions
+    if (setup_stdin(&context) < 0) {
         cleanup(&context);
         uv_loop_close(&loop);
         return 1;
