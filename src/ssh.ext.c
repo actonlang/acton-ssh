@@ -319,14 +319,17 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
             printf("%s: set_subsystem() setting subsystem failed error (%d)\n", __FUNCTION__, err);
             return $R_CONT(c$cont, B_None);
         }
-    }
 
-    // send hello message
-    err = send_nc_payload(channel, NETCONF_HELLO_MSG, NULL, 0);
-    if (err != SSH_OK)
-    {
-        printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
-        return $R_CONT(c$cont, B_None);
+        // NOTE: add other subsystems here if needed
+        if (!strcmp((const char *)fromB_str(self->_subsystem), "netconf")) {
+            // send netconf hello message
+            err = send_nc_payload(channel, NETCONF_HELLO_MSG, NULL, 0);
+            if (err != SSH_OK)
+            {
+                printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+                return $R_CONT(c$cont, B_None);
+            }
+        }
     }
 
     return $R_CONT(c$cont, B_None);
@@ -336,11 +339,15 @@ $R sshQ_ChannelD_disconnectG_local (sshQ_Channel self, $Cont c$cont) {
     int err = 0;
     ssh_channel channel = (ssh_channel)fromB_u64(self->_ssh_channel);
     
-    // send close-session message
-    err = send_nc_payload(channel, NETCONF_CLOSE_SESSION_MSG, NULL, 0);
-    if (err != SSH_OK)
-    {
-        printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+    if (self->_subsystem) {
+        // NOTE: add other subsystems here if needed
+        if (!strcmp((const char *)fromB_str(self->_subsystem), "netconf")) {
+            err = send_nc_payload(channel, NETCONF_CLOSE_SESSION_MSG, NULL, 0);
+            if (err != SSH_OK)
+            {
+                printf("%s: send_nc_payload() error: %d\n", __FUNCTION__, err);
+            }
+        }
     }
 
     ssh_channel_close_free_eof(channel);
