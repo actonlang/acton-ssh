@@ -18,12 +18,12 @@ actor Client(cap: net.TCPConnectCap,
              ):
     """SSH Client"""
 
+    # haha, this is really a pointer :P
+    var _ssh_session: u64 = 0
+
     proc def _pin_affinity() -> None:
         NotImplemented
     _pin_affinity()
-
-    # haha, this is really a pointer :P
-    var _ssh_session: u64 = 0
 
     def get_ssh_session():
         return _ssh_session
@@ -34,12 +34,13 @@ actor Client(cap: net.TCPConnectCap,
     def get_subsystem() -> str:
         return subsystem
 
+    action def get_affinity() -> u64:
+        NotImplemented
+
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
     _init()
-
-    # print("SSH Client connected")
 
 #    action def close(on_close: action(TLSConnection) -> None) -> None:
 #        """Close the connection"""
@@ -75,12 +76,18 @@ actor Channel(client: Client):
         NotImplemented
     _pin_affinity()
 
-    proc def _init() -> None:
+    proc def _set_affinity(affinity: u64) -> None:
+        NotImplemented
+
+    proc def _ssh_init() -> None:
         """Initialize the SSH Channel"""
         NotImplemented
-    _init()
 
-    # print("SSH Channel created")
+    proc def _init() -> None:
+        aff = client.get_affinity()
+        _set_affinity(aff)
+        after 0: _ssh_init()
+    _init()
 
     def setPayload(p: str):
         payload = p

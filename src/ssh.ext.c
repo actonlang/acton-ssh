@@ -274,6 +274,11 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
+$R sshQ_ClientD_get_affinityG_local (sshQ_Client self, $Cont c$cont) {
+    printf("sshQ_ClientD_get_affinityG_local, affinity=%ld\n", self->$affinity);
+    return $R_CONT(c$cont, B_None);
+}
+
 $R sshQ_ClientD_disconnectG_local (sshQ_Client self, $Cont c$cont) {
     ssh_disconnect((ssh_session)fromB_u64(self->_ssh_session));
     ssh_free((ssh_session)fromB_u64(self->_ssh_session));
@@ -286,7 +291,7 @@ $R sshQ_ClientD_disconnectG_local (sshQ_Client self, $Cont c$cont) {
 
 // Channel
 
-$R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
+$R sshQ_ChannelD__ssh_initG_local (sshQ_Channel self, $Cont c$cont) {
     pin_actor_affinity();
 
     int err = 0;
@@ -333,6 +338,13 @@ $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont c$cont) {
     }
 
     return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ChannelD__set_affinityG_local (sshQ_Channel self, $Cont C_cont, B_u64 affinity) {
+#ifdef DEBUG_MODE
+    printf("sshQ_ChannelD__set_affinityG_local, affinity=%ld\n", self->$affinity);
+#endif
+    return $R_CONT(C_cont, B_None);
 }
 
 $R sshQ_ChannelD_disconnectG_local (sshQ_Channel self, $Cont c$cont) {
