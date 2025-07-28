@@ -203,7 +203,7 @@ void on_ssh_event(uv_poll_t *handle, int status, int events) {
     }
 
     if (events & UV_READABLE) {
-        int nbytes = ssh_channel_read(context->channel, context->read_buffer, BUFFER_SIZE - 1, 0);
+        int nbytes = ssh_channel_read_nonblocking(context->channel, context->read_buffer, BUFFER_SIZE - 1, 0);
         if (nbytes > 0) {
             context->read_buffer[nbytes] = '\0';
             printf("DEBUG: Raw data received (%d bytes):\n", nbytes);
@@ -229,8 +229,10 @@ void on_ssh_event(uv_poll_t *handle, int status, int events) {
                 fprintf(stderr, "Message buffer overflow, resetting\n");
                 context->message_buffer.length = 0;
             }
-        } else if (nbytes < 0) {
+        } else if (nbytes == SSH_ERROR) {
             fprintf(stderr, "Error reading from channel: %s\n", ssh_get_error(context->ssh));
+        } else if (nbytes == SSH_AGAIN || nbytes == 0) {
+            printf("No data on the channel\n");
         } else if (ssh_channel_is_eof(context->channel)) {
             fprintf(stderr, "Server closed the connection\n");
             uv_poll_stop(&context->poll_handle);
