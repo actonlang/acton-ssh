@@ -206,10 +206,10 @@ void on_ssh_event(uv_poll_t *handle, int status, int events) {
         int nbytes = ssh_channel_read_nonblocking(context->channel, context->read_buffer, BUFFER_SIZE - 1, 0);
         if (nbytes > 0) {
             context->read_buffer[nbytes] = '\0';
-            printf("DEBUG: Raw data received (%d bytes):\n", nbytes);
+            printf("\nDEBUG: Raw data received (%d bytes):\n", nbytes);
             printf("----------------------------------------\n");
             printf("%s\n", context->read_buffer);
-            printf("----------------------------------------\n");
+            printf("----------------------------------------\n\n");
 
             // Append to our message buffer
             if (context->message_buffer.length + nbytes < sizeof(context->message_buffer.data) - 1) {
@@ -310,7 +310,7 @@ void process_reply(client_context_t *context, const char *data, size_t len) {
                 uv_stop(context->loop);
             }
         } else {
-            printf("WARNING: No NETCONF message delimiter found in the response\n");
+            printf("INFO: No NETCONF message delimiter found in the response, expecting more data\n");
             // It's possible we received a partial message, which is normal in async I/O
             // We will accumulate more data on subsequent reads
         }
@@ -424,10 +424,11 @@ int main(int argc, char *argv[]) {
         } else {
             printf("Connected to %s server at %s\n", subsystem, hostname);
         }
+        printf("Waiting for server response...\n");
     } else {
         printf("Connected to SSH server at %s\n", hostname);
+        printf("Ready for input\n");
     }
-    printf("Waiting for server response...\n");
 
     uv_run(&loop, UV_RUN_DEFAULT);
 
