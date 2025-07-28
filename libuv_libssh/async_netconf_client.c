@@ -374,6 +374,8 @@ void cleanup(client_context_t *context) {
 }
 
 int main(int argc, char *argv[]) {
+    int r = 0;
+
     if (argc < 4) {
         fprintf(stderr, "Usage: %s <hostname> <username> <password> [subsystem]\n", argv[0]);
         return 1;
@@ -438,10 +440,12 @@ int main(int argc, char *argv[]) {
     uv_walk(&loop, (uv_walk_cb)close_walk_cb, NULL);
 
     // Run the loop one more time to let close callbacks execute
-    uv_run(&loop, UV_RUN_DEFAULT);
+    do {
+        r = uv_run(&loop, UV_RUN_DEFAULT);
+    } while (r != 0);
 
     // Now it's safe to close the loop
-    int r = uv_loop_close(&loop);
+    r = uv_loop_close(&loop);
     if (r != 0) {
         fprintf(stderr, "WARNING: Loop close failed: %s\n", uv_strerror(r));
 
