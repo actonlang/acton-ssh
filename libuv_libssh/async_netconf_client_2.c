@@ -52,13 +52,21 @@ enum client_state {
     S_SEND_HELLO,
     S_RECV_HELLO,
     S_SEND_GET_CONFIG,
+    S_SEND_GET_CONFIG_WRITING,
     S_RECV_GET_CONFIG,
     S_CLOSE,
+    S_CLOSE_WRITING,
     S_RECV_CLOSE_REPLY,
     S_CLEANUP,
     S_DONE,
     S_ERROR
 };
+
+typedef struct {
+    const char *data;
+    size_t len;
+    size_t sent;
+} write_buffer_t;
 
 typedef struct {
     uv_loop_t *loop;
@@ -73,20 +81,8 @@ typedef struct {
     const char *user;
     const char *password;
 
-    /* writing hello */
-    const char *hello;
-    size_t hello_len;
-    size_t hello_sent;
-
-    /* writing get-config */
-    const char *get_config;
-    size_t get_config_len;
-    size_t get_config_sent;
-
-    /* writing close */
-    const char *close;
-    size_t close_len;
-    size_t close_sent;
+    /* current write buffer */
+    write_buffer_t write_buf;
 
     /* read buffer */
     char *reply;
@@ -121,6 +117,85 @@ static void set_error(client_t *c, const char *msg) {
     c->state = S_ERROR;
 }
 
+/* Initialize write buffer for sending data */
+static void init_write_buffer(client_t *c, const char *data) {
+    c->write_buf.data = data;
+    c->write_buf.len = strlen(data);
+    c->write_buf.sent = 0;
+}
+
+/* Generic write operation - returns 1 if complete, 0 if more needed, -1 if error */
+static int do_write(client_t *c, const char *operation) {
+    if (c->write_buf.sent >= c->write_buf.len) {
+        return 1; /* complete */
+    }
+
+    int wrote = ssh_channel_write(c->channel,
+                                 c->write_buf.data + c->write_buf.sent,
+                                 (uint32_t)(c->write_buf.len - c->write_buf.sent));
+    
+    if (wrote > 0) {
+        c->write_buf.sent += (size_t)wrote;
+        if (c->write_buf.sent >= c->write_buf.len) {
+            fprintf(stderr, "%s fully sent\n", operation);
+            return 1; /* complete */
+        }
+        return 0; /* more data to send */
+    } else if (wrote == SSH_ERROR) {
+        char error_msg[256];
+        snprintf(error_msg, sizeof(error_msg), "ssh_channel_write failed for %s", operation);
+        set_error(c, error_msg);
+        return -1; /* error */
+    } else if (wrote == SSH_AGAIN || wrote == 0) {
+        return 0; /* not writable now */
+    } else {
+        char error_msg[256];
+        snprintf(error_msg, sizeof(error_msg), "ssh_channel_write returned unexpected value for %s", operation);
+        set_error(c, error_msg);
+        return -1; /* error */
+    }
+}
+
+/* Generic read operation - returns 1 if complete, 0 if more needed, -1 if error */
+static int do_read(client_t *c, const char *operation, enum client_state next_state) {
+    char buf[BUF_SIZE];
+    int n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf)-1, 0);
+    
+    if (n > 0) {
+        if (append_reply(c, buf, (size_t)n) != 0) {
+            set_error(c, "realloc failed");
+            return -1;
+        }
+        fprintf(stderr, "Read %s %d bytes (total %zu)\n", operation, n, c->reply_len);
+        
+        /* Check for RFC6242 end-of-message token */
+        if (strstr(c->reply, "]]>]]>") != NULL) {
+            fprintf(stdout, "=== NETCONF %s ===\n%s\n=== end ===\n", operation, c->reply);
+            /* Reset reply buffer for next message */
+            c->reply_len = 0;
+            c->reply[0] = '\0';
+            c->state = next_state;
+            return 1; /* complete */
+        }
+        return 0; /* more data expected */
+    } else if (n == 0) {
+        if (ssh_channel_is_eof(c->channel)) {
+            fprintf(stderr, "Channel EOF during %s\n", operation);
+            if (c->reply_len > 0) {
+                fprintf(stdout, "=== NETCONF %s (partial) ===\n%s\n=== end ===\n", operation, c->reply);
+            }
+            c->state = S_CLEANUP;
+            return 1; /* complete via EOF */
+        }
+        return 0; /* no data now, wait */
+    } else {
+        char error_msg[256];
+        snprintf(error_msg, sizeof(error_msg), "ssh_channel_read_nonblocking failed during %s", operation);
+        set_error(c, error_msg);
+        return -1; /* error */
+    }
+}
+
 /* Called whenever the polled fd has activity (readable/writable) */
 static void poll_cb(uv_poll_t *handle, int status, int events) {
     (void)status;
@@ -136,13 +211,11 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
     /* Drive a simple state machine */
     switch (c->state) {
     case S_CONNECT:
-        // ssh_connect() has to be called multiple times if the session is in non blocking mode
         rc = ssh_connect(c->session);
         if (rc == SSH_OK) {
             fprintf(stderr, "Connected (SSH_OK)\n");
             c->state = S_AUTH;
         } else if (rc == SSH_AGAIN) {
-            /* Not ready yet: wait for next poll events */
             return;
         } else {
             set_error(c, "ssh_connect failed");
@@ -150,7 +223,6 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         }
         /* fallthrough */
     case S_AUTH:
-        /* Authenticate with password (non-blocking)*/
         rc = ssh_userauth_password(c->session, NULL, c->password);
         if (rc == SSH_AUTH_SUCCESS) {
             fprintf(stderr, "Authenticated (password)\n");
@@ -163,11 +235,12 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         }
         /* fallthrough */
     case S_CHANNEL_OPEN:
-        if (!c->channel)
-            c->channel = ssh_channel_new(c->session);
         if (!c->channel) {
-            set_error(c, "ssh_channel_new failed");
-            return;
+            c->channel = ssh_channel_new(c->session);
+            if (!c->channel) {
+                set_error(c, "ssh_channel_new failed");
+                return;
+            }
         }
         rc = ssh_channel_open_session(c->channel);
         if (rc == SSH_OK) {
@@ -184,6 +257,7 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         rc = ssh_channel_request_subsystem(c->channel, "netconf");
         if (rc == SSH_OK) {
             fprintf(stderr, "Requested subsystem: netconf\n");
+            init_write_buffer(c, NETCONF_HELLO);
             c->state = S_SEND_HELLO;
         } else if (rc == SSH_AGAIN) {
             return;
@@ -192,225 +266,60 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
             return;
         }
         /* fallthrough */
-    case S_SEND_HELLO: {
-        if (c->hello_sent >= c->hello_len) {
+    case S_SEND_HELLO:
+        rc = do_write(c, "Hello");
+        if (rc == 1) {
             c->state = S_RECV_HELLO;
-            return;
-        }
-        /* write portion remaining */
-        int wrote = ssh_channel_write(c->channel,
-                                     c->hello + c->hello_sent,
-                                     (uint32_t)(c->hello_len - c->hello_sent));
-        if (wrote > 0) {
-            c->hello_sent += (size_t)wrote;
-            /* if not fully written, we will be called again when socket is writable */
-            if (c->hello_sent >= c->hello_len) {
-                fprintf(stderr, "Hello fully sent\n");
-                c->state = S_RECV_HELLO;
-            } else {
-                return;
-            }
-        } else if (wrote == SSH_ERROR) {
-            set_error(c, "ssh_channel_write failed");
-            return;
-        } else if (wrote == SSH_AGAIN || wrote == 0) {
-            /* Not writable now; wait for next poll callback */
-            return;
-        } else {
-            /* unexpected */
-            set_error(c, "ssh_channel_write returned unexpected value");
+        } else if (rc == -1) {
             return;
         }
         break;
-    }
-    case S_RECV_HELLO: {
-        char buf[BUF_SIZE];
-        int n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf)-1, 0);
-        if (n > 0) {
-            /* append and check for end marker "]]>]]>" */
-            if (append_reply(c, buf, (size_t)n) != 0) {
-                set_error(c, "realloc failed");
-                return;
-            }
-            fprintf(stderr, "Read %d bytes (total %zu)\n", n, c->reply_len);
-            /* If we see RFC6242 end-of-message token, we can process hello reply */
-            if (strstr(c->reply, "]]>]]>") != NULL) {
-                fprintf(stdout, "=== NETCONF hello reply ===\n%s\n=== end ===\n", c->reply);
-                /* Reset reply buffer for next message */
-                c->reply_len = 0;
-                c->reply[0] = '\0';
-                c->state = S_SEND_GET_CONFIG;
-                return;
-            }
-            /* Keep waiting for more data */
+    case S_RECV_HELLO:
+        rc = do_read(c, "hello reply", S_SEND_GET_CONFIG);
+        if (rc == -1)
             return;
-        } else if (n == 0) {
-            /* 0: no data available in nonblocking mode or EOF (depends). Check channel EOF */
-            if (ssh_channel_is_eof(c->channel)) {
-                fprintf(stderr, "Channel EOF\n");
-                if (c->reply_len > 0) {
-                    fprintf(stdout, "=== NETCONF hello reply ===\n%s\n=== end ===\n", c->reply);
-                }
-                c->state = S_CLOSE;
-                return;
-            } else {
-                /* no data now, wait */
-                return;
-            }
-        } else { /* n < 0 => SSH_ERROR */
-            set_error(c, "ssh_channel_read_nonblocking failed");
-            return;
-        }
         break;
-    }
-    case S_SEND_GET_CONFIG: {
-        if (c->get_config_sent >= c->get_config_len) {
+    case S_SEND_GET_CONFIG:
+        init_write_buffer(c, NETCONF_GET_CONFIG);
+        c->state = S_SEND_GET_CONFIG_WRITING;
+        /* fallthrough */
+    case S_SEND_GET_CONFIG_WRITING:
+        rc = do_write(c, "GET_CONFIG");
+        if (rc == 1) {
             c->state = S_RECV_GET_CONFIG;
-            return;
-        }
-        /* write portion remaining */
-        int wrote = ssh_channel_write(c->channel,
-                                     c->get_config + c->get_config_sent,
-                                     (uint32_t)(c->get_config_len - c->get_config_sent));
-        if (wrote > 0) {
-            c->get_config_sent += (size_t)wrote;
-            /* if not fully written, we will be called again when socket is writable */
-            if (c->get_config_sent >= c->get_config_len) {
-                fprintf(stderr, "GET_CONFIG fully sent\n");
-                c->state = S_RECV_GET_CONFIG;
-            } else {
-                return;
-            }
-        } else if (wrote == SSH_ERROR) {
-            set_error(c, "ssh_channel_write failed for GET_CONFIG");
-            return;
-        } else if (wrote == SSH_AGAIN || wrote == 0) {
-            /* Not writable now; wait for next poll callback */
-            return;
-        } else {
-            /* unexpected */
-            set_error(c, "ssh_channel_write returned unexpected value for GET_CONFIG");
+        } else if (rc == -1) {
             return;
         }
         break;
-    }
-    case S_RECV_GET_CONFIG: {
-        char buf[BUF_SIZE];
-        int n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf)-1, 0);
-        if (n > 0) {
-            /* append and check for end marker "]]>]]>" */
-            if (append_reply(c, buf, (size_t)n) != 0) {
-                set_error(c, "realloc failed");
-                return;
-            }
-            fprintf(stderr, "Read GET_CONFIG reply %d bytes (total %zu)\n", n, c->reply_len);
-            /* If we see RFC6242 end-of-message token, we can proceed to close */
-            if (strstr(c->reply, "]]>]]>") != NULL) {
-                fprintf(stdout, "=== NETCONF GET_CONFIG reply ===\n%s\n=== end ===\n", c->reply);
-                /* Reset reply buffer for next message */
-                c->reply_len = 0;
-                c->reply[0] = '\0';
-                c->state = S_CLOSE;
-                return;
-            }
-            /* Keep waiting for more data */
+    case S_RECV_GET_CONFIG:
+        rc = do_read(c, "GET_CONFIG reply", S_CLOSE);
+        if (rc == -1)
             return;
-        } else if (n == 0) {
-            /* 0: no data available in nonblocking mode or EOF (depends). Check channel EOF */
-            if (ssh_channel_is_eof(c->channel)) {
-                fprintf(stderr, "Channel EOF during GET_CONFIG reply\n");
-                if (c->reply_len > 0) {
-                    fprintf(stdout, "=== NETCONF GET_CONFIG reply (partial) ===\n%s\n=== end ===\n", c->reply);
-                }
-                c->state = S_CLOSE;
-                return;
-            } else {
-                /* no data now, wait */
-                return;
-            }
-        } else { /* n < 0 => SSH_ERROR */
-            set_error(c, "ssh_channel_read_nonblocking failed during GET_CONFIG reply");
-            return;
-        }
         break;
-    }
-    case S_CLOSE: {
-        /* gracefully close the NETCONF session */
-        if (c->close_sent >= c->close_len) {
+    case S_CLOSE:
+        init_write_buffer(c, NETCONF_CLOSE_SESSION);
+        c->state = S_CLOSE_WRITING;
+        /* fallthrough */
+    case S_CLOSE_WRITING:
+        rc = do_write(c, "Close message");
+        if (rc == 1) {
+            fprintf(stderr, "Close message fully sent, waiting for reply\n");
             c->state = S_RECV_CLOSE_REPLY;
-            return;
-        }
-        /* write portion remaining */
-        int wrote = ssh_channel_write(c->channel,
-                                     c->close + c->close_sent,
-                                     (uint32_t)(c->close_len - c->close_sent));
-        if (wrote > 0) {
-            c->close_sent += (size_t)wrote;
-            /* if not fully written, we will be called again when socket is writable */
-            if (c->close_sent >= c->close_len) {
-                fprintf(stderr, "Close message fully sent, waiting for reply\n");
-                c->state = S_RECV_CLOSE_REPLY;
-            } else {
-                return;
-            }
-        } else if (wrote == SSH_ERROR) {
-            set_error(c, "ssh_channel_write failed for NETCONF close message");
-            return;
-        } else if (wrote == SSH_AGAIN || wrote == 0) {
-            /* Not writable now; wait for next poll callback */
-            return;
-        } else {
-            /* unexpected */
-            set_error(c, "ssh_channel_write returned unexpected value");
+        } else if (rc == -1) {
             return;
         }
         break;
-    }
-    case S_RECV_CLOSE_REPLY: {
-        char buf[BUF_SIZE];
-        int n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf)-1, 0);
-        if (n > 0) {
-            /* append and check for end marker "]]>]]>" */
-            if (append_reply(c, buf, (size_t)n) != 0) {
-                set_error(c, "realloc failed");
-                return;
-            }
-            fprintf(stderr, "Read close reply %d bytes (total %zu)\n", n, c->reply_len);
-            /* If we see RFC6242 end-of-message token, we can stop */
-            if (strstr(c->reply, "]]>]]>") != NULL) {
-                fprintf(stdout, "=== NETCONF close reply ===\n%s\n=== end ===\n", c->reply);
-                c->state = S_CLEANUP;
-                return;
-            }
-            /* Keep waiting for more data */
+    case S_RECV_CLOSE_REPLY:
+        rc = do_read(c, "close reply", S_CLEANUP);
+        if (rc == -1)
             return;
-        } else if (n == 0) {
-            /* 0: no data available in nonblocking mode or EOF (depends). Check channel EOF */
-            if (ssh_channel_is_eof(c->channel)) {
-                fprintf(stderr, "Channel EOF during close reply\n");
-                if (c->reply_len > 0) {
-                    fprintf(stdout, "=== NETCONF close reply (partial) ===\n%s\n=== end ===\n", c->reply);
-                }
-                c->state = S_CLEANUP;
-                return;
-            } else {
-                /* no data now, wait */
-                return;
-            }
-        } else { /* n < 0 => SSH_ERROR */
-            set_error(c, "ssh_channel_read_nonblocking failed during close reply");
-            return;
-        }
         break;
-    }
     case S_CLEANUP:
         c->state = S_DONE;
         fprintf(stderr, "Disconnected and cleaned up\n");
-        /* stop the poll loop in a safe way */
         uv_poll_stop(&c->poll);
         uv_stop(c->loop);
         return;
-
     default:
         return;
     }
@@ -434,20 +343,12 @@ static int client_init(client_t *c) {
     c->reply = NULL;
     c->reply_len = 0;
     c->reply_cap = 0;
-    c->hello_sent = 0;
     c->state = S_CONNECT;
-
-    /* prepare hello xml (NETCONF 1.0/1.1 capabilities + chunked framing marker) */
-    c->hello = NETCONF_HELLO;
-    c->hello_len = strlen(c->hello);
-
-    c->get_config = NETCONF_GET_CONFIG;
-    c->get_config_len = strlen(c->get_config);
-    c->get_config_sent = 0;
-
-    c->close = NETCONF_CLOSE_SESSION;
-    c->close_len = strlen(c->close);
-    c->close_sent = 0;
+    
+    /* Initialize write buffer to empty */
+    c->write_buf.data = NULL;
+    c->write_buf.len = 0;
+    c->write_buf.sent = 0;
 
     return 0;
 }
