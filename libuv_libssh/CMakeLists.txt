@@ -4,7 +4,7 @@ project(async_netconf_client C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-add_executable(ancc async_netconf_client.c)
+add_executable(ancc async_netconf_client_2.c)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBSSH REQUIRED libssh)
