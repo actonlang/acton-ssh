@@ -19,29 +19,25 @@ actor Client(cap: net.TCPConnectCap,
     """SSH Client"""
 
     # haha, this is really a pointer :P
-    var _ssh_session: u64 = 0
-    var _uv_loop: u64 = 0
-    var _poll: u64 = 0
-    var _fd: int = 0
+    var _client: u64 = 0
+
+    var _payload: str = ""
 
     proc def _pin_affinity() -> None:
         NotImplemented
     _pin_affinity()
 
-    def get_ssh_session():
-        return _ssh_session
-
-    def get_uv_loop():
-        return _uv_loop
-
-    def get_password() -> str:
-        return password
-
-    def get_subsystem() -> str:
-        return subsystem
+    def get_client():
+        return _client
 
     action def get_affinity() -> u64:
         NotImplemented
+
+    def set_payload(p: str):
+        _payload = p
+
+    def get_payload():
+        return _payload
 
     proc def _init() -> None:
         """Initialize the SSH client"""
@@ -62,47 +58,7 @@ actor Client(cap: net.TCPConnectCap,
         """Disconnect the SSH client"""
         NotImplemented
 
-
-# TODO: implement support for channels
-# AFAIK, all things over ssh are done via channels, so need some channel
-# primitive, maybe an actor per channel that then multiplexes into the Client
-# session? Prolly need some higher level wrappers for common things like
-# starting a shell or running a single command. SFTP / SCP would be nice too,
-# but for sometime in the future. Custom subsystems need to be supported too.
-actor Channel(client: Client):
-    """SSH Channel"""
-
-    var _ssh_channel: u64 = 0
-    var _ssh_session: u64 = client.get_ssh_session()
-    var _uv_loop: u64 = client.get_uv_loop()
-    var _password: str = client.get_password()
-    var _subsystem: str = client.get_subsystem()
-    var payload = None
-
-    proc def _pin_affinity() -> None:
-        NotImplemented
-    _pin_affinity()
-
-    proc def _set_affinity(affinity: u64) -> None:
-        NotImplemented
-
-    proc def _ssh_init() -> None:
-        """Initialize the SSH Channel"""
-        NotImplemented
-
-    proc def _init() -> None:
-        aff = client.get_affinity()
-        _set_affinity(aff)
-        after 0: _ssh_init()
-    _init()
-
-    def setPayload(p: str):
-        payload = p
-
-    def getPayload():
-        return payload
-
-    def sendNCPayload() -> str:
+    def send_nc_payload() -> str:
         """Send payload"""
         NotImplemented
 
@@ -127,17 +83,16 @@ actor main(env):
         subsystem="netconf",
     )
 
-    cc = Channel(c)
-
-    # # get netconf server's capabilities
-    # cc.setPayload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
-    # print("\n\npayload 1:\n", cc.getPayload(), "\n\npayload 1 end")
-    # print("\nNC response 1:\n", cc.sendNCPayload(), "\n\nNC response 1 end \n\n")
+    # get netconf server's capabilities
+    c.set_payload('<?xml version="1.0" encoding="UTF-8"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10"><get><filter type="subtree"><system xmlns="urn:ietf:params:xml:ns:yang:ietf-system"/></filter></get></rpc>]]>]]>')
+    # c.set_payload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
+    print("\npayload 1:\n", c.get_payload(), "\npayload 1 end")
+    print("\nNC response 1:\n", c.send_nc_payload(), "\nNC response 1 end\n")
 
     # # TODO do this in disconnect(): gracefully close a channel
-    # cc.setPayload('<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><close-session/></rpc>]]>]]>')
-    # print("\n\npayload 2:\n", cc.getPayload(), "\n\npayload 2 end")
-    # print("\nNC response 2:\n", cc.sendNCPayload(), "\n\nNC response 2 end \n\n")
+    # cc.set_payload('<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><close-session/></rpc>]]>]]>')
+    # print("\npayload 2:\n", cc.get_payload(), "\n\npayload 2 end")
+    # print("\nNC response 2:\n", cc.send_nc_payload(), "\n\nNC response 2 end \n\n")
 
     c.disconnect()
 

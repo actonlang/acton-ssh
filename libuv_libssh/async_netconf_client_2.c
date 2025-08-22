@@ -51,9 +51,9 @@ enum client_state {
     S_SUBSYSTEM,
     S_SEND_HELLO,
     S_RECV_HELLO,
-    S_SEND_GET_CONFIG,
-    S_SEND_GET_CONFIG_WRITING,
-    S_RECV_GET_CONFIG,
+    S_SEND_GET,
+    S_SEND_GET_WRITING,
+    S_RECV_GET,
     S_CLOSE,
     S_CLOSE_WRITING,
     S_RECV_CLOSE_REPLY,
@@ -275,23 +275,23 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         }
         break;
     case S_RECV_HELLO:
-        rc = do_read(c, "hello reply", S_SEND_GET_CONFIG);
+        rc = do_read(c, "hello reply", S_SEND_GET);
         if (rc == -1)
             return;
         break;
-    case S_SEND_GET_CONFIG:
+    case S_SEND_GET:
         init_write_buffer(c, NETCONF_GET_CONFIG);
-        c->state = S_SEND_GET_CONFIG_WRITING;
+        c->state = S_SEND_GET_WRITING;
         /* fallthrough */
-    case S_SEND_GET_CONFIG_WRITING:
+    case S_SEND_GET_WRITING:
         rc = do_write(c, "GET_CONFIG");
         if (rc == 1) {
-            c->state = S_RECV_GET_CONFIG;
+            c->state = S_RECV_GET;
         } else if (rc == -1) {
             return;
         }
         break;
-    case S_RECV_GET_CONFIG:
+    case S_RECV_GET:
         rc = do_read(c, "GET_CONFIG reply", S_CLOSE);
         if (rc == -1)
             return;
@@ -366,95 +366,104 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: %s <host> <port> <username> <password>\n", argv[0]);
         return 1;
     }
-    client_t client = { 0 };
+    client_t *client = calloc(1, sizeof(client_t));
+    if (!client) {
+        fprintf(stderr, "Failed to allocate client\n");
+        return 1;
+    }
 
-    client.host = argv[1];
-    client.port = atoi(argv[2]);
-    client.user = argv[3];
-    client.password = argv[4];
+    client->host = argv[1];
+    client->port = atoi(argv[2]);
+    client->user = argv[3];
+    client->password = argv[4];
 
-    if (client_init(&client) != 0) {
+    if (client_init(client) != 0) {
         fprintf(stderr, "Failed to init client\n");
         return 2;
     }
 
     /* create the uv loop and poll handle*/
-    client.loop = uv_default_loop();
+    client->loop = uv_default_loop();
 
     /* We need to ensure we have a valid fd to initialize uv_poll */
-    int err = ssh_connect(client.session);
+    int err = ssh_connect(client->session);
     if (err == SSH_ERROR) {
-        fprintf(stderr, "Initial ssh_connect failed: %s\n", ssh_get_error(client.session));
-        ssh_free(client.session);
+        fprintf(stderr, "Initial ssh_connect failed: %s\n", ssh_get_error(client->session));
+        ssh_free(client->session);
+        free(client);
         return 3;
     }
     /* At this point ssh_get_fd should return a valid fd for uv_poll */
-    client.fd = ssh_get_fd(client.session);
-    if (client.fd < 0) {
+    client->fd = ssh_get_fd(client->session);
+    if (client->fd < 0) {
         fprintf(stderr, "Could not get SSH session fd\n");
-        ssh_disconnect(client.session);
-        ssh_free(client.session);
+        ssh_disconnect(client->session);
+        ssh_free(client->session);
+        free(client);
         return 4;
     }
 
-    client.poll = malloc(sizeof(uv_poll_t));
-    if (!client.poll) {
+    client->poll = calloc(1, sizeof(uv_poll_t));
+    if (!client->poll) {
         fprintf(stderr, "Failed to allocate poll handle\n");
-        ssh_disconnect(client.session);
-        ssh_free(client.session);
+        ssh_disconnect(client->session);
+        ssh_free(client->session);
+        free(client);
         return 5;
     }
 
-    err = uv_poll_init(client.loop, client.poll, client.fd);
+    err = uv_poll_init(client->loop, client->poll, client->fd);
     if (err < 0) {
         fprintf(stderr, "uv_poll_init failed: %s\n", uv_strerror(err));
-        free(client.poll);
-        client.poll = NULL;
-        ssh_disconnect(client.session);
-        ssh_free(client.session);
+        free(client->poll);
+        client->poll = NULL;
+        ssh_disconnect(client->session);
+        ssh_free(client->session);
+        free(client);
         return 6;
     }
-    client.poll->data = &client;
+    client->poll->data = client;
 
     /* Watch for read/write events; libssh manages what it needs depending on state */
-    err = uv_poll_start(client.poll, UV_READABLE | UV_WRITABLE, poll_cb);
+    err = uv_poll_start(client->poll, UV_READABLE | UV_WRITABLE, poll_cb);
     if (err < 0) {
         fprintf(stderr, "uv_poll_start failed: %s\n", uv_strerror(err));
-        uv_close((uv_handle_t*)client.poll, NULL);
-        free(client.poll);
-        client.poll = NULL;
-        ssh_disconnect(client.session);
-        ssh_free(client.session);
+        uv_close((uv_handle_t*)client->poll, NULL);
+        free(client->poll);
+        client->poll = NULL;
+        ssh_disconnect(client->session);
+        ssh_free(client->session);
+        free(client);
         return 7;
     }
 
     /* If the preliminary ssh_connect returned SSH_AGAIN, the state should still be CONNECT.
        Otherwise, poll_cb will drive the next steps. */
     fprintf(stderr, "Starting libuv loop\n");
-    uv_run(client.loop, UV_RUN_DEFAULT);
+    uv_run(client->loop, UV_RUN_DEFAULT);
     fprintf(stderr, "Stopped libuv loop\n");
 
     /* cleanup */
     /* graceful close of ssh channel & session */
-    if (client.channel) {
-        ssh_channel_send_eof(client.channel);
-        ssh_channel_close(client.channel);
-        ssh_channel_free(client.channel);
-        client.channel = NULL;
+    if (client->channel) {
+        ssh_channel_send_eof(client->channel);
+        ssh_channel_close(client->channel);
+        ssh_channel_free(client->channel);
+        client->channel = NULL;
     }
-    if (client.session) {
-        ssh_disconnect(client.session);
-        ssh_free(client.session);
+    if (client->session) {
+        ssh_disconnect(client->session);
+        ssh_free(client->session);
     }
 
     // see MAKE_VALGRIND_HAPPY in libuv/test/task.h
     // walk the loop to close any remaining handles
-    uv_walk(client.loop, close_walk_cb, NULL);
+    uv_walk(client->loop, close_walk_cb, NULL);
     // run the loop one more time to let close callbacks execute
-    uv_run(client.loop, UV_RUN_DEFAULT);
+    uv_run(client->loop, UV_RUN_DEFAULT);
 
     // now it's safe to close the loop
-    err = uv_loop_close(client.loop);
+    err = uv_loop_close(client->loop);
     if (err != 0) {
         fprintf(stderr, "WARNING: Loop close failed: %s\n", uv_strerror(err));
 
@@ -465,12 +474,14 @@ int main(int argc, char **argv) {
     }
     uv_library_shutdown();
 
-    if (client.reply)
-        free(client.reply);
+    if (client->reply)
+        free(client->reply);
 
-    if (client.poll)
-        free(client.poll);
+    if (client->poll)
+        free(client->poll);
+
+    free(client);
 
     fprintf(stderr, "Exited\n");
-    return (client.state == S_DONE) ? 0 : 7;
+    return 0;
 }
