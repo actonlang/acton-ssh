@@ -89,11 +89,6 @@ actor main(env):
     print("\npayload 1:\n", c.get_payload(), "\npayload 1 end")
     print("\nNC response 1:\n", c.send_nc_payload(), "\nNC response 1 end\n")
 
-    # # TODO do this in disconnect(): gracefully close a channel
-    # cc.set_payload('<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><close-session/></rpc>]]>]]>')
-    # print("\npayload 2:\n", cc.get_payload(), "\n\npayload 2 end")
-    # print("\nNC response 2:\n", cc.send_nc_payload(), "\n\nNC response 2 end \n\n")
-
     c.disconnect()
 
     env.exit(0)

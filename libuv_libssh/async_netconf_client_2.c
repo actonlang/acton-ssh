@@ -51,8 +51,8 @@ enum client_state {
     S_SUBSYSTEM,
     S_SEND_HELLO,
     S_RECV_HELLO,
-    S_SEND_GET,
-    S_SEND_GET_WRITING,
+    S_SEND_GET_CONFIG,
+    S_SEND_GET_CONFIG_WRITING,
     S_RECV_GET,
     S_CLOSE,
     S_CLOSE_WRITING,
@@ -80,6 +80,7 @@ typedef struct {
     int port;
     const char *user;
     const char *password;
+    const char *subsystem;
 
     /* current write buffer */
     write_buffer_t write_buf;
@@ -130,8 +131,7 @@ static int do_write(client_t *c, const char *operation) {
         return 1; /* complete */
     }
 
-    int wrote = ssh_channel_write(c->channel,
-                                 c->write_buf.data + c->write_buf.sent,
+    int wrote = ssh_channel_write(c->channel, c->write_buf.data + c->write_buf.sent,
                                  (uint32_t)(c->write_buf.len - c->write_buf.sent));
     
     if (wrote > 0) {
@@ -203,7 +203,10 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
     int rc = 0;
 
     if (c->state == S_DONE || c->state == S_ERROR) {
-        printf("uv_poll_stop\n");
+        if (c->state == S_DONE)
+            printf("loop is done. stopping it\n");
+        else if (c->state == S_ERROR)
+            printf("loop encountered and error. stopping it\n");
         uv_poll_stop(c->poll);
         return;
     }
@@ -254,10 +257,11 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         }
         /* fallthrough */
     case S_SUBSYSTEM:
-        rc = ssh_channel_request_subsystem(c->channel, "netconf");
+        rc = ssh_channel_request_subsystem(c->channel, c->subsystem);
         if (rc == SSH_OK) {
-            fprintf(stderr, "Requested subsystem: netconf\n");
-            init_write_buffer(c, NETCONF_HELLO);
+            fprintf(stderr, "Requested subsystem: %s\n", c->subsystem);
+            if (!strcmp(c->subsystem, "netconf"))
+                init_write_buffer(c, NETCONF_HELLO);
             c->state = S_SEND_HELLO;
         } else if (rc == SSH_AGAIN) {
             return;
@@ -275,15 +279,15 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         }
         break;
     case S_RECV_HELLO:
-        rc = do_read(c, "hello reply", S_SEND_GET);
+        rc = do_read(c, "hello reply", S_SEND_GET_CONFIG);
         if (rc == -1)
             return;
         break;
-    case S_SEND_GET:
+    case S_SEND_GET_CONFIG:
         init_write_buffer(c, NETCONF_GET_CONFIG);
-        c->state = S_SEND_GET_WRITING;
+        c->state = S_SEND_GET_CONFIG_WRITING;
         /* fallthrough */
-    case S_SEND_GET_WRITING:
+    case S_SEND_GET_CONFIG_WRITING:
         rc = do_write(c, "GET_CONFIG");
         if (rc == 1) {
             c->state = S_RECV_GET;
@@ -362,8 +366,8 @@ static void close_walk_cb(uv_handle_t* handle, void* arg) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 5) {
-        fprintf(stderr, "Usage: %s <host> <port> <username> <password>\n", argv[0]);
+    if (argc < 6) {
+        fprintf(stderr, "Usage: %s <host> <port> <username> <password> <subsystem>\n", argv[0]);
         return 1;
     }
     client_t *client = calloc(1, sizeof(client_t));
@@ -376,6 +380,7 @@ int main(int argc, char **argv) {
     client->port = atoi(argv[2]);
     client->user = argv[3];
     client->password = argv[4];
+    client->subsystem = argv[5];
 
     if (client_init(client) != 0) {
         fprintf(stderr, "Failed to init client\n");
