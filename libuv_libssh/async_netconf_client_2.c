@@ -73,7 +73,7 @@ typedef struct {
 
     ssh_session session;
     ssh_channel channel;
-    uv_poll_t poll;
+    uv_poll_t *poll;
     int fd;
     enum client_state state;
     const char *host;
@@ -204,7 +204,7 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
 
     if (c->state == S_DONE || c->state == S_ERROR) {
         printf("uv_poll_stop\n");
-        uv_poll_stop(&c->poll);
+        uv_poll_stop(c->poll);
         return;
     }
 
@@ -317,7 +317,7 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
     case S_CLEANUP:
         c->state = S_DONE;
         fprintf(stderr, "Disconnected and cleaned up\n");
-        uv_poll_stop(&c->poll);
+        uv_poll_stop(c->poll);
         uv_stop(c->loop);
         return;
     default:
@@ -340,6 +340,7 @@ static int client_init(client_t *c) {
     ssh_set_blocking(c->session, 0);
 
     c->channel = NULL;
+    c->poll = NULL;
     c->reply = NULL;
     c->reply_len = 0;
     c->reply_cap = 0;
@@ -396,34 +397,44 @@ int main(int argc, char **argv) {
         return 4;
     }
 
-    err = uv_poll_init(client.loop, &client.poll, client.fd);
-    if (err < 0) {
-        fprintf(stderr, "uv_poll_init failed: %s\n", uv_strerror(err));
+    client.poll = malloc(sizeof(uv_poll_t));
+    if (!client.poll) {
+        fprintf(stderr, "Failed to allocate poll handle\n");
         ssh_disconnect(client.session);
         ssh_free(client.session);
         return 5;
     }
-    client.poll.data = &client;
 
-    /* Watch for read/write events; libssh manages what it needs depending on state */
-    err = uv_poll_start(&client.poll, UV_READABLE | UV_WRITABLE, poll_cb);
+    err = uv_poll_init(client.loop, client.poll, client.fd);
     if (err < 0) {
-        fprintf(stderr, "uv_poll_start failed: %s\n", uv_strerror(err));
-        uv_close((uv_handle_t*)&client.poll, NULL);
+        fprintf(stderr, "uv_poll_init failed: %s\n", uv_strerror(err));
+        free(client.poll);
+        client.poll = NULL;
         ssh_disconnect(client.session);
         ssh_free(client.session);
         return 6;
+    }
+    client.poll->data = &client;
+
+    /* Watch for read/write events; libssh manages what it needs depending on state */
+    err = uv_poll_start(client.poll, UV_READABLE | UV_WRITABLE, poll_cb);
+    if (err < 0) {
+        fprintf(stderr, "uv_poll_start failed: %s\n", uv_strerror(err));
+        uv_close((uv_handle_t*)client.poll, NULL);
+        free(client.poll);
+        client.poll = NULL;
+        ssh_disconnect(client.session);
+        ssh_free(client.session);
+        return 7;
     }
 
     /* If the preliminary ssh_connect returned SSH_AGAIN, the state should still be CONNECT.
        Otherwise, poll_cb will drive the next steps. */
     fprintf(stderr, "Starting libuv loop\n");
     uv_run(client.loop, UV_RUN_DEFAULT);
+    fprintf(stderr, "Stopped libuv loop\n");
 
     /* cleanup */
-    if (client.reply)
-        free(client.reply);
-
     /* graceful close of ssh channel & session */
     if (client.channel) {
         ssh_channel_send_eof(client.channel);
@@ -453,6 +464,12 @@ int main(int argc, char **argv) {
         }
     }
     uv_library_shutdown();
+
+    if (client.reply)
+        free(client.reply);
+
+    if (client.poll)
+        free(client.poll);
 
     fprintf(stderr, "Exited\n");
     return (client.state == S_DONE) ? 0 : 7;
