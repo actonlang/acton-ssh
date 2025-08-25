@@ -442,11 +442,20 @@ static int client_init(client_t *c, sshQ_Client self) {
         goto err;
     }
 
-    c->loop = uv_default_loop();
+    c->loop = malloc(sizeof(uv_loop_t));
     if (c->loop == NULL) {
-        printf("uv_default_loop failed\n");
+        printf("Failed to allocate uv loop\n");
         goto err;
     }
+    uv_loop_init(c->loop);
+
+    // NOTE: uv_default_loop() can not be used since it error when having
+    // two clients at once
+    // c->loop = uv_default_loop(); // can not be used
+    // if (c->loop == NULL) {
+    //     printf("uv_default_loop failed\n");
+    //     goto err;
+    // }
 
     c->channel = NULL;
     c->reply = NULL;
@@ -495,6 +504,10 @@ err:
         ssh_disconnect(c->session);
         ssh_free(c->session);
     }
+    if (c->loop) {
+        uv_loop_close(c->loop);
+        free(c->loop);
+    }
     return -1;
 }
 
@@ -502,7 +515,6 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
     pin_actor_affinity();
 
     int err = 0;
-
     client_t *client = calloc(1, sizeof(client_t));
     if (client == NULL) {
         printf("error allocating client_t\n");
@@ -553,6 +565,7 @@ $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
         printf("uv_poll_init failed: %s\n", uv_strerror(err));
         goto err;
     }
+
     client->poll->data = client;
 
     /* Watch for read/write events; libssh manages what it needs depending on state */
@@ -577,11 +590,13 @@ err:
         }
         if (client->loop) {
             uv_loop_close(client->loop);
+            free(client->loop);
             client->loop = NULL;
         }
         if (client->session) {
             ssh_disconnect(client->session);
             ssh_free(client->session);
+            client->session = NULL;
         }
         free(client);
         client = NULL;
@@ -654,7 +669,7 @@ $R sshQ_ClientD_disconnectG_local (sshQ_Client self, $Cont c$cont) {
         // run the loop one more time to let close callbacks execute
         // TODO: if this is executed after a previous c.disconnect() call in ssh.act
         // then it will crash here. no matter if it's the same client object or a new one
-        // uv_run(client->loop, UV_RUN_DEFAULT);
+        uv_run(client->loop, UV_RUN_DEFAULT);
 
         // now it's safe to close the loop
         err = uv_loop_close(client->loop);
@@ -665,6 +680,7 @@ $R sshQ_ClientD_disconnectG_local (sshQ_Client self, $Cont c$cont) {
                 printf("There are still active handles in the loop. This is a leak.\n");
             }
         }
+        free(client->loop);
         uv_library_shutdown();
     }
 

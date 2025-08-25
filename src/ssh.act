@@ -72,7 +72,8 @@ actor main(env):
         # print("Connection closed", error)
         return
 
-    c = Client(
+    print("NETCONF start...\n")
+    c1 = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
         "foo",
@@ -84,14 +85,14 @@ actor main(env):
     )
 
     # get netconf server's capabilities
-    c.set_payload('<?xml version="1.0" encoding="UTF-8"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10"><get><filter type="subtree"><system xmlns="urn:ietf:params:xml:ns:yang:ietf-system"/></filter></get></rpc>]]>]]>')
-    # c.set_payload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
-    print("\npayload 1:\n" + c.get_payload() + "\npayload 1 end")
-    print("\nNC response 1:\n" + c.send_payload() + "\nNC response 1 end\n")
-    # c.send_payload()
+    c1.set_payload('<?xml version="1.0" encoding="UTF-8"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10"><get><filter type="subtree"><system xmlns="urn:ietf:params:xml:ns:yang:ietf-system"/></filter></get></rpc>]]>]]>')
+    # c1.set_payload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
+    print("\n=========== NC payload ===========\n" + c1.get_payload() + "\n=========== NC payload END ===========")
+    print("\n=========== NC response ===========\n" + c1.send_payload() + "\n=========== NC response END ===========\n")
 
-    c.disconnect()
+    c1.disconnect()
 
+    print("SSH start...\n")
     c2 = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
@@ -102,10 +103,9 @@ actor main(env):
         port=22,
         subsystem="ssh",
     )
-
     c2.set_payload('ls -ahl\n')
-    print("\npayload SSH:\n" + c2.get_payload() + "\npayload SSH end")
-    print("\nSSH response:\n" + c2.send_payload() + "\nSSH response end\n")
+    print("\n=========== SSH payload ===========\n" + c2.get_payload() + "\n=========== SSH payload END ===========")
+    print("\n=========== SSH response ===========\n" + c2.send_payload() + "\n=========== SSH response END ===========\n")
 
     c2.disconnect()
 
