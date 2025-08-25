@@ -58,7 +58,7 @@ actor Client(cap: net.TCPConnectCap,
         """Disconnect the SSH client"""
         NotImplemented
 
-    def send_nc_payload() -> str:
+    def send_payload() -> str:
         """Send payload"""
         NotImplemented
 
@@ -86,9 +86,27 @@ actor main(env):
     # get netconf server's capabilities
     c.set_payload('<?xml version="1.0" encoding="UTF-8"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10"><get><filter type="subtree"><system xmlns="urn:ietf:params:xml:ns:yang:ietf-system"/></filter></get></rpc>]]>]]>')
     # c.set_payload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
-    print("\npayload 1:\n", c.get_payload(), "\npayload 1 end")
-    print("\nNC response 1:\n", c.send_nc_payload(), "\nNC response 1 end\n")
+    print("\npayload 1:\n" + c.get_payload() + "\npayload 1 end")
+    print("\nNC response 1:\n" + c.send_payload() + "\nNC response 1 end\n")
+    # c.send_payload()
 
     c.disconnect()
+
+    c2 = Client(
+        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+        "localhost",
+        "foo",
+        on_connect,
+        on_close,
+        password="bar",
+        port=22,
+        subsystem="ssh",
+    )
+
+    c2.set_payload('ls -ahl\n')
+    print("\npayload SSH:\n" + c2.get_payload() + "\npayload SSH end")
+    print("\nSSH response:\n" + c2.send_payload() + "\nSSH response end\n")
+
+    c2.disconnect()
 
     env.exit(0)
