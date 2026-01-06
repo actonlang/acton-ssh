@@ -2,8 +2,10 @@
     "dependencies": {},
     "zig_dependencies": {
         "libssh": {
-            "url": "https://github.com/actonlang/libssh/archive/refs/heads/zig-build.tar.gz",
-            "hash": "122076b4676ec7d777e5efc24ae4b7f1ab4fa3df407ab9649fdd55f9fc594ca053ec",
+            "path": "../libssh",
+            "options": {
+                "WITH_SERVER": "true"
+            },
             "artifacts": [
                 "ssh"
             ]

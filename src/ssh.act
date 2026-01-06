@@ -1,69 +1,494 @@
 import net
-import testing
+
 
 def version() -> str:
     """Get the libssh version"""
     NotImplemented
 
-def _test_version():
-    testing.assertEqual("0.11.0", version())
+
+def _debug(msg: str) -> None:
+    """Internal debug logging (gated by ACTON_SSH_DEBUG)."""
+    NotImplemented
+
+
+HOSTKEY_OK = "ok"
+HOSTKEY_UNKNOWN = "unknown"
+HOSTKEY_NOT_FOUND = "not_found"
+HOSTKEY_CHANGED = "changed"
+HOSTKEY_OTHER = "other"
+HOSTKEY_ERROR = "error"
+
+class HostKeyInfo():
+    """Server host key details"""
+    key_type: str
+    fingerprint: str
+
+    def __init__(self, key_type: str, fingerprint: str):
+        self.key_type = key_type
+        self.fingerprint = fingerprint
+
+
+class AuthRequest():
+    """Authentication request details"""
+    method: str
+    user: str
+    password: ?str
+    pubkey: ?bytes
+
+    def __init__(self, method: str, user: str, password: ?str=None, pubkey: ?bytes=None):
+        self.method = method
+        self.user = user
+        self.password = password
+        self.pubkey = pubkey
+
 
 actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,
-             on_connect: action(Client) -> None,
+             on_connect: action(Client, ?str) -> None,
              on_close: action(Client, str) -> None,
-             key: ?str=None,
+             on_hostkey: ?action(Client, str, HostKeyInfo) -> None=None,
              password: ?str=None,
              port: u16=22,
+             known_hosts: ?str=None,
+             connect_timeout: float=10.0,
+             auth_timeout: float=10.0,
+             keepalive_interval: float=30.0,
+             keepalive_enabled: bool=True,
              ):
     """SSH Client"""
 
     # haha, this is really a pointer :P
-    var _ssh_session: u64 = 0
+    var _client: u64 = 0
+
+    proc def _pin_affinity() -> None:
+        NotImplemented
+    _pin_affinity()
 
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
     _init()
-    print("SSH Client connected")
 
-#    action def close(on_close: action(TLSConnection) -> None) -> None:
-#        """Close the connection"""
-#        NotImplemented
-#
-#    def reconnect():
-#        close(_connect)
-#
-#    def _connect(c):
-#        NotImplemented
-#
+    action def accept_hostkey() -> None:
+        """Accept the currently pending host key (not persisted)"""
+        NotImplemented
 
-# TODO: implement support for channels
-# AFAIK, all things over ssh are done via channels, so need some channel
-# primitive, maybe an actor per channel that then multiplexes into the Client
-# session? Prolly need some higher level wrappers for common things like
-# starting a shell or running a single command. SFTP / SCP would be nice too,
-# but for sometime in the future. Custom subsystems need to be supported too.
+    action def reject_hostkey(reason: str) -> None:
+        """Reject the currently pending host key"""
+        NotImplemented
+
+    action def close() -> None:
+        """Close the SSH client"""
+        NotImplemented
+
+    # Internal channel operations (used by Channel actor)
+    action def channel_create(channel: Channel,
+                              on_open: action(Channel, ?str) -> None,
+                              on_stdout: action(Channel, ?bytes) -> None,
+                              on_stderr: action(Channel, ?bytes) -> None,
+                              on_exit: action(Channel, int, ?str) -> None,
+                              on_close: action(Channel, str) -> None) -> None:
+        NotImplemented
+
+    action def channel_request_exec(channel: Channel, cmd: str) -> None:
+        NotImplemented
+
+    action def channel_request_shell(channel: Channel,
+                                      term: str,
+                                      cols: int,
+                                      rows: int,
+                                      width_px: int,
+                                      height_px: int,
+                                      with_pty: bool) -> None:
+        NotImplemented
+
+    action def channel_request_subsystem(channel: Channel, name: str) -> None:
+        NotImplemented
+
+    action def channel_write(channel: Channel, data: bytes) -> None:
+        NotImplemented
+
+    action def channel_send_eof(channel: Channel) -> None:
+        NotImplemented
+
+    action def channel_close(channel: Channel) -> None:
+        NotImplemented
 
 
+actor Channel(client: Client,
+              on_open: action(Channel, ?str) -> None,
+              on_stdout: action(Channel, ?bytes) -> None,
+              on_stderr: action(Channel, ?bytes) -> None,
+              on_exit: action(Channel, int, ?str) -> None,
+              on_close: action(Channel, str) -> None):
+    """SSH Channel"""
+
+    # pointer to internal channel state
+    var _channel_id: u64 = 0
+    var _on_open: action(Channel, ?str) -> None = on_open
+    var _on_stdout: action(Channel, ?bytes) -> None = on_stdout
+    var _on_stderr: action(Channel, ?bytes) -> None = on_stderr
+    var _on_exit: action(Channel, int, ?str) -> None = on_exit
+    var _on_close: action(Channel, str) -> None = on_close
+
+    proc def _init() -> None:
+        client.channel_create(self, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
+    _init()
+
+    action def request_exec(cmd: str) -> None:
+        """Request to execute a command"""
+        client.channel_request_exec(self, cmd)
+
+    action def request_shell(term: str="xterm-256color",
+                             cols: int=80,
+                             rows: int=24,
+                             width_px: int=0,
+                             height_px: int=0,
+                             with_pty: bool=True) -> None:
+        """Request an interactive shell"""
+        client.channel_request_shell(self, term, cols, rows, width_px, height_px, with_pty)
+
+    action def request_subsystem(name: str) -> None:
+        """Request a subsystem"""
+        client.channel_request_subsystem(self, name)
+
+    action def write(data: bytes) -> None:
+        """Write data to the channel"""
+        client.channel_write(self, data)
+
+    action def send_eof() -> None:
+        """Send EOF to the channel"""
+        client.channel_send_eof(self)
+
+    action def close() -> None:
+        """Close the channel"""
+        client.channel_close(self)
+
+
+actor RunCommand(client: Client,
+                 cmd: str,
+                 on_exit: action(Channel, int, ?str, bytes, bytes, ?str) -> None,
+                 timeout: ?float=None):
+    """Run a command and collect output"""
+
+    var out_buf = b""
+    var err_buf = b""
+    var _out_done = False
+    var _err_done = False
+    var _exited = False
+    var _exit_code = 0
+    var _exit_signal: ?str = None
+    var _error: ?str = None
+    var _done = False
+
+    def _finish(ch: Channel):
+        if _done:
+            return
+        _done = True
+        on_exit(ch, _exit_code, _exit_signal, out_buf, err_buf, _error)
+
+    def _on_open(ch: Channel, err: ?str):
+        if err is not None:
+            _error = err
+            _finish(ch)
+            return
+        ch.request_exec(cmd)
+
+    def _on_stdout(ch: Channel, data: ?bytes):
+        if data is not None:
+            out_buf += data
+        else:
+            _out_done = True
+            _check_done(ch)
+
+    def _on_stderr(ch: Channel, data: ?bytes):
+        if data is not None:
+            err_buf += data
+        else:
+            _err_done = True
+            _check_done(ch)
+
+    def _on_exit(ch: Channel, code: int, sig: ?str):
+        _exited = True
+        _exit_code = code
+        _exit_signal = sig
+        _check_done(ch)
+
+    def _on_close(ch: Channel, reason: str):
+        if _error is None and reason != "closed":
+            _error = reason
+        if _error is not None:
+            _finish(ch)
+            return
+
+    def _check_done(ch: Channel):
+        if _out_done and _err_done and _exited and _error is None:
+            _finish(ch)
+
+    var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
+
+    if timeout is not None:
+        def _on_timeout():
+            _channel.close()
+        after timeout: _on_timeout()
+
+
+actor Server(cap: net.TCPListenCap,
+             host: str,
+             port: u16,
+             on_listen: action(Server, ?str) -> None,
+             on_close: action(Server, str) -> None,
+             on_session: action(ServerSession) -> None,
+             on_auth: action(ServerSession, AuthRequest) -> None,
+             on_channel_open: action(ServerSession) -> None,
+             on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
+             on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
+             on_session_close: ?action(ServerSession, str) -> None=None,
+             host_key_path: ?str=None,
+             host_key_type: str="ed25519",
+             host_key_bits: int=2048,
+             auth_timeout: float=10.0,
+             keepalive_interval: float=30.0,
+             keepalive_enabled: bool=True,
+             ):
+    """SSH Server"""
+
+    var _server: u64 = 0
+    var _host: str = host
+    var _port: u16 = port
+    var _host_key_path: ?str = host_key_path
+    var _host_key_type: str = host_key_type
+    var _host_key_bits: int = host_key_bits
+    var _auth_timeout: float = auth_timeout
+    var _keepalive_interval: float = keepalive_interval
+    var _keepalive_enabled: bool = keepalive_enabled
+    var _on_listen: action(Server, ?str) -> None = on_listen
+    var _on_close: action(Server, str) -> None = on_close
+
+    proc def _pin_affinity() -> None:
+        NotImplemented
+    _pin_affinity()
+
+    proc def _init() -> None:
+        """Initialize the SSH server"""
+        NotImplemented
+    _init()
+
+    action def close() -> None:
+        """Close the SSH server"""
+        NotImplemented
+
+    action def on_session_pending(session_id: u64) -> None:
+        _debug("server on_session_pending: " + str(session_id))
+        ServerSession(self,
+                      session_id,
+                      on_auth,
+                      on_channel_open,
+                      on_exec,
+                      on_subsystem,
+                      on_session_close)
+        _debug("server on_session_pending: created session actor for " + str(session_id))
+
+    action def on_session_ready(session: ServerSession) -> None:
+        on_session(session)
+
+
+actor ServerSession(server: Server,
+                    session_id: u64,
+                    on_auth: action(ServerSession, AuthRequest) -> None,
+                    on_channel_open: action(ServerSession) -> None,
+                    on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
+                    on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
+                    on_close: ?action(ServerSession, str) -> None=None):
+    """SSH Server Session"""
+
+    var _session_id: u64 = 0
+    var _on_auth: action(ServerSession, AuthRequest) -> None = on_auth
+    var _on_channel_open: action(ServerSession) -> None = on_channel_open
+    var _on_exec: ?action(ServerSession, ServerChannel, str) -> None = on_exec
+    var _on_subsystem: ?action(ServerSession, ServerChannel, str) -> None = on_subsystem
+    var _on_close: ?action(ServerSession, str) -> None = on_close
+
+    proc def _pin_affinity() -> None:
+        NotImplemented
+    _pin_affinity()
+
+    proc def _attach(session_id: u64) -> None:
+        NotImplemented
+
+    action def _attach_ready() -> None:
+        _debug("server session attach ready: " + str(session_id))
+        _attach(session_id)
+        _debug("server session attach: _attach returned for " + str(session_id))
+        server.on_session_ready(self)
+        _debug("server session attach: on_session_ready sent for " + str(session_id))
+
+    after 0: _attach_ready()
+
+    action def accept_auth() -> None:
+        """Accept the pending authentication request"""
+        NotImplemented
+
+    action def reject_auth(reason: str) -> None:
+        """Reject the pending authentication request"""
+        NotImplemented
+
+    action def accept_channel(channel: ServerChannel) -> None:
+        """Accept the pending channel open request"""
+        channel.accept_open()
+
+    action def accept_channel_open(channel: ServerChannel,
+                                   on_data: action(ServerChannel, ?bytes) -> None,
+                                   on_stderr: action(ServerChannel, ?bytes) -> None,
+                                   on_close: action(ServerChannel, str) -> None) -> None:
+        NotImplemented
+
+    action def reject_channel(reason: str) -> None:
+        """Reject the pending channel open request"""
+        NotImplemented
+
+    action def close() -> None:
+        """Close the SSH session"""
+        NotImplemented
+
+    # Internal channel operations (used by ServerChannel actor)
+    action def channel_accept_request(channel: ServerChannel) -> None:
+        NotImplemented
+
+    action def channel_reject_request(channel: ServerChannel, reason: str) -> None:
+        NotImplemented
+
+    action def channel_write(channel: ServerChannel, data: bytes) -> None:
+        NotImplemented
+
+    action def channel_write_stderr(channel: ServerChannel, data: bytes) -> None:
+        NotImplemented
+
+    action def channel_send_eof(channel: ServerChannel) -> None:
+        NotImplemented
+
+    action def channel_send_exit_status(channel: ServerChannel, status: int) -> None:
+        NotImplemented
+
+    action def channel_close(channel: ServerChannel) -> None:
+        NotImplemented
+
+
+actor ServerChannel(session: ServerSession,
+                    on_data: action(ServerChannel, ?bytes) -> None,
+                    on_stderr: action(ServerChannel, ?bytes) -> None,
+                    on_close: action(ServerChannel, str) -> None):
+    """SSH Server Channel"""
+
+    var _channel_id: u64 = 0
+    var _on_data: action(ServerChannel, ?bytes) -> None = on_data
+    var _on_stderr: action(ServerChannel, ?bytes) -> None = on_stderr
+    var _on_close: action(ServerChannel, str) -> None = on_close
+
+    action def accept_request() -> None:
+        """Accept the pending channel request"""
+        session.channel_accept_request(self)
+
+    action def accept_open() -> None:
+        """Accept the pending channel open request"""
+        session.accept_channel_open(self, _on_data, _on_stderr, _on_close)
+
+    action def reject_request(reason: str) -> None:
+        """Reject the pending channel request"""
+        session.channel_reject_request(self, reason)
+
+    action def write(data: bytes) -> None:
+        """Write data to the channel (stdout)"""
+        session.channel_write(self, data)
+
+    action def write_stderr(data: bytes) -> None:
+        """Write data to the channel (stderr)"""
+        session.channel_write_stderr(self, data)
+
+    action def send_eof() -> None:
+        """Send EOF to the channel"""
+        session.channel_send_eof(self)
+
+    action def send_exit_status(status: int) -> None:
+        """Send an exit status for the channel"""
+        session.channel_send_exit_status(self, status)
+
+    action def close() -> None:
+        """Close the channel"""
+        session.channel_close(self)
 
 
 actor main(env):
-    def on_connect(client: Client):
-        print("Connected")
+    NETCONF_HELLO = b'<?xml version="1.0" encoding="UTF-8"?>\n' + \
+        b'<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">\n' + \
+        b'  <capabilities>\n' + \
+        b'    <capability>urn:ietf:params:netconf:base:1.0</capability>\n' + \
+        b'  </capabilities>\n' + \
+        b'</hello>]]>]]>'
+    var out_buf = b""
+    var c: ?Client = None
 
-    def on_close(client: Client, error: str):
-        print("Error", error)
+    def on_connect(client: Client, err: ?str):
+        if err is not None:
+            print("SSH error", err)
+            env.exit(1)
+            return
+        print("SSH connected")
 
-    print(version())
-    c = Client(
+    def on_close(client: Client, reason: str):
+        print("SSH closed", reason)
+        env.exit(0)
+
+    def on_hostkey(client: Client, state: str, info: HostKeyInfo):
+        print("Host key", state, info.key_type, info.fingerprint)
+        # WARNING: accepting any host key is insecure; do this only for testing
+        client.accept_hostkey()
+
+    def ch_open(ch: Channel, err: ?str):
+        if err is not None:
+            print("Channel open error", err)
+            if c is not None:
+                c.close()
+            return
+        ch.request_subsystem("netconf")
+        ch.write(NETCONF_HELLO)
+
+    def ch_out(ch: Channel, data: ?bytes):
+        if data is not None:
+            out_buf += data
+            if out_buf.find(b"]]>]]>") >= 0:
+                print(out_buf)
+                ch.close()
+
+    def ch_err(ch: Channel, data: ?bytes):
+        if data is not None:
+            print(data)
+
+    def ch_exit(ch: Channel, code: int, sig: ?str):
+        print("exit", code, sig)
+
+    def ch_close(ch: Channel, reason: str):
+        print("channel closed", reason)
+        if c is not None:
+            c.close()
+
+    client = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
-        "localhost",
-        "foo",
+        "127.0.0.1",
+        "admin",
         on_connect,
         on_close,
-        password="bar",
-        port=2223,
+        on_hostkey,
+        password="admin",
+        port=42830,
+        known_hosts="/tmp/acton_ssh_known_hosts",
     )
-    env.exit(0)
+
+    c = client
+    Channel(client, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def _on_close_timeout():
+        if c is not None:
+            c.close()
+    after 10.0: _on_close_timeout()
