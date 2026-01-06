@@ -1306,6 +1306,7 @@ static void client_drive(ssh_client_ctx *c) {
     if (c->state == CLIENT_STATE_ERROR || c->state == CLIENT_STATE_CLOSED || c->state == CLIENT_STATE_CLOSING)
         return;
 
+    int spin = 0;
     while (1) {
         if (c->state == CLIENT_STATE_CONNECTING) {
             client_mark_writable(c);
@@ -1318,8 +1319,15 @@ static void client_drive(ssh_client_ctx *c) {
                 c->state = CLIENT_STATE_HOSTKEY;
                 continue;
             } else if (rc == SSH_AGAIN) {
-                if (ssh_get_status(c->session) & SSH_WRITE_PENDING)
+                int status = ssh_get_status(c->session);
+                if (status & SSH_WRITE_PENDING)
                     c->write_ready = 0;
+                if ((status & SSH_READ_PENDING) && spin++ < SSH_IO_PUMP_LIMIT) {
+                    if (ssh_debug_enabled) {
+                        ssh_debug_log("client drive: buffered read pending during connect");
+                    }
+                    continue;
+                }
                 client_update_poll(c);
                 return;
             } else {
@@ -1360,8 +1368,15 @@ static void client_drive(ssh_client_ctx *c) {
                 client_on_ready(c);
                 return;
             } else if (rc == SSH_AUTH_AGAIN) {
-                if (ssh_get_status(c->session) & SSH_WRITE_PENDING)
+                int status = ssh_get_status(c->session);
+                if (status & SSH_WRITE_PENDING)
                     c->write_ready = 0;
+                if ((status & SSH_READ_PENDING) && spin++ < SSH_IO_PUMP_LIMIT) {
+                    if (ssh_debug_enabled) {
+                        ssh_debug_log("client drive: buffered read pending during auth");
+                    }
+                    continue;
+                }
                 client_update_poll(c);
                 return;
             } else {
@@ -2326,6 +2341,7 @@ static void session_drive(ssh_server_session_ctx *s) {
     if (!s->attached)
         return;
 
+    int spin = 0;
     while (1) {
         if (s->state == SESSION_STATE_KEYEX) {
             session_mark_writable(s);
@@ -2336,8 +2352,15 @@ static void session_drive(ssh_server_session_ctx *s) {
                 ssh_set_auth_methods(s->session, SSH_AUTH_METHOD_PASSWORD);
                 continue;
             } else if (rc == SSH_AGAIN) {
-                if (ssh_get_status(s->session) & SSH_WRITE_PENDING)
+                int status = ssh_get_status(s->session);
+                if (status & SSH_WRITE_PENDING)
                     s->write_ready = 0;
+                if ((status & SSH_READ_PENDING) && spin++ < SSH_IO_PUMP_LIMIT) {
+                    if (ssh_debug_enabled) {
+                        ssh_debug_log("server drive: buffered read pending during key exchange");
+                    }
+                    continue;
+                }
                 session_update_poll(s);
                 return;
             } else {
