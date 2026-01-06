@@ -1,0 +1,273 @@
+import random
+import testing
+import logging
+
+import net
+import ssh
+
+
+actor ServerClientTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+    NETCONF_END = b"]]>]]>"
+    NETCONF_HELLO = b'<?xml version="1.0"?>\n' + \
+        b'<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">\n' + \
+        b'  <capabilities>\n' + \
+        b'    <capability>urn:ietf:params:netconf:base:1.0</capability>\n' + \
+        b'  </capabilities>\n' + \
+        b'</hello>]]>]]>'
+    SERVER_HELLO = b'<hello><capabilities><capability>urn:ietf:params:netconf:base:1.0</capability></capabilities></hello>]]>]]>'
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_session: ?ssh.ServerSession = None
+    var server_buf = b""
+    var client_buf = b""
+    var client_channel: ?ssh.Channel = None
+    var server_channel: ?ssh.ServerChannel = None
+    var shutdown_started = False
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var client_channel_closed = False
+    var server_channel_closed = False
+    var client_close_requested = False
+    var server_close_requested = False
+    var client_channel_close_requested = False
+    var session_close_requested = False
+    var shutdown_timer_started = False
+
+    def maybe_finish():
+        if done:
+            return
+        if shutdown_started and client_closed and server_closed and session_closed and \
+           client_channel_closed and server_channel_closed:
+            log.info("test success", None)
+            done = True
+            t.success()
+
+    def request_client_channel_close():
+        if client_channel_close_requested:
+            return
+        client_channel_close_requested = True
+        if client_channel is not None:
+            client_channel.close()
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def request_session_close():
+        if session_close_requested or session_closed:
+            return
+        session_close_requested = True
+        if server_session is not None:
+            log.info("request session close", None)
+            server_session.close()
+        else:
+            log.info("request session close: no session", None)
+
+    def begin_shutdown(reason: str):
+        if shutdown_started:
+            return
+        shutdown_started = True
+        log.info("shutdown start: " + reason, None)
+        request_session_close()
+        request_client_channel_close()
+        request_client_close()
+        if not shutdown_timer_started:
+            shutdown_timer_started = True
+            after 10.0: on_timeout()
+        maybe_finish()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        log.info("test error: " + msg, None)
+        done = True
+        shutdown_started = True
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        log.info("timeout fired", None)
+        finish_error("timeout waiting for SSH test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if done:
+                return
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        log.info("server listening", None)
+        server = s
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        log.info("server session ready", None)
+        server_session = sess
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        log.info("auth request for " + req.user, None)
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        log.info("channel open requested", None)
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        server_channel = ch
+        sess.accept_channel(ch)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        log.info("subsystem request: " + name, None)
+        if name == "netconf":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        log.info("exec request: " + cmd, None)
+        ch.reject_request("exec disabled")
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        if shutdown_started:
+            request_server_close()
+        maybe_finish()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server_buf += data
+            log.info("server data len " + str(len(data)), None)
+            if server_buf.find(NETCONF_END) >= 0:
+                log.info("server got NETCONF hello", None)
+                ch.write(SERVER_HELLO)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        log.info("server channel closed: " + reason, None)
+        server_channel_closed = True
+        maybe_finish()
+
+    def on_hostkey(client: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        log.info("hostkey state: " + state, None)
+        client.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            log.info("client connect error: " + err, None)
+            finish_error("client connect error: " + err)
+            return
+        log.info("client connected", None)
+        client_channel = ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        if shutdown_started:
+            request_session_close()
+        maybe_finish()
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            log.info("client channel open error: " + err, None)
+            finish_error("client channel open error: " + err)
+            return
+        log.info("client channel open", None)
+        ch.request_subsystem("netconf")
+        ch.write(NETCONF_HELLO)
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            client_buf += data
+            log.info("client data len " + str(len(data)), None)
+            if client_buf.find(NETCONF_END) >= 0:
+                log.info("client got NETCONF hello", None)
+                begin_shutdown("client got NETCONF hello")
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        log.info("client exit " + str(code), None)
+        return
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        log.info("client channel closed: " + reason, None)
+        client_channel_closed = True
+        if shutdown_started and client is not None:
+            client.close()
+        maybe_finish()
+
+    def start_client():
+        log.info("starting client", None)
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 42000 + (random.randint(0, 2000) + attempts * 37) % 2000
+        log.info("starting server on " + str(port), None)
+        server_close_requested = False
+        server_closed = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+
+
+def _test_ssh_server_subsystem(t: testing.EnvT):
+    """Exercise server subsystem handling with a local client."""
+    ServerClientTester(t)
