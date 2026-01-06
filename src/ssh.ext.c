@@ -64,6 +64,7 @@ typedef struct write_chunk {
 typedef struct ssh_channel_ctx {
     struct ssh_channel_ctx *next;
     ssh_channel channel;
+    struct ssh_channel_callbacks_struct *callbacks;
     sshQ_Channel actor;
     channel_state_t state;
     channel_request_t pending_req;
@@ -163,6 +164,7 @@ typedef struct server_write_chunk {
 typedef struct ssh_server_channel_ctx {
     struct ssh_server_channel_ctx *next;
     ssh_channel channel;
+    struct ssh_channel_callbacks_struct *callbacks;
     struct ssh_server_session_ctx *session;
     sshQ_ServerChannel actor;
     schan_state_t state;
@@ -621,6 +623,73 @@ static void channel_notify_exit(ssh_channel_ctx *ch, int exit_status, B_str sign
     ch->exit_sent = 1;
 }
 
+static int client_channel_data_cb(ssh_session session, ssh_channel channel, void *data,
+                                  uint32_t len, int is_stderr, void *userdata) {
+    ssh_channel_ctx *ch = (ssh_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL || ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR)
+        return 0;
+    if (len == 0)
+        return 0;
+    B_bytes out = to$bytesD_len((const char *)data, (size_t)len);
+    if (is_stderr) {
+        if (ch->on_stderr) {
+            $action2 f = ($action2)ch->on_stderr;
+            f->$class->__asyn__(f, ch->actor, out);
+        }
+    } else {
+        if (ch->on_stdout) {
+            $action2 f = ($action2)ch->on_stdout;
+            f->$class->__asyn__(f, ch->actor, out);
+        }
+    }
+    return (int)len;
+}
+
+static void client_channel_eof_cb(ssh_session session, ssh_channel channel, void *userdata) {
+    ssh_channel_ctx *ch = (ssh_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL)
+        return;
+    if (!ch->stdout_eof && ch->on_stdout) {
+        $action2 f = ($action2)ch->on_stdout;
+        f->$class->__asyn__(f, ch->actor, B_None);
+        ch->stdout_eof = 1;
+    }
+    if (!ch->stderr_eof && ch->on_stderr) {
+        $action2 f = ($action2)ch->on_stderr;
+        f->$class->__asyn__(f, ch->actor, B_None);
+        ch->stderr_eof = 1;
+    }
+}
+
+static void client_channel_close_cb(ssh_session session, ssh_channel channel, void *userdata) {
+    ssh_channel_ctx *ch = (ssh_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL)
+        return;
+    channel_notify_close(ch, "closed");
+}
+
+static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
+    if (ch == NULL || ch->channel == NULL || ch->callbacks != NULL)
+        return;
+    struct ssh_channel_callbacks_struct *cb = acton_calloc(1, sizeof(*cb));
+    ssh_callbacks_init(cb);
+    cb->userdata = ch;
+    cb->channel_data_function = client_channel_data_cb;
+    cb->channel_eof_function = client_channel_eof_cb;
+    cb->channel_close_function = client_channel_close_cb;
+    ch->callbacks = cb;
+    ssh_add_channel_callbacks(ch->channel, cb);
+    if (ssh_debug_enabled) {
+        ssh_debug_log("client channel callbacks set ch=%p", (void *)ch);
+    }
+}
+
 static void channel_notify_eof(ssh_channel_ctx *ch) {
     if (ch->channel == NULL)
         return;
@@ -657,6 +726,10 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             (void)core_dumped;
         }
         channel_notify_exit(ch, exit_status, exit_signal);
+        if (ch->callbacks) {
+            ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
+            ch->callbacks = NULL;
+        }
         ssh_channel_free(ch->channel);
         ch->channel = NULL;
     } else {
@@ -738,7 +811,7 @@ static int channel_read_stream(ssh_client_ctx *c, ssh_channel_ctx *ch, int is_st
     char buf[SSH_READ_BUFSIZE];
     int read_any = 0;
     for (;;) {
-        int n = ssh_channel_read_nonblocking(ch->channel, buf, sizeof(buf), is_stderr);
+        int n = ssh_channel_read_buffered(ch->channel, buf, sizeof(buf), is_stderr);
         if (ssh_debug_enabled) {
             ssh_debug_log("client channel read: rc=%d stderr=%d", n, is_stderr);
         }
@@ -783,6 +856,10 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         if (ch->channel == NULL) {
             channel_fail(c, ch, "Failed to create SSH channel");
             return;
+        }
+        client_channel_setup_callbacks(ch);
+        if (ssh_debug_enabled) {
+            ssh_debug_log("client channel new ch=%p callbacks=%p", (void *)ch, (void *)ch->callbacks);
         }
         ch->state = CHAN_STATE_OPENING;
     }
@@ -896,12 +973,14 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             }
         }
 
-        for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
-            int did = 0;
-            did |= channel_read_stream(c, ch, 0);
-            did |= channel_read_stream(c, ch, 1);
-            if (!did)
-                break;
+        if (ch->callbacks == NULL) {
+            for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
+                int did = 0;
+                did |= channel_read_stream(c, ch, 0);
+                did |= channel_read_stream(c, ch, 1);
+                if (!did)
+                    break;
+            }
         }
         channel_notify_eof(ch);
     }
@@ -1566,6 +1645,7 @@ $R sshQ_ClientD_channel_createG_local(sshQ_Client self, $Cont c$cont, sshQ_Chann
 
     ssh_channel_ctx *ch = acton_calloc(1, sizeof(ssh_channel_ctx));
     ch->actor = channel;
+    ch->callbacks = NULL;
     ch->state = CHAN_STATE_INIT;
     ch->pending_req = CHAN_REQ_NONE;
     ch->pty_pending = 0;
@@ -1771,6 +1851,73 @@ static void server_channel_notify_close(ssh_server_channel_ctx *ch, const char *
     ch->close_notified = 1;
 }
 
+static int server_channel_data_cb(ssh_session session, ssh_channel channel, void *data,
+                                  uint32_t len, int is_stderr, void *userdata) {
+    ssh_server_channel_ctx *ch = (ssh_server_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL || ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR)
+        return 0;
+    if (len == 0)
+        return 0;
+    B_bytes out = to$bytesD_len((const char *)data, (size_t)len);
+    if (is_stderr) {
+        if (ch->on_stderr) {
+            $action2 f = ($action2)ch->on_stderr;
+            f->$class->__asyn__(f, ch->actor, out);
+        }
+    } else {
+        if (ch->on_data) {
+            $action2 f = ($action2)ch->on_data;
+            f->$class->__asyn__(f, ch->actor, out);
+        }
+    }
+    return (int)len;
+}
+
+static void server_channel_eof_cb(ssh_session session, ssh_channel channel, void *userdata) {
+    ssh_server_channel_ctx *ch = (ssh_server_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL)
+        return;
+    if (!ch->stdout_eof && ch->on_data) {
+        $action2 f = ($action2)ch->on_data;
+        f->$class->__asyn__(f, ch->actor, B_None);
+        ch->stdout_eof = 1;
+    }
+    if (!ch->stderr_eof && ch->on_stderr) {
+        $action2 f = ($action2)ch->on_stderr;
+        f->$class->__asyn__(f, ch->actor, B_None);
+        ch->stderr_eof = 1;
+    }
+}
+
+static void server_channel_close_cb(ssh_session session, ssh_channel channel, void *userdata) {
+    ssh_server_channel_ctx *ch = (ssh_server_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL)
+        return;
+    server_channel_notify_close(ch, "closed");
+}
+
+static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
+    if (ch == NULL || ch->channel == NULL || ch->callbacks != NULL)
+        return;
+    struct ssh_channel_callbacks_struct *cb = acton_calloc(1, sizeof(*cb));
+    ssh_callbacks_init(cb);
+    cb->userdata = ch;
+    cb->channel_data_function = server_channel_data_cb;
+    cb->channel_eof_function = server_channel_eof_cb;
+    cb->channel_close_function = server_channel_close_cb;
+    ch->callbacks = cb;
+    ssh_add_channel_callbacks(ch->channel, cb);
+    if (ssh_debug_enabled) {
+        ssh_debug_log("server channel callbacks set ch=%p", (void *)ch);
+    }
+}
+
 static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
     if (ch->channel == NULL)
         return;
@@ -1790,6 +1937,10 @@ static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
 
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     if (ch->channel != NULL) {
+        if (ch->callbacks) {
+            ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
+            ch->callbacks = NULL;
+        }
         ssh_channel_free(ch->channel);
         ch->channel = NULL;
     }
@@ -1875,7 +2026,7 @@ static int server_channel_read_stream(ssh_server_session_ctx *s, ssh_server_chan
     char buf[SSH_READ_BUFSIZE];
     int read_any = 0;
     for (;;) {
-        int n = ssh_channel_read_nonblocking(ch->channel, buf, sizeof(buf), is_stderr);
+        int n = ssh_channel_read_buffered(ch->channel, buf, sizeof(buf), is_stderr);
         if (ssh_debug_enabled) {
             ssh_debug_log("server channel read: rc=%d stderr=%d", n, is_stderr);
         }
@@ -1957,12 +2108,14 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
         }
     }
 
-    for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
-        int did = 0;
-        did |= server_channel_read_stream(s, ch, 0);
-        did |= server_channel_read_stream(s, ch, 1);
-        if (!did)
-            break;
+    if (ch->callbacks == NULL) {
+        for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
+            int did = 0;
+            did |= server_channel_read_stream(s, ch, 0);
+            did |= server_channel_read_stream(s, ch, 1);
+            if (!did)
+                break;
+        }
     }
     server_channel_notify_eof(ch);
 
@@ -2847,6 +3000,7 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
     ch->channel = chan;
     ch->session = s;
     ch->actor = channel;
+    ch->callbacks = NULL;
     ch->state = SCHAN_STATE_OPEN;
     ch->send_eof = 0;
     ch->close_requested = 0;
@@ -2859,6 +3013,10 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
     ch->on_data = ($action2)on_data;
     ch->on_stderr = ($action2)on_stderr;
     ch->on_close = ($action2)on_close;
+    server_channel_setup_callbacks(ch);
+    if (ssh_debug_enabled) {
+        ssh_debug_log("server channel new ch=%p callbacks=%p", (void *)ch, (void *)ch->callbacks);
+    }
 
     ch->next = s->channels;
     s->channels = ch;
