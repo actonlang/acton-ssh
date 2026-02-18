@@ -1,3 +1,64 @@
+/*
+ * Acton <-> libssh integration overview
+ *
+ * This file is the external-C glue that drives libssh from Acton's libuv loop
+ * and exposes it to Acton actors. The core goals are:
+ *   - Nonblocking SSH I/O integrated with libuv (no blocking syscalls).
+ *   - Actor-safe, async callback-driven API in Acton.
+ *   - GC-safe memory: libssh allocations use Acton's allocator.
+ *
+ * Event loop integration
+ *   - Each libssh session is created nonblocking.
+ *   - We attach a uv_poll watcher to the libssh socket fd.
+ *   - On poll events we call ssh_session_handle_poll() (via
+ *     session_apply_poll_events), then drive a small state machine
+ *     (connect/auth/ready for client, keyex/auth/ready for server).
+ *   - ssh_get_poll_flags()/ssh_get_status() decide which poll events to arm.
+ *
+ * Buffered data + SSH_AGAIN (why we keep driving without fd readability)
+ *   - libssh maintains its own internal buffers. After a poll callback, libssh
+ *     may have already read bytes into those buffers even though the socket is
+ *     no longer readable at the OS level.
+ *   - When a nonblocking API returns SSH_AGAIN and ssh_get_status() includes
+ *     SSH_READ_PENDING, it means "call again, there is buffered data to
+ *     process" even if the fd will not trigger another readable event.
+ *   - If we only wait for uv_poll readability, we can deadlock:
+ *       1) uv_poll READABLE fires; ssh_session_handle_poll() drains the fd.
+ *       2) ssh_connect()/ssh_handle_key_exchange()/ssh_userauth_password()
+ *          returns SSH_AGAIN.
+ *       3) No more kernel readability events happen, but libssh still has
+ *          buffered protocol bytes (SSH_READ_PENDING).
+ *       4) We wait for an event that never comes and eventually time out.
+ *   - The fix is to keep driving the state machine in a bounded loop while
+ *     SSH_READ_PENDING is set, even without fd readability.
+ *     We cap iterations with SSH_IO_PUMP_LIMIT to avoid CPU spin.
+ *
+ * Channel I/O
+ *   - SSH channels carry two streams: "data" and "extended data". We expose
+ *     these as stdout/stderr callbacks (client on_stdout/on_stderr, server
+ *     on_data/on_stderr). This is protocol-level stdout/stderr, not host OS
+ *     process stdio.
+ *   - Channels install libssh callbacks for data/extended-data/EOF/close.
+ *   - Inbound data always flows through these callbacks. As we drive libssh
+ *     (via ssh_session_handle_poll), libssh invokes the registered C callback
+ *     functions, and those callbacks call the corresponding Acton action
+ *     methods (foo->$class->on_stdout/on_stderr/on_close, etc.). We do not run
+ *     manual read loops; libssh owns buffering and read state.
+ *   - Channel writes are queued and flushed when libssh reports write pending.
+ *
+ * Actor/GC/threading model
+ *   - Client and ServerSession actors own libssh state and are pinned to a
+ *     worker thread. Channel actors invoke action methods on their owning
+ *     Client/ServerSession actor for all operations; there is no hidden
+ *     cross-actor C magic.
+ *   - We replace libssh allocators with Acton's GC allocator so libuv/GC
+ *     roots remain visible (libssh structures can reference GC memory).
+ *
+ * Config & filesystem
+ *   - libssh config processing is disabled by default; known_hosts is only
+ *     read if explicitly configured by the Acton API.
+ *   - Server host keys are generated in-memory unless a path is provided.
+ */
 #include <errno.h>
 #include <fcntl.h>
 #include <libssh/libssh.h>
@@ -22,7 +83,7 @@ uv_loop_t *get_uv_loop(void);
 extern struct $Cont $Done$instance;
 
 #define SSH_READ_BUFSIZE 4096
-#define SSH_IO_PUMP_LIMIT 32
+#define SSH_IO_PUMP_LIMIT 128
 static int ssh_debug_enabled = 0;
 static int ssh_libssh_log_level = SSH_LOG_NOLOG;
 
@@ -940,7 +1001,7 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                 return;
         }
 
-        if (ch->send_eof && !ch->eof_sent) {
+        if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL) {
             client_mark_writable(c);
             int rc = ssh_channel_send_eof(ch->channel);
             if (rc == SSH_OK) {
@@ -956,7 +1017,7 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             }
         }
 
-        if (ch->close_requested && !ch->close_sent) {
+        if (ch->close_requested && !ch->close_sent && ch->write_head == NULL) {
             client_mark_writable(c);
             int rc = ssh_channel_close(ch->channel);
             if (rc == SSH_OK) {
@@ -1224,7 +1285,8 @@ static void client_update_poll(ssh_client_ctx *c) {
 static void client_pump_io(ssh_client_ctx *c) {
     if (c == NULL || c->session == NULL)
         return;
-    for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
+    int i;
+    for (i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
         int did = 0;
         if (c->session == NULL)
             return;
@@ -1271,6 +1333,11 @@ static void client_pump_io(ssh_client_ctx *c) {
         }
         if (!did)
             break;
+    }
+    if (ssh_debug_enabled && i >= SSH_IO_PUMP_LIMIT) {
+        int status = ssh_get_status(c->session);
+        int flags = ssh_get_poll_flags(c->session);
+        ssh_debug_log("client pump: hit limit status=0x%x flags=0x%x", status, flags);
     }
 }
 
@@ -2267,7 +2334,8 @@ static void session_update_poll(ssh_server_session_ctx *s) {
 static void session_pump_io(ssh_server_session_ctx *s) {
     if (s == NULL || s->session == NULL)
         return;
-    for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
+    int i;
+    for (i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
         int did = 0;
         if (s->session == NULL)
             return;
@@ -2314,6 +2382,11 @@ static void session_pump_io(ssh_server_session_ctx *s) {
         }
         if (!did)
             break;
+    }
+    if (ssh_debug_enabled && i >= SSH_IO_PUMP_LIMIT) {
+        int status = ssh_get_status(s->session);
+        int flags = ssh_get_poll_flags(s->session);
+        ssh_debug_log("server pump: hit limit status=0x%x flags=0x%x", status, flags);
     }
 }
 

@@ -2,7 +2,7 @@
     "dependencies": {},
     "zig_dependencies": {
         "libssh": {
-            "path": "../libssh",
+            "path": "../acton-deps/libssh",
             "options": {
                 "WITH_SERVER": "true"
             },

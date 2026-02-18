@@ -26,7 +26,6 @@ actor ServerClientTester(t: testing.EnvT):
     var server_buf = b""
     var client_buf = b""
     var client_channel: ?ssh.Channel = None
-    var server_channel: ?ssh.ServerChannel = None
     var shutdown_started = False
     var client_closed = False
     var server_closed = False
@@ -271,3 +270,182 @@ actor ServerClientTester(t: testing.EnvT):
 def _test_ssh_server_subsystem(t: testing.EnvT):
     """Exercise server subsystem handling with a local client."""
     ServerClientTester(t)
+
+
+actor ClientCloseFlushTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var payload_len = 1024 * 1024
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_buf = b""
+    var client_close_requested = False
+    var server_close_requested = False
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def finish_success():
+        if done:
+            return
+        done = True
+        log.info("test success", None)
+        request_client_close()
+        request_server_close()
+        t.success()
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for client close flush test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        log.info("server listening", None)
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "netconf":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server_buf += data
+            return
+        if len(server_buf) != payload_len:
+            finish_error("server received " + str(len(server_buf)) + " bytes, expected " + str(payload_len))
+            return
+        finish_success()
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        return
+
+    def on_hostkey(client: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        client.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("client channel open error: " + err)
+            return
+        ch.request_subsystem("netconf")
+        payload = b"A" * payload_len
+        ch.write(payload)
+        ch.close()
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        return
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 44000 + (random.randint(0, 2000) + attempts * 59) % 2000
+        server_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 1.0: on_timeout()
+
+
+def _test_ssh_client_close_flush(t: testing.EnvT):
+    """Client close should flush queued writes before EOF."""
+    ClientCloseFlushTester(t)

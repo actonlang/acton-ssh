@@ -1,3 +1,40 @@
+"""
+Acton SSH module
+
+This module exposes a callback-driven SSH client/server API built on libssh
+and integrated with Acton's libuv loop. The main actors are:
+
+- Client: connects to a server, reports on_connect(err) and on_close(reason),
+  and optionally on_hostkey(state, HostKeyInfo) for strict host key checks.
+- Channel: client-side data stream (stdout/stderr/exit/close callbacks).
+- RunCommand: convenience wrapper that buffers stdout/stderr and reports exit.
+- Server: listens for incoming connections and creates ServerSession actors.
+- ServerSession: per-connection state; emits on_auth(AuthRequest),
+  on_channel_open, and optional on_exec/on_subsystem.
+- ServerChannel: server-side data stream for a single channel.
+
+Usage sketch (client):
+  def on_connect(c, err):
+      if err is not None: ...
+      Channel(c, on_open, on_stdout, on_stderr, on_exit, on_close)
+
+  def on_hostkey(c, state, info):
+      if state == HOSTKEY_OK: c.accept_hostkey()
+      else: c.reject_hostkey("...")
+
+Usage sketch (server):
+  def on_auth(sess, req): sess.accept_auth()
+  def on_channel_open(sess): sess.accept_channel(ServerChannel(...))
+  def on_subsystem(sess, ch, name): ch.accept_request(); ch.write(...)
+
+Notes:
+  - All operations are async actor actions; callbacks receive errors as ?str.
+  - ?bytes callbacks use None to signal EOF.
+  - Timeouts and keepalive are configurable; host keys are generated in-memory
+    unless host_key_path is set.
+  - For debugging, set ACTON_SSH_DEBUG and ACTON_SSH_LIBSSH_LOG.
+"""
+
 import net
 
 
