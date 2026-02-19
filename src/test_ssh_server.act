@@ -449,3 +449,337 @@ actor ClientCloseFlushTester(t: testing.EnvT):
 def _test_ssh_client_close_flush(t: testing.EnvT):
     """Client close should flush queued writes before EOF."""
     ClientCloseFlushTester(t)
+
+
+actor AuthRejectTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var saw_auth = False
+    var got_connect_error = False
+    var client_close_requested = False
+    var server_close_requested = False
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_finish():
+        if done:
+            return
+        if saw_auth and got_connect_error:
+            done = True
+            request_client_close()
+            request_server_close()
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for auth reject test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        saw_auth = True
+        sess.reject_auth("invalid credentials")
+        maybe_finish()
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open after auth reject")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request after auth reject")
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request after auth reject")
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is None:
+            finish_error("expected auth failure but connect succeeded")
+            return
+        got_connect_error = True
+        maybe_finish()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="wrong-pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 46000 + (random.randint(0, 2000) + attempts * 73) % 2000
+        server_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 2.0: on_timeout()
+
+
+def _test_ssh_auth_reject(t: testing.EnvT):
+    """Server reject_auth should fail client connect without hanging."""
+    AuthRejectTester(t)
+
+
+actor UnsupportedRequestTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var saw_subsystem = False
+    var saw_exec = False
+    var client_close_requested = False
+    var server_close_requested = False
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_finish():
+        if done:
+            return
+        if saw_subsystem and saw_exec:
+            done = True
+            request_client_close()
+            request_server_close()
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for unsupported request test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        saw_exec = True
+        ch.reject_request("exec disabled")
+        maybe_finish()
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        saw_subsystem = True
+        ch.reject_request("unsupported subsystem")
+        maybe_finish()
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        return
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.Channel(c, ch_sub_open, ch_sub_out, ch_sub_err, ch_sub_exit, ch_sub_close)
+        after 0.05: start_exec_channel(c)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+
+    def ch_sub_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("subsystem channel open error: " + err)
+            return
+        ch.request_subsystem("unsupported-subsystem")
+        ch.close()
+
+    def ch_sub_out(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_sub_err(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_sub_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch_sub_close(ch: ssh.Channel, reason: str):
+        return
+
+    def start_exec_channel(c: ssh.Client):
+        if done:
+            return
+        ssh.Channel(c, ch_exec_open, ch_exec_out, ch_exec_err, ch_exec_exit, ch_exec_close)
+
+    def ch_exec_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("exec channel open error: " + err)
+            return
+        ch.request_exec("echo denied")
+        ch.close()
+
+    def ch_exec_out(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_exec_err(ch: ssh.Channel, data: ?bytes):
+        return
+
+    def ch_exec_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch_exec_close(ch: ssh.Channel, reason: str):
+        return
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 48000 + (random.randint(0, 2000) + attempts * 97) % 2000
+        server_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 2.0: on_timeout()
+
+
+def _test_ssh_unsupported_requests(t: testing.EnvT):
+    """Server reject_request should handle unsupported subsystem/exec."""
+    UnsupportedRequestTester(t)

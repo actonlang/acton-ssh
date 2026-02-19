@@ -2018,6 +2018,12 @@ static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
 }
 
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
+    if (ch->pending_req) {
+        ssh_message_reply_default(ch->pending_req);
+        ssh_message_free(ch->pending_req);
+        ch->pending_req = NULL;
+        ch->pending_req_type = SCHAN_REQ_NONE;
+    }
     if (ch->channel != NULL) {
         if (ch->callbacks) {
             ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
@@ -2836,10 +2842,12 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
     s->channels = NULL;
 
     if (s->pending_auth) {
+        ssh_message_reply_default(s->pending_auth);
         ssh_message_free(s->pending_auth);
         s->pending_auth = NULL;
     }
     if (s->pending_channel_open) {
+        ssh_message_reply_default(s->pending_channel_open);
         ssh_message_free(s->pending_channel_open);
         s->pending_channel_open = NULL;
     }
@@ -3083,8 +3091,13 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
 
     ssh_channel chan = ssh_message_channel_request_open_reply_accept(s->pending_channel_open);
     if (chan == NULL) {
+        ssh_message_reply_default(s->pending_channel_open);
         ssh_message_free(s->pending_channel_open);
         s->pending_channel_open = NULL;
+        if (on_close) {
+            $action2 f = ($action2)on_close;
+            f->$class->__asyn__(f, channel, to$str((char *)"Failed to accept channel open"));
+        }
         session_drive(s);
         return $R_CONT(c$cont, B_None);
     }
