@@ -512,6 +512,26 @@ static int fd_has_data(int fd) {
     return 0;
 }
 
+static int fd_can_write(int fd) {
+    if (fd < 0)
+        return 0;
+    struct pollfd pfd;
+    pfd.fd = fd;
+    pfd.events = POLLOUT;
+    pfd.revents = 0;
+    int rc;
+    do {
+        rc = poll(&pfd, 1, 0);
+    } while (rc < 0 && errno == EINTR);
+    if (rc <= 0)
+        return 0;
+    if (pfd.revents & POLLOUT)
+        return 1;
+    if (pfd.revents & POLLNVAL)
+        return 0;
+    return 0;
+}
+
 static int fd_set_nonblocking(int fd) {
     if (fd < 0)
         return -1;
@@ -1240,7 +1260,7 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_toread(c->session);
         libssh_events |= UV_READABLE;
     }
-    if (events & UV_WRITABLE) {
+    if ((events & UV_WRITABLE) && fd_can_write(c->fd)) {
         c->write_ready = 1;
         ssh_set_fd_towrite(c->session);
         libssh_events |= UV_WRITABLE;
@@ -2614,7 +2634,7 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_toread(s->session);
         libssh_events |= UV_READABLE;
     }
-    if (events & UV_WRITABLE) {
+    if ((events & UV_WRITABLE) && fd_can_write(s->fd)) {
         s->write_ready = 1;
         ssh_set_fd_towrite(s->session);
         libssh_events |= UV_WRITABLE;
