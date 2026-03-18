@@ -195,11 +195,11 @@ actor Channel(client: Client,
         client.channel_write(self, data)
 
     action def send_eof() -> None:
-        """Send EOF to the channel"""
+        """Half-close writes while keeping the read side open"""
         client.channel_send_eof(self)
 
     action def close() -> None:
-        """Close the channel"""
+        """Close the channel and discard unread inbound data"""
         client.channel_close(self)
 
 
@@ -444,7 +444,7 @@ actor ServerChannel(session: ServerSession,
         session.channel_write_stderr(self, data)
 
     action def send_eof() -> None:
-        """Send EOF to the channel"""
+        """Half-close writes while keeping the read side open"""
         session.channel_send_eof(self)
 
     action def send_exit_status(status: int) -> None:
@@ -452,7 +452,7 @@ actor ServerChannel(session: ServerSession,
         session.channel_send_exit_status(self, status)
 
     action def close() -> None:
-        """Close the channel"""
+        """Close the channel and discard unread inbound data"""
         session.channel_close(self)
 
 

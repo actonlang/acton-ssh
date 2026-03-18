@@ -989,6 +989,466 @@ def _test_ssh_server_session_close_flush(t: testing.EnvT):
     ServerSessionCloseFlushTester(t)
 
 
+actor ConcurrentChannelTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    PAYLOAD = b"channel-ok"
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var num_channels = 8
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_session: ?ssh.ServerSession = None
+    var client_close_requested = False
+    var server_close_requested = False
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var client_opened = 0
+    var client_closed_channels = 0
+    var server_subsystems = 0
+    var server_closed_channels = 0
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_shutdown():
+        if done:
+            return
+        if client_closed_channels == num_channels and server_closed_channels == num_channels:
+            request_client_close()
+            if server_session is not None:
+                server_session.close()
+            request_server_close()
+
+    def maybe_finish():
+        if done:
+            return
+        if client_closed and server_closed and session_closed and \
+           client_opened == num_channels and server_subsystems == num_channels and \
+           client_closed_channels == num_channels and server_closed_channels == num_channels:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        if server_session is not None:
+            server_session.close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for concurrent channel test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        server_session = sess
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name != "netconf":
+            finish_error("unexpected subsystem: " + name)
+            return
+        server_subsystems += 1
+        ch.accept_request()
+        ch.write(PAYLOAD)
+        ch.close()
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        maybe_finish()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            finish_error("unexpected client payload on concurrent channel test")
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            finish_error("unexpected client stderr on concurrent channel test")
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        server_closed_channels += 1
+        maybe_shutdown()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        start_channel(c, 0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        maybe_finish()
+
+    def start_channel(c: ssh.Client, idx: int):
+        if idx >= num_channels:
+            return
+
+        def ch_open(ch: ssh.Channel, err: ?str):
+            if err is not None:
+                finish_error("channel " + str(idx) + " open error: " + err)
+                return
+            client_opened += 1
+            ch.request_subsystem("netconf")
+
+        def ch_out(ch: ssh.Channel, data: ?bytes):
+            if data is None:
+                return
+            if data != PAYLOAD:
+                finish_error("channel " + str(idx) + " received unexpected payload")
+
+        def ch_err(ch: ssh.Channel, data: ?bytes):
+            if data is not None:
+                finish_error("channel " + str(idx) + " received unexpected stderr")
+
+        def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+            return
+
+        def ch_close(ch: ssh.Channel, reason: str):
+            client_closed_channels += 1
+            maybe_shutdown()
+            maybe_finish()
+
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+        start_channel(c, idx + 1)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 54000 + (random.randint(0, 2000) + attempts * 109) % 2000
+        server_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_concurrent_channels(t: testing.EnvT):
+    """Multiple concurrent channels should share one session cleanly."""
+    ConcurrentChannelTester(t)
+
+
+actor ConcurrentWriteServerChannelHandler(payload_len: int,
+                                          ack: bytes,
+                                          on_complete: action() -> None,
+                                          on_error: action(str) -> None):
+    var recv_buf = b""
+
+    action def on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            recv_buf += data
+            return
+        if len(recv_buf) != payload_len:
+            on_error("server received " + str(len(recv_buf)) + " bytes, expected " + str(payload_len))
+            return
+        ch.write(ack)
+        ch.close()
+
+    action def on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            on_error("unexpected client stderr on concurrent write test")
+
+    action def on_close(ch: ssh.ServerChannel, reason: str):
+        on_complete()
+
+
+actor ConcurrentChannelWriteTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    ACK = b"ack"
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var num_channels = 4
+    var payload_len = 256 * 1024
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_session: ?ssh.ServerSession = None
+    var client_close_requested = False
+    var server_close_requested = False
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var client_opened = 0
+    var client_acks = 0
+    var client_closed_channels = 0
+    var server_subsystems = 0
+    var server_closed_channels = 0
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_shutdown():
+        if done:
+            return
+        if client_closed_channels == num_channels and server_closed_channels == num_channels:
+            request_client_close()
+            if server_session is not None:
+                server_session.close()
+            request_server_close()
+
+    def maybe_finish():
+        if done:
+            return
+        if client_closed and server_closed and session_closed and \
+           client_opened == num_channels and server_subsystems == num_channels and \
+           client_closed_channels == num_channels and server_closed_channels == num_channels:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        if server_session is not None:
+            server_session.close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for concurrent channel write test: client_opened=" + str(client_opened) + " client_acks=" + str(client_acks) + " server_subsystems=" + str(server_subsystems) + " client_closed_channels=" + str(client_closed_channels) + " server_closed_channels=" + str(server_closed_channels) + " client_closed=" + str(client_closed) + " session_closed=" + str(session_closed) + " server_closed=" + str(server_closed))
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        server_session = sess
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_server_channel_close():
+        server_closed_channels += 1
+        maybe_shutdown()
+        maybe_finish()
+
+    def on_channel_open(sess: ssh.ServerSession):
+        handler = ConcurrentWriteServerChannelHandler(
+            payload_len,
+            ACK,
+            on_server_channel_close,
+            finish_error,
+        )
+        ch = ssh.ServerChannel(sess, handler.on_data, handler.on_stderr, handler.on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name != "netconf":
+            finish_error("unexpected subsystem: " + name)
+            return
+        server_subsystems += 1
+        ch.accept_request()
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        start_channel(c, 0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        maybe_finish()
+
+    def start_channel(c: ssh.Client, idx: int):
+        if idx >= num_channels:
+            return
+
+        def ch_open(ch: ssh.Channel, err: ?str):
+            if err is not None:
+                finish_error("channel " + str(idx) + " open error: " + err)
+                return
+            client_opened += 1
+            ch.request_subsystem("netconf")
+            payload = b"W" * payload_len
+            ch.write(payload)
+            ch.send_eof()
+
+        def ch_out(ch: ssh.Channel, data: ?bytes):
+            if data is None:
+                return
+            if data != ACK:
+                finish_error("channel " + str(idx) + " received unexpected payload")
+                return
+            client_acks += 1
+            ch.close()
+
+        def ch_err(ch: ssh.Channel, data: ?bytes):
+            if data is not None:
+                finish_error("channel " + str(idx) + " received unexpected stderr")
+
+        def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+            return
+
+        def ch_close(ch: ssh.Channel, reason: str):
+            client_closed_channels += 1
+            maybe_shutdown()
+            maybe_finish()
+
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+        start_channel(c, idx + 1)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 56000 + (random.randint(0, 2000) + attempts * 113) % 2000
+        server_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_concurrent_channel_writes(t: testing.EnvT):
+    """Multiple channels should flush writes over one session."""
+    ConcurrentChannelWriteTester(t)
+
+
 actor UnsupportedRequestTester(t: testing.EnvT):
     log = logging.Logger(t.log_handler)
 
