@@ -2958,6 +2958,7 @@ static void session_finish_close(ssh_server_session_ctx *s) {
 static void server_close_internal(ssh_server_ctx *s, const char *reason) {
     if (s == NULL || s->state == SERVER_STATE_CLOSED || s->state == SERVER_STATE_CLOSING)
         return;
+    int force_sessions = (s->state == SERVER_STATE_ERROR);
 
     if (!s->listen_ok && !s->listen_notified) {
         server_notify_listen(s, reason ? reason : "closed");
@@ -2974,7 +2975,7 @@ static void server_close_internal(ssh_server_ctx *s, const char *reason) {
     ssh_server_session_ctx *sess = s->sessions;
     while (sess != NULL) {
         ssh_server_session_ctx *next = sess->next;
-        session_close_internal(sess, "Server closed", s->state == SERVER_STATE_ERROR);
+        session_close_internal(sess, "Server closed", force_sessions);
         sess = next;
     }
 
