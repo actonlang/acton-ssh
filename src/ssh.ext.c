@@ -3396,6 +3396,7 @@ $R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, 
         char errmsg[256] = {0};
         snprintf(errmsg, sizeof(errmsg), "SSH server send exit status failed: %s", ssh_get_error(s->session));
         server_channel_notify_close(ch, errmsg);
+        ch->state = SCHAN_STATE_ERROR;
     }
     session_drive(s);
     return $R_CONT(c$cont, B_None);
