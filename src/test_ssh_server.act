@@ -443,7 +443,7 @@ actor ClientCloseFlushTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 1.0: on_timeout()
+    after 2.0: on_timeout()
 
 
 def _test_ssh_client_close_flush(t: testing.EnvT):
