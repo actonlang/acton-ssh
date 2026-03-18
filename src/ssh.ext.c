@@ -142,6 +142,8 @@ typedef struct ssh_channel_ctx {
     int eof_sent;
     int close_requested;
     int close_sent;
+    int remote_close_seen;
+    int write_wontblock;
     int stdout_eof;
     int stderr_eof;
     int exit_sent;
@@ -232,6 +234,8 @@ typedef struct ssh_server_channel_ctx {
     int send_eof;
     int close_requested;
     int close_sent;
+    int remote_close_seen;
+    int write_wontblock;
     int eof_sent;
     int stdout_eof;
     int stderr_eof;
@@ -488,18 +492,6 @@ static void stop_timer(uv_timer_t **timer, uv_close_cb close_cb) {
     }
 }
 
-static void client_mark_writable(ssh_client_ctx *c) {
-    if (c != NULL && c->session != NULL && c->write_ready) {
-        ssh_set_fd_towrite(c->session);
-    }
-}
-
-static void session_mark_writable(ssh_server_session_ctx *s) {
-    if (s != NULL && s->session != NULL && s->write_ready) {
-        ssh_set_fd_towrite(s->session);
-    }
-}
-
 static int fd_has_data(int fd) {
     if (fd < 0)
         return 0;
@@ -513,9 +505,11 @@ static int fd_has_data(int fd) {
     } while (rc < 0 && errno == EINTR);
     if (rc <= 0)
         return 0;
-    if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
+    if (pfd.revents & POLLIN)
+        return 1;
+    if (pfd.revents & POLLNVAL)
         return 0;
-    return (pfd.revents & POLLIN) != 0;
+    return 0;
 }
 
 static int fd_set_nonblocking(int fd) {
@@ -529,22 +523,22 @@ static int fd_set_nonblocking(int fd) {
     return 0;
 }
 
-static int fd_is_writable(int fd) {
-    if (fd < 0)
+static void format_session_error(ssh_session session, const char *prefix,
+                                 char *buf, size_t buflen) {
+    const char *err = NULL;
+    if (session != NULL)
+        err = ssh_get_error(session);
+    if (err != NULL && err[0] != '\0')
+        snprintf(buf, buflen, "%s: %s", prefix, err);
+    else
+        snprintf(buf, buflen, "%s", prefix);
+}
+
+static int session_has_pending_write(ssh_session session) {
+    if (session == NULL)
         return 0;
-    struct pollfd pfd;
-    pfd.fd = fd;
-    pfd.events = POLLOUT;
-    pfd.revents = 0;
-    int rc;
-    do {
-        rc = poll(&pfd, 1, 0);
-    } while (rc < 0 && errno == EINTR);
-    if (rc <= 0)
-        return 0;
-    if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL))
-        return 0;
-    return (pfd.revents & POLLOUT) != 0;
+    int pending = ssh_get_status(session) | ssh_get_poll_flags(session);
+    return (pending & SSH_WRITE_PENDING) != 0;
 }
 
 static void client_poll_close_cb(uv_handle_t *handle) {
@@ -732,7 +726,22 @@ static void client_channel_close_cb(ssh_session session, ssh_channel channel, vo
     (void)channel;
     if (ch == NULL)
         return;
+    ch->remote_close_seen = 1;
     channel_notify_close(ch, "closed");
+}
+
+static int client_channel_write_wontblock_cb(ssh_session session, ssh_channel channel,
+                                             uint32_t bytes, void *userdata) {
+    ssh_channel_ctx *ch = (ssh_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL || ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR)
+        return 0;
+    ch->write_wontblock = bytes > 0 ? 1 : 0;
+    if (ssh_debug_enabled) {
+        ssh_debug_log("client channel write_wontblock: bytes=%u ch=%p", bytes, (void *)ch);
+    }
+    return 0;
 }
 
 static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
@@ -744,6 +753,7 @@ static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
     cb->channel_data_function = client_channel_data_cb;
     cb->channel_eof_function = client_channel_eof_cb;
     cb->channel_close_function = client_channel_close_cb;
+    cb->channel_write_wontblock_function = client_channel_write_wontblock_cb;
     ch->callbacks = cb;
     ssh_add_channel_callbacks(ch->channel, cb);
     if (ssh_debug_enabled) {
@@ -838,33 +848,35 @@ static void channel_queue_write(ssh_channel_ctx *ch, B_bytes data) {
 }
 
 static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
-    while (ch->write_head != NULL) {
+    while (ch->write_head != NULL && ch->write_head->data->nbytes == ch->write_head->offset) {
         write_chunk_t *chunk = ch->write_head;
-        size_t remaining = chunk->data->nbytes - chunk->offset;
-        if (remaining == 0) {
+        ch->write_head = chunk->next;
+        if (ch->write_head == NULL)
+            ch->write_tail = NULL;
+    }
+
+    if (ch->write_head == NULL || !ch->write_wontblock || session_has_pending_write(c->session))
+        return;
+
+    write_chunk_t *chunk = ch->write_head;
+    size_t remaining = chunk->data->nbytes - chunk->offset;
+    ch->write_wontblock = 0;
+    int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
+    if (rc > 0) {
+        chunk->offset += (size_t)rc;
+        if (chunk->offset >= chunk->data->nbytes) {
             ch->write_head = chunk->next;
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
-            continue;
         }
-        client_mark_writable(c);
-        int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
-        if (rc > 0) {
-            chunk->offset += (size_t)rc;
-            if (chunk->offset >= chunk->data->nbytes) {
-                ch->write_head = chunk->next;
-                if (ch->write_head == NULL)
-                    ch->write_tail = NULL;
-            }
-        } else if (rc == 0 || rc == SSH_AGAIN) {
-            c->write_ready = 0;
-            return;
-        } else {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "SSH channel write error: %s", ssh_get_error(c->session));
-            channel_fail(c, ch, errmsg);
-            return;
-        }
+    } else if (rc == 0 || rc == SSH_AGAIN) {
+        c->write_ready = 0;
+        return;
+    } else {
+        char errmsg[256] = {0};
+        snprintf(errmsg, sizeof(errmsg), "SSH channel write error: %s", ssh_get_error(c->session));
+        channel_fail(c, ch, errmsg);
+        return;
     }
 }
 
@@ -926,7 +938,6 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     }
 
     if (ch->state == CHAN_STATE_OPENING) {
-        client_mark_writable(c);
         int rc = ssh_channel_open_session(ch->channel);
         if (rc == SSH_OK) {
             ch->state = CHAN_STATE_OPEN;
@@ -945,7 +956,6 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (ch->state == CHAN_STATE_OPEN || ch->state == CHAN_STATE_RUNNING) {
         if (ch->pty_pending && !ch->pty_done) {
             const char *term = ch->term ? (const char *)fromB_str(ch->term) : "xterm-256color";
-            client_mark_writable(c);
             int rc = ssh_channel_request_pty_size(ch->channel, term, ch->cols, ch->rows);
             if (rc == SSH_OK) {
                 ch->pty_done = 1;
@@ -963,13 +973,10 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         if (ch->pending_req != CHAN_REQ_NONE) {
             int rc = SSH_ERROR;
             if (ch->pending_req == CHAN_REQ_SHELL) {
-                client_mark_writable(c);
                 rc = ssh_channel_request_shell(ch->channel);
             } else if (ch->pending_req == CHAN_REQ_EXEC) {
-                client_mark_writable(c);
                 rc = ssh_channel_request_exec(ch->channel, (const char *)fromB_str(ch->exec_cmd));
             } else if (ch->pending_req == CHAN_REQ_SUBSYSTEM) {
-                client_mark_writable(c);
                 rc = ssh_channel_request_subsystem(ch->channel, (const char *)fromB_str(ch->subsystem));
             }
 
@@ -1001,8 +1008,8 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                 return;
         }
 
-        if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL) {
-            client_mark_writable(c);
+        if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL &&
+            !session_has_pending_write(c->session)) {
             int rc = ssh_channel_send_eof(ch->channel);
             if (rc == SSH_OK) {
                 ch->eof_sent = 1;
@@ -1017,8 +1024,9 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             }
         }
 
-        if (ch->close_requested && !ch->close_sent && ch->write_head == NULL) {
-            client_mark_writable(c);
+        if (ch->close_requested && !ch->close_sent && ch->write_head == NULL &&
+            (!ch->send_eof || ch->eof_sent) &&
+            !session_has_pending_write(c->session)) {
             int rc = ssh_channel_close(ch->channel);
             if (rc == SSH_OK) {
                 ch->close_sent = 1;
@@ -1046,7 +1054,8 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         channel_notify_eof(ch);
     }
 
-    if (ch->channel != NULL && ssh_channel_is_closed(ch->channel)) {
+    if (ch->channel != NULL && ch->remote_close_seen &&
+        ssh_channel_is_closed(ch->channel)) {
         channel_finalize(c, ch);
     }
 }
@@ -1226,18 +1235,25 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         client_fail(c, errmsg);
         return;
     }
-    if (events & UV_READABLE)
+    int libssh_events = 0;
+    if ((events & UV_READABLE) && fd_has_data(c->fd)) {
         ssh_set_fd_toread(c->session);
+        libssh_events |= UV_READABLE;
+    }
     if (events & UV_WRITABLE) {
         c->write_ready = 1;
         ssh_set_fd_towrite(c->session);
+        libssh_events |= UV_WRITABLE;
     }
-    if (session_apply_poll_events(c->session, events) != 0) {
-        client_fail(c, "SSH poll callback error");
+    if (session_apply_poll_events(c->session, libssh_events) != 0) {
+        char errmsg[256] = {0};
+        format_session_error(c->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+        client_fail(c, errmsg);
         return;
     }
     client_drive(c);
     client_pump_io(c);
+    c->write_ready = 0;
 }
 
 static void client_update_poll(ssh_client_ctx *c) {
@@ -1263,9 +1279,6 @@ static void client_update_poll(ssh_client_ctx *c) {
         events |= UV_WRITABLE;
     if ((events & UV_WRITABLE) == 0 && client_needs_write(c))
         events |= UV_WRITABLE;
-#ifdef UV_DISCONNECT
-    events |= UV_DISCONNECT;
-#endif
     if (ssh_debug_enabled && (events != c->poll_events || (pending & SSH_WRITE_PENDING))) {
         ssh_debug_log("client update poll: status=0x%x flags=0x%x pending=0x%x events=0x%x state=%d",
                       status, flags, pending, events, c->state);
@@ -1297,7 +1310,9 @@ static void client_pump_io(ssh_client_ctx *c) {
             }
             ssh_set_fd_toread(c->session);
             if (session_apply_poll_events(c->session, UV_READABLE) != 0) {
-                client_fail(c, "SSH poll callback error");
+                char errmsg[256] = {0};
+                format_session_error(c->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+                client_fail(c, errmsg);
                 return;
             }
             client_drive(c);
@@ -1305,21 +1320,6 @@ static void client_pump_io(ssh_client_ctx *c) {
         }
         if (c->session == NULL)
             return;
-        int pending = ssh_get_status(c->session) | ssh_get_poll_flags(c->session);
-        int can_write = (pending & SSH_WRITE_PENDING) && fd_is_writable(c->fd);
-        if (can_write) {
-            if (ssh_debug_enabled) {
-                ssh_debug_log("client pump: writable pending=0x%x", pending);
-            }
-            c->write_ready = 1;
-            ssh_set_fd_towrite(c->session);
-            if (session_apply_poll_events(c->session, UV_WRITABLE) != 0) {
-                client_fail(c, "SSH poll callback error");
-                return;
-            }
-            client_drive(c);
-            did = 1;
-        }
         if (!did) {
             int status = ssh_get_status(c->session);
             if (status & SSH_READ_PENDING) {
@@ -1376,13 +1376,16 @@ static void client_drive(ssh_client_ctx *c) {
     int spin = 0;
     while (1) {
         if (c->state == CLIENT_STATE_CONNECTING) {
-            client_mark_writable(c);
             int rc = ssh_connect(c->session);
             if (ssh_debug_enabled) {
                 log_debug("ssh_connect rc=%d state=%d", rc, c->state);
             }
             if (rc == SSH_OK) {
                 stop_timer(&c->connect_timer, client_timer_close_cb);
+                if (fd_set_nonblocking(c->fd) != 0) {
+                    client_fail(c, "Failed to restore SSH session fd nonblocking");
+                    return;
+                }
                 c->state = CLIENT_STATE_HOSTKEY;
                 continue;
             } else if (rc == SSH_AGAIN) {
@@ -1429,7 +1432,6 @@ static void client_drive(ssh_client_ctx *c) {
                 client_fail(c, "Password auth requested but no password provided");
                 return;
             }
-            client_mark_writable(c);
             int rc = ssh_userauth_password(c->session, NULL, (const char *)fromB_str(c->actor->password));
             if (rc == SSH_AUTH_SUCCESS) {
                 client_on_ready(c);
@@ -1647,6 +1649,10 @@ $R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     c->fd = ssh_get_fd(c->session);
     if (c->fd < 0) {
         client_fail(c, "Failed to get SSH session fd");
+        return $R_CONT(c$cont, B_None);
+    }
+    if (c->state != CLIENT_STATE_CONNECTING && fd_set_nonblocking(c->fd) != 0) {
+        client_fail(c, "Failed to set SSH session fd nonblocking");
         return $R_CONT(c$cont, B_None);
     }
 
@@ -1981,7 +1987,22 @@ static void server_channel_close_cb(ssh_session session, ssh_channel channel, vo
     (void)channel;
     if (ch == NULL)
         return;
+    ch->remote_close_seen = 1;
     server_channel_notify_close(ch, "closed");
+}
+
+static int server_channel_write_wontblock_cb(ssh_session session, ssh_channel channel,
+                                             uint32_t bytes, void *userdata) {
+    ssh_server_channel_ctx *ch = (ssh_server_channel_ctx *)userdata;
+    (void)session;
+    (void)channel;
+    if (ch == NULL || ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR)
+        return 0;
+    ch->write_wontblock = bytes > 0 ? 1 : 0;
+    if (ssh_debug_enabled) {
+        ssh_debug_log("server channel write_wontblock: bytes=%u ch=%p", bytes, (void *)ch);
+    }
+    return 0;
 }
 
 static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
@@ -1993,6 +2014,7 @@ static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
     cb->channel_data_function = server_channel_data_cb;
     cb->channel_eof_function = server_channel_eof_cb;
     cb->channel_close_function = server_channel_close_cb;
+    cb->channel_write_wontblock_function = server_channel_write_wontblock_cb;
     ch->callbacks = cb;
     ssh_add_channel_callbacks(ch->channel, cb);
     if (ssh_debug_enabled) {
@@ -2066,47 +2088,49 @@ static void server_channel_queue_write(ssh_server_channel_ctx *ch, B_bytes data,
 }
 
 static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
-    while (ch->write_head != NULL) {
+    while (ch->write_head != NULL && ch->write_head->data->nbytes == ch->write_head->offset) {
         server_write_chunk_t *chunk = ch->write_head;
-        size_t remaining = chunk->data->nbytes - chunk->offset;
-        if (remaining == 0) {
+        ch->write_head = chunk->next;
+        if (ch->write_head == NULL)
+            ch->write_tail = NULL;
+    }
+
+    if (ch->write_head == NULL || !ch->write_wontblock || session_has_pending_write(s->session))
+        return;
+
+    server_write_chunk_t *chunk = ch->write_head;
+    size_t remaining = chunk->data->nbytes - chunk->offset;
+    ch->write_wontblock = 0;
+    int rc;
+    if (chunk->is_stderr) {
+        rc = ssh_channel_write_stderr(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
+    } else {
+        rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
+    }
+    if (rc > 0) {
+        chunk->offset += (size_t)rc;
+        if (ssh_debug_enabled) {
+            ssh_debug_log("server channel wrote %d bytes", rc);
+        }
+        if (chunk->offset >= chunk->data->nbytes) {
             ch->write_head = chunk->next;
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
-            continue;
         }
-        session_mark_writable(s);
-        int rc;
-        if (chunk->is_stderr) {
-            rc = ssh_channel_write_stderr(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
-        } else {
-            rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
+    } else if (rc == 0 || rc == SSH_AGAIN) {
+        s->write_ready = 0;
+        if (ssh_debug_enabled) {
+            unsigned int window = ssh_channel_window_size(ch->channel);
+            ssh_debug_log("server channel write pending rc=%d remaining=%zu window=%u",
+                          rc, remaining, window);
         }
-        if (rc > 0) {
-            chunk->offset += (size_t)rc;
-            if (ssh_debug_enabled) {
-                ssh_debug_log("server channel wrote %d bytes", rc);
-            }
-            if (chunk->offset >= chunk->data->nbytes) {
-                ch->write_head = chunk->next;
-                if (ch->write_head == NULL)
-                    ch->write_tail = NULL;
-            }
-        } else if (rc == 0 || rc == SSH_AGAIN) {
-            s->write_ready = 0;
-            if (ssh_debug_enabled) {
-                unsigned int window = ssh_channel_window_size(ch->channel);
-                ssh_debug_log("server channel write pending rc=%d remaining=%zu window=%u",
-                              rc, remaining, window);
-            }
-            return;
-        } else {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "SSH server channel write error: %s", ssh_get_error(s->session));
-            server_channel_notify_close(ch, errmsg);
-            ch->state = SCHAN_STATE_ERROR;
-            return;
-        }
+        return;
+    } else {
+        char errmsg[256] = {0};
+        snprintf(errmsg, sizeof(errmsg), "SSH server channel write error: %s", ssh_get_error(s->session));
+        server_channel_notify_close(ch, errmsg);
+        ch->state = SCHAN_STATE_ERROR;
+        return;
     }
 }
 
@@ -2161,8 +2185,8 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
             return;
     }
 
-    if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL) {
-        session_mark_writable(s);
+    if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL &&
+        !session_has_pending_write(s->session)) {
         int rc = ssh_channel_send_eof(ch->channel);
         if (rc == SSH_OK) {
             ch->eof_sent = 1;
@@ -2178,8 +2202,9 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
         }
     }
 
-    if (ch->close_requested && !ch->close_sent && ch->write_head == NULL) {
-        session_mark_writable(s);
+    if (ch->close_requested && !ch->close_sent && ch->write_head == NULL &&
+        (!ch->send_eof || ch->eof_sent) &&
+        !session_has_pending_write(s->session)) {
         int rc = ssh_channel_close(ch->channel);
         if (rc == SSH_OK) {
             ch->close_sent = 1;
@@ -2207,7 +2232,8 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
     }
     server_channel_notify_eof(ch);
 
-    if (ch->channel != NULL && ssh_channel_is_closed(ch->channel)) {
+    if (ch->channel != NULL && ch->remote_close_seen &&
+        ssh_channel_is_closed(ch->channel)) {
         server_channel_finalize(ch);
     }
 }
@@ -2318,9 +2344,6 @@ static void session_update_poll(ssh_server_session_ctx *s) {
         events |= UV_WRITABLE;
     if ((events & UV_WRITABLE) == 0 && session_needs_write(s))
         events |= UV_WRITABLE;
-#ifdef UV_DISCONNECT
-    events |= UV_DISCONNECT;
-#endif
     if (ssh_debug_enabled && (events != s->poll_events || (pending & SSH_WRITE_PENDING))) {
         ssh_debug_log("server update poll: status=0x%x flags=0x%x pending=0x%x events=0x%x state=%d",
                       status, flags, pending, events, s->state);
@@ -2352,7 +2375,9 @@ static void session_pump_io(ssh_server_session_ctx *s) {
             }
             ssh_set_fd_toread(s->session);
             if (session_apply_poll_events(s->session, UV_READABLE) != 0) {
-                session_fail(s, "SSH poll callback error");
+                char errmsg[256] = {0};
+                format_session_error(s->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+                session_fail(s, errmsg);
                 return;
             }
             session_drive(s);
@@ -2360,21 +2385,6 @@ static void session_pump_io(ssh_server_session_ctx *s) {
         }
         if (s->session == NULL)
             return;
-        int pending = ssh_get_status(s->session) | ssh_get_poll_flags(s->session);
-        int can_write = (pending & SSH_WRITE_PENDING) && fd_is_writable(s->fd);
-        if (can_write) {
-            if (ssh_debug_enabled) {
-                ssh_debug_log("server pump: writable pending=0x%x", pending);
-            }
-            s->write_ready = 1;
-            ssh_set_fd_towrite(s->session);
-            if (session_apply_poll_events(s->session, UV_WRITABLE) != 0) {
-                session_fail(s, "SSH poll callback error");
-                return;
-            }
-            session_drive(s);
-            did = 1;
-        }
         if (!did) {
             int status = ssh_get_status(s->session);
             if (status & SSH_READ_PENDING) {
@@ -2423,7 +2433,6 @@ static void session_drive(ssh_server_session_ctx *s) {
     int spin = 0;
     while (1) {
         if (s->state == SESSION_STATE_KEYEX) {
-            session_mark_writable(s);
             int rc = ssh_handle_key_exchange(s->session);
             if (rc == SSH_OK) {
                 s->state = SESSION_STATE_AUTH;
@@ -2600,18 +2609,25 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
         session_fail(s, errmsg);
         return;
     }
-    if (events & UV_READABLE)
+    int libssh_events = 0;
+    if ((events & UV_READABLE) && fd_has_data(s->fd)) {
         ssh_set_fd_toread(s->session);
+        libssh_events |= UV_READABLE;
+    }
     if (events & UV_WRITABLE) {
         s->write_ready = 1;
         ssh_set_fd_towrite(s->session);
+        libssh_events |= UV_WRITABLE;
     }
-    if (session_apply_poll_events(s->session, events) != 0) {
-        session_fail(s, "SSH poll callback error");
+    if (session_apply_poll_events(s->session, libssh_events) != 0) {
+        char errmsg[256] = {0};
+        format_session_error(s->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+        session_fail(s, errmsg);
         return;
     }
     session_drive(s);
     session_pump_io(s);
+    s->write_ready = 0;
 }
 
 static void server_poll_cb(uv_poll_t *handle, int status, int events) {
