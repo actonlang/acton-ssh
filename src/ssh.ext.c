@@ -778,8 +778,11 @@ static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
     cb->channel_eof_function = client_channel_eof_cb;
     cb->channel_close_function = client_channel_close_cb;
     cb->channel_write_wontblock_function = client_channel_write_wontblock_cb;
+    if (ssh_add_channel_callbacks(ch->channel, cb) != SSH_OK) {
+        acton_free(cb);
+        return;
+    }
     ch->callbacks = cb;
-    ssh_add_channel_callbacks(ch->channel, cb);
     if (ssh_debug_enabled) {
         ssh_debug_log("client channel callbacks set ch=%p", (void *)ch);
     }
@@ -823,6 +826,7 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         channel_notify_exit(ch, exit_status, exit_signal);
         if (ch->callbacks) {
             ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
+            acton_free(ch->callbacks);
             ch->callbacks = NULL;
         }
         ssh_channel_free(ch->channel);
@@ -2094,8 +2098,11 @@ static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
     cb->channel_eof_function = server_channel_eof_cb;
     cb->channel_close_function = server_channel_close_cb;
     cb->channel_write_wontblock_function = server_channel_write_wontblock_cb;
+    if (ssh_add_channel_callbacks(ch->channel, cb) != SSH_OK) {
+        acton_free(cb);
+        return;
+    }
     ch->callbacks = cb;
-    ssh_add_channel_callbacks(ch->channel, cb);
     if (ssh_debug_enabled) {
         ssh_debug_log("server channel callbacks set ch=%p", (void *)ch);
     }
@@ -2128,6 +2135,7 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     if (ch->channel != NULL) {
         if (ch->callbacks) {
             ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
+            acton_free(ch->callbacks);
             ch->callbacks = NULL;
         }
         ssh_channel_free(ch->channel);
@@ -2323,6 +2331,9 @@ static void session_drive_channels(ssh_server_session_ctx *s) {
     while (ch != NULL) {
         ssh_server_channel_ctx *next = ch->next;
         server_channel_drive(s, ch);
+        if (ch->state == SCHAN_STATE_ERROR) {
+            server_channel_finalize(ch);
+        }
         if (ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR) {
             if (prev != NULL) {
                 prev->next = next;
