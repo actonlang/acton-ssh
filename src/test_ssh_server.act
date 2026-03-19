@@ -4105,6 +4105,251 @@ def _test_ssh_server_survives_garbage(t: testing.EnvT):
     ServerSurvivesGarbageTester(t)
 
 
+actor RapidDisconnectChurnTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    ROUNDS = 25
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var raw_client: ?net.TCPConnection = None
+    var good_client: ?ssh.Client = None
+    var rounds_started = 0
+    var raw_connect_count = 0
+    var raw_session_seen_count = 0
+    var raw_session_closed_count = 0
+    var raw_close_requested = False
+    var good_client_started = False
+    var good_client_connected = False
+    var good_client_closed = False
+    var good_session_seen = False
+    var good_session_closed = False
+    var server_close_requested = False
+    var server_closed = False
+
+    def maybe_finish():
+        if done:
+            return
+        if raw_connect_count == ROUNDS and raw_session_seen_count == ROUNDS and \
+           raw_session_closed_count == ROUNDS and good_client_connected and \
+           good_client_closed and good_session_seen and good_session_closed and \
+           server_closed:
+            done = True
+            t.success()
+
+    def request_raw_close():
+        if raw_close_requested:
+            return
+        raw_close_requested = True
+        if raw_client is not None:
+            raw_client.close(on_raw_close)
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        request_raw_close()
+        if good_client is not None:
+            good_client.close()
+        request_server_close()
+        done = True
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for rapid disconnect churn test "
+            "(rounds_started=" + str(rounds_started) +
+            ", raw_connect_count=" + str(raw_connect_count) +
+            ", raw_session_seen_count=" + str(raw_session_seen_count) +
+            ", raw_session_closed_count=" + str(raw_session_closed_count) +
+            ", good_client_started=" + str(good_client_started) +
+            ", good_client_connected=" + str(good_client_connected) +
+            ", good_client_closed=" + str(good_client_closed) +
+            ", good_session_seen=" + str(good_session_seen) +
+            ", good_session_closed=" + str(good_session_closed) +
+            ", server_closed=" + str(server_closed) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_next_raw()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        if good_client_started:
+            if good_session_seen:
+                finish_error("good session callback called more than once")
+                return
+            good_session_seen = True
+            return
+        raw_session_seen_count += 1
+        if raw_session_seen_count > ROUNDS:
+            finish_error("too many raw sessions")
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if not good_client_started:
+            finish_error("raw churn unexpectedly reached auth")
+            return
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            finish_error("unexpected auth request for good client")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        if good_client_started and raw_session_closed_count == ROUNDS:
+            if good_session_closed:
+                finish_error("good session close callback called more than once")
+                return
+            good_session_closed = True
+            request_server_close()
+            maybe_finish()
+            return
+        raw_session_closed_count += 1
+        if raw_session_closed_count > ROUNDS:
+            finish_error("too many raw session closes")
+            return
+        if raw_session_closed_count < ROUNDS:
+            start_next_raw()
+            return
+        start_good_client()
+
+    def on_raw_connect(c: net.TCPConnection):
+        raw_client = c
+        raw_connect_count += 1
+        after 0.01: request_raw_close()
+
+    def on_raw_receive(c: net.TCPConnection, payload: bytes):
+        return
+
+    def on_raw_error(c: net.TCPConnection, errmsg: str):
+        finish_error("unexpected raw client error: " + errmsg)
+
+    def on_raw_remote_close(c: net.TCPConnection):
+        return
+
+    def on_raw_close(c: net.TCPConnection):
+        return
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_good_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("good client connect error: " + err)
+            return
+        good_client_connected = True
+        c.close()
+
+    def on_good_client_close(c: ssh.Client, reason: str):
+        good_client_closed = True
+        if good_session_closed:
+            request_server_close()
+        maybe_finish()
+
+    def start_next_raw():
+        if good_client_started:
+            finish_error("started raw churn after good client")
+            return
+        if rounds_started >= ROUNDS:
+            finish_error("started too many raw churn rounds")
+            return
+        rounds_started += 1
+        raw_close_requested = False
+        raw_client = net.TCPConnection(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            port,
+            on_raw_connect,
+            on_raw_receive,
+            on_raw_error,
+            on_raw_remote_close,
+        )
+
+    def start_good_client():
+        if good_client_started:
+            return
+        good_client_started = True
+        good_client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_good_client_connect,
+            on_good_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 39000 + (random.randint(0, 12000) + attempts * 223) % 12000
+        rounds_started = 0
+        raw_connect_count = 0
+        raw_session_seen_count = 0
+        raw_session_closed_count = 0
+        raw_close_requested = False
+        good_client_started = False
+        good_client_connected = False
+        good_client_closed = False
+        good_session_seen = False
+        good_session_closed = False
+        server_close_requested = False
+        server_closed = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_rapid_disconnect_churn(t: testing.EnvT):
+    """Rapid raw disconnect churn should not poison the next SSH client."""
+    RapidDisconnectChurnTester(t)
+
+
 actor CloseRejectsLateWritesTester(t: testing.EnvT):
     log = logging.Logger(t.log_handler)
 
