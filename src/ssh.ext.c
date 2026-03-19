@@ -834,6 +834,9 @@ static void channel_notify_eof(ssh_channel_ctx *ch) {
 }
 
 static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
+    int exit_status = -1;
+    B_str exit_signal = B_None;
+
     while (ch->write_head != NULL) {
         write_chunk_t *chunk = ch->write_head;
         ch->write_head = chunk->next;
@@ -841,8 +844,6 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     }
     ch->write_tail = NULL;
     if (ch->channel != NULL) {
-        int exit_status = -1;
-        B_str exit_signal = B_None;
         if (ssh_channel_is_closed(ch->channel)) {
             uint32_t exit_code = 0;
             char *signal = NULL;
@@ -865,9 +866,12 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         }
         ssh_channel_free(ch->channel);
         ch->channel = NULL;
-    } else {
-        channel_notify_exit(ch, -1, B_None);
     }
+    ch->state = CHAN_STATE_CLOSED;
+    if (ch->actor)
+        ch->actor->_channel_id = toB_u64(0);
+
+    channel_notify_exit(ch, exit_status, exit_signal);
     if (!ch->stdout_eof && ch->on_stdout) {
         $action2 f = ($action2)ch->on_stdout;
         f->$class->__asyn__(f, ch->actor, B_None);
@@ -879,9 +883,6 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         ch->stderr_eof = 1;
     }
     channel_notify_close(ch, "closed");
-    if (ch->actor)
-        ch->actor->_channel_id = toB_u64(0);
-    ch->state = CHAN_STATE_CLOSED;
     (void)c;
 }
 
@@ -2224,6 +2225,9 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
         ssh_channel_free(ch->channel);
         ch->channel = NULL;
     }
+    ch->state = SCHAN_STATE_CLOSED;
+    if (ch->actor)
+        ch->actor->_channel_id = toB_u64(0);
     if (!ch->stdout_eof && ch->on_data) {
         $action2 f = ($action2)ch->on_data;
         f->$class->__asyn__(f, ch->actor, B_None);
@@ -2235,9 +2239,6 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
         ch->stderr_eof = 1;
     }
     server_channel_notify_close(ch, "closed");
-    if (ch->actor)
-        ch->actor->_channel_id = toB_u64(0);
-    ch->state = SCHAN_STATE_CLOSED;
 }
 
 static void server_channel_queue_write(ssh_server_channel_ctx *ch, B_bytes data, int is_stderr) {
