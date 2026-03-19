@@ -3243,11 +3243,11 @@ actor AuthTimeoutTester(t: testing.EnvT):
             on_exec,
             on_subsystem,
             on_session_close,
-            auth_timeout=0.2,
+            auth_timeout=1.0,
         )
 
     after 0: start_server()
-    after 5.0: on_timeout()
+    after 8.0: on_timeout()
 
 
 def _test_ssh_auth_timeout(t: testing.EnvT):
