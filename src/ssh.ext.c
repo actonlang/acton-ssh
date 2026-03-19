@@ -505,23 +505,22 @@ static void stop_timer(uv_timer_t **timer, uv_close_cb close_cb) {
 static int fd_has_data(int fd) {
     if (fd < 0)
         return 0;
-    struct pollfd pfd;
-    pfd.fd = fd;
-    pfd.events = POLLIN;
-    pfd.revents = 0;
-    int rc;
+    char byte;
+    ssize_t rc;
     do {
-        rc = poll(&pfd, 1, 0);
+        rc = recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT);
     } while (rc < 0 && errno == EINTR);
-    if (rc <= 0)
-        return 0;
-    if (pfd.revents & POLLIN)
+    if (rc > 0)
         return 1;
-    if (pfd.revents & (POLLHUP | POLLERR))
+    if (rc == 0)
         return 1;
-    if (pfd.revents & POLLNVAL)
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
         return 0;
-    return 0;
+    if (errno == ECONNRESET || errno == ECONNABORTED || errno == ENOTCONN)
+        return 1;
+    if (errno == EBADF || errno == ENOTSOCK || errno == EINVAL)
+        return 0;
+    return 1;
 }
 
 static int fd_can_write(int fd) {
@@ -1349,6 +1348,9 @@ static void client_update_poll(ssh_client_ctx *c) {
     int flags = ssh_get_poll_flags(c->session);
     int pending = flags | status;
     int events = UV_READABLE;
+#ifdef UV_DISCONNECT
+    events |= UV_DISCONNECT;
+#endif
     if (pending & SSH_WRITE_PENDING)
         events |= UV_WRITABLE;
     if ((events & UV_WRITABLE) == 0 && client_needs_write(c))
@@ -1894,6 +1896,9 @@ static int channel_validate(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (c == NULL || ch == NULL) {
         return 1;
     }
+    if (c->state != CLIENT_STATE_READY) {
+        return 1;
+    }
     if (ch->client != c) {
         if (ssh_debug_enabled) {
             ssh_debug_log("client channel ownership mismatch: client=%p owner=%p ch=%p",
@@ -1909,6 +1914,9 @@ static int channel_validate(ssh_client_ctx *c, ssh_channel_ctx *ch) {
 
 static int server_channel_validate(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
     if (s == NULL || ch == NULL) {
+        return -1;
+    }
+    if (s->state != SESSION_STATE_READY) {
         return -1;
     }
     if (ch->session != s) {
@@ -2497,6 +2505,10 @@ static void session_auth_timeout_cb(uv_timer_t *timer) {
         session_fail(s, "SSH session attach timeout");
         return;
     }
+    if (s->attached && s->state == SESSION_STATE_KEYEX) {
+        session_fail(s, "SSH key exchange timeout");
+        return;
+    }
     if (s->state == SESSION_STATE_AUTH) {
         session_fail(s, "SSH authentication timeout");
     }
@@ -2567,6 +2579,9 @@ static void session_update_poll(ssh_server_session_ctx *s) {
     int flags = ssh_get_poll_flags(s->session);
     int pending = flags | status;
     int events = UV_READABLE;
+#ifdef UV_DISCONNECT
+    events |= UV_DISCONNECT;
+#endif
     if (pending & SSH_WRITE_PENDING)
         events |= UV_WRITABLE;
     if ((events & UV_WRITABLE) == 0 && session_needs_write(s))
@@ -3379,6 +3394,7 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
     s->auth_timeout = fromB_float(self->server->_auth_timeout);
     s->keepalive_interval = fromB_float(self->server->_keepalive_interval);
     s->keepalive_enabled = fromB_bool(self->server->_keepalive_enabled) ? 1 : 0;
+    session_start_auth_timer(s);
     if (ssh_debug_enabled) {
         ssh_debug_log("server session attach: callbacks set, driving session");
     }
