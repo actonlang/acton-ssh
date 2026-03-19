@@ -806,6 +806,12 @@ static void channel_notify_eof(ssh_channel_ctx *ch) {
 }
 
 static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
+    while (ch->write_head != NULL) {
+        write_chunk_t *chunk = ch->write_head;
+        ch->write_head = chunk->next;
+        acton_free(chunk);
+    }
+    ch->write_tail = NULL;
     if (ch->channel != NULL) {
         int exit_status = -1;
         B_str exit_signal = B_None;
@@ -879,6 +885,7 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     while (ch->write_head != NULL && ch->write_head->data->nbytes == ch->write_head->offset) {
         write_chunk_t *chunk = ch->write_head;
         ch->write_head = chunk->next;
+        acton_free(chunk);
         if (ch->write_head == NULL)
             ch->write_tail = NULL;
     }
@@ -894,6 +901,7 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         chunk->offset += (size_t)rc;
         if (chunk->offset >= chunk->data->nbytes) {
             ch->write_head = chunk->next;
+            acton_free(chunk);
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
         }
@@ -2126,6 +2134,12 @@ static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
 }
 
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
+    while (ch->write_head != NULL) {
+        server_write_chunk_t *chunk = ch->write_head;
+        ch->write_head = chunk->next;
+        acton_free(chunk);
+    }
+    ch->write_tail = NULL;
     if (ch->pending_req) {
         ssh_message_reply_default(ch->pending_req);
         ssh_message_free(ch->pending_req);
@@ -2178,6 +2192,7 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
     while (ch->write_head != NULL && ch->write_head->data->nbytes == ch->write_head->offset) {
         server_write_chunk_t *chunk = ch->write_head;
         ch->write_head = chunk->next;
+        acton_free(chunk);
         if (ch->write_head == NULL)
             ch->write_tail = NULL;
     }
@@ -2201,6 +2216,7 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
         }
         if (chunk->offset >= chunk->data->nbytes) {
             ch->write_head = chunk->next;
+            acton_free(chunk);
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
         }
