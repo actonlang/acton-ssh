@@ -2511,6 +2511,599 @@ def _test_ssh_runcommand_exit_status(t: testing.EnvT):
     RunCommandExitStatusTester(t)
 
 
+actor ConcurrentRunCommandTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    NUM_CMDS = 4
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_channel_closes = 0
+    var run_exits = 0
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var client_close_requested = False
+    var server_close_requested = False
+    var run0_done = False
+    var run1_done = False
+    var run2_done = False
+    var run3_done = False
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def out1(cmd: str) -> bytes:
+        if cmd == "report0":
+            return b"out0-a:" * 512
+        if cmd == "report1":
+            return b"out1-a:" * 512
+        if cmd == "report2":
+            return b"out2-a:" * 512
+        return b"out3-a:" * 512
+
+    def out2(cmd: str) -> bytes:
+        if cmd == "report0":
+            return b"out0-b:" * 512
+        if cmd == "report1":
+            return b"out1-b:" * 512
+        if cmd == "report2":
+            return b"out2-b:" * 512
+        return b"out3-b:" * 512
+
+    def err1(cmd: str) -> bytes:
+        if cmd == "report0":
+            return b"err0-a:" * 256
+        if cmd == "report1":
+            return b"err1-a:" * 256
+        if cmd == "report2":
+            return b"err2-a:" * 256
+        return b"err3-a:" * 256
+
+    def err2(cmd: str) -> bytes:
+        if cmd == "report0":
+            return b"err0-b:" * 256
+        if cmd == "report1":
+            return b"err1-b:" * 256
+        if cmd == "report2":
+            return b"err2-b:" * 256
+        return b"err3-b:" * 256
+
+    def full_out(cmd: str) -> bytes:
+        return out1(cmd) + out2(cmd)
+
+    def full_err(cmd: str) -> bytes:
+        return err1(cmd) + err2(cmd)
+
+    def exit_code(cmd: str) -> int:
+        if cmd == "report0":
+            return 30
+        if cmd == "report1":
+            return 31
+        if cmd == "report2":
+            return 32
+        return 33
+
+    def maybe_finish():
+        if done:
+            return
+        if run_exits == NUM_CMDS and server_channel_closes == NUM_CMDS and \
+           client_closed and server_closed and session_closed:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def mark_run_done(cmd: str):
+        if cmd == "report0":
+            if run0_done:
+                finish_error("RunCommand report0 completed more than once")
+                return
+            run0_done = True
+            return
+        if cmd == "report1":
+            if run1_done:
+                finish_error("RunCommand report1 completed more than once")
+                return
+            run1_done = True
+            return
+        if cmd == "report2":
+            if run2_done:
+                finish_error("RunCommand report2 completed more than once")
+                return
+            run2_done = True
+            return
+        if cmd == "report3":
+            if run3_done:
+                finish_error("RunCommand report3 completed more than once")
+                return
+            run3_done = True
+            return
+        finish_error("unexpected RunCommand completion for " + cmd)
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for concurrent RunCommand test "
+            "(run_exits=" + str(run_exits) +
+            ", server_channel_closes=" + str(server_channel_closes) +
+            ", client_closed=" + str(client_closed) +
+            ", session_closed=" + str(session_closed) +
+            ", server_closed=" + str(server_closed) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def send_report(ch: ssh.ServerChannel, cmd: str, exit_first: bool):
+        if exit_first:
+            ch.send_exit_status(exit_code(cmd))
+        ch.write(out1(cmd))
+        ch.write_stderr(err1(cmd))
+        ch.write(out2(cmd))
+        ch.write_stderr(err2(cmd))
+        if not exit_first:
+            ch.send_exit_status(exit_code(cmd))
+        ch.send_eof()
+        ch.close()
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        if cmd != "report0" and cmd != "report1" and cmd != "report2" and cmd != "report3":
+            finish_error("unexpected exec command: " + cmd)
+            return
+        ch.accept_request()
+        if cmd == "report0" or cmd == "report2":
+            send_report(ch, cmd, True)
+        else:
+            send_report(ch, cmd, False)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        request_server_close()
+        maybe_finish()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        server_channel_closes += 1
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        client = c
+        start_run(c, 0)
+        start_run(c, 1)
+        start_run(c, 2)
+        start_run(c, 3)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        if session_closed:
+            request_server_close()
+        maybe_finish()
+
+    def start_run(c: ssh.Client, idx: int):
+        cmd = "report" + str(idx)
+
+        def on_run_exit(ch: ssh.Channel,
+                        code: int,
+                        sig: ?str,
+                        stdout: bytes,
+                        stderr: bytes,
+                        err: ?str):
+            if err is not None:
+                finish_error("unexpected RunCommand error for " + cmd + ": " + str(err))
+                return
+            if stdout != full_out(cmd):
+                finish_error("unexpected stdout payload for " + cmd)
+                return
+            if stderr != full_err(cmd):
+                finish_error("unexpected stderr payload for " + cmd)
+                return
+            if code != exit_code(cmd):
+                finish_error("unexpected exit code for " + cmd + ": " + str(code))
+                return
+            if sig is not None:
+                finish_error("unexpected exit signal for " + cmd + ": " + str(sig))
+                return
+            mark_run_done(cmd)
+            if done:
+                return
+            run_exits += 1
+            if run_exits == NUM_CMDS:
+                request_client_close()
+            maybe_finish()
+
+        ssh.RunCommand(c, cmd, on_run_exit)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 56000 + (random.randint(0, 2000) + attempts * 157) % 2000
+        server_close_requested = False
+        client_close_requested = False
+        server_channel_closes = 0
+        run_exits = 0
+        client_closed = False
+        server_closed = False
+        session_closed = False
+        run0_done = False
+        run1_done = False
+        run2_done = False
+        run3_done = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_concurrent_runcommand(t: testing.EnvT):
+    """RunCommand should isolate concurrent stderr and exit paths."""
+    ConcurrentRunCommandTester(t)
+
+
+actor ConcurrentRunCommandRejectTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    OK0_OUT = b"ok0-out"
+    OK0_ERR = b"ok0-err"
+    OK1_OUT = b"ok1-out"
+    OK1_ERR = b"ok1-err"
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_channel_closes = 0
+    var run_exits = 0
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var client_close_requested = False
+    var server_close_requested = False
+    var ok0_done = False
+    var deny_done = False
+    var ok1_done = False
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_finish():
+        if done:
+            return
+        if run_exits == 3 and server_channel_closes == 3 and \
+           client_closed and server_closed and session_closed:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def mark_done(cmd: str):
+        if cmd == "ok0":
+            if ok0_done:
+                finish_error("ok0 completed more than once")
+                return
+            ok0_done = True
+            return
+        if cmd == "deny":
+            if deny_done:
+                finish_error("deny completed more than once")
+                return
+            deny_done = True
+            return
+        if cmd == "ok1":
+            if ok1_done:
+                finish_error("ok1 completed more than once")
+                return
+            ok1_done = True
+            return
+        finish_error("unexpected completion for " + cmd)
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for concurrent RunCommand reject test "
+            "(run_exits=" + str(run_exits) +
+            ", server_channel_closes=" + str(server_channel_closes) +
+            ", client_closed=" + str(client_closed) +
+            ", session_closed=" + str(session_closed) +
+            ", server_closed=" + str(server_closed) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        if cmd == "deny":
+            ch.reject_request("denied")
+            ch.close()
+            return
+        if cmd == "ok0":
+            ch.accept_request()
+            ch.write(OK0_OUT)
+            ch.write_stderr(OK0_ERR)
+            ch.send_exit_status(40)
+            ch.send_eof()
+            ch.close()
+            return
+        if cmd == "ok1":
+            ch.accept_request()
+            ch.send_exit_status(41)
+            ch.write(OK1_OUT)
+            ch.write_stderr(OK1_ERR)
+            ch.send_eof()
+            ch.close()
+            return
+        finish_error("unexpected exec command: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        request_server_close()
+        maybe_finish()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        return
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        server_channel_closes += 1
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        client = c
+        start_run(c, "ok0")
+        start_run(c, "deny")
+        start_run(c, "ok1")
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        if session_closed:
+            request_server_close()
+        maybe_finish()
+
+    def start_run(c: ssh.Client, cmd: str):
+        def on_run_exit(ch: ssh.Channel,
+                        code: int,
+                        sig: ?str,
+                        stdout: bytes,
+                        stderr: bytes,
+                        err: ?str):
+            if cmd == "deny":
+                if err is None:
+                    finish_error("expected reject error for deny")
+                    return
+                if sig is not None:
+                    finish_error("unexpected signal on deny: " + str(sig))
+                    return
+            elif cmd == "ok0":
+                if err is not None:
+                    finish_error("unexpected error for ok0: " + str(err))
+                    return
+                if stdout != OK0_OUT or stderr != OK0_ERR or code != 40:
+                    finish_error("unexpected result for ok0")
+                    return
+                if sig is not None:
+                    finish_error("unexpected signal on ok0: " + str(sig))
+                    return
+            elif cmd == "ok1":
+                if err is not None:
+                    finish_error("unexpected error for ok1: " + str(err))
+                    return
+                if stdout != OK1_OUT or stderr != OK1_ERR or code != 41:
+                    finish_error("unexpected result for ok1")
+                    return
+                if sig is not None:
+                    finish_error("unexpected signal on ok1: " + str(sig))
+                    return
+            else:
+                finish_error("unexpected command in on_run_exit: " + cmd)
+                return
+            mark_done(cmd)
+            if done:
+                return
+            run_exits += 1
+            if run_exits == 3:
+                request_client_close()
+            maybe_finish()
+
+        ssh.RunCommand(c, cmd, on_run_exit)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 60000 + (random.randint(0, 2000) + attempts * 163) % 2000
+        server_close_requested = False
+        client_close_requested = False
+        server_channel_closes = 0
+        run_exits = 0
+        client_closed = False
+        server_closed = False
+        session_closed = False
+        ok0_done = False
+        deny_done = False
+        ok1_done = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_concurrent_runcommand_reject(t: testing.EnvT):
+    """A rejected RunCommand should not poison sibling channels."""
+    ConcurrentRunCommandRejectTester(t)
+
+
 actor AuthTimeoutTester(t: testing.EnvT):
     log = logging.Logger(t.log_handler)
 

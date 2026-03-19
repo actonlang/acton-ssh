@@ -306,6 +306,7 @@ static void client_update_poll(ssh_client_ctx *c);
 static void client_close_internal(ssh_client_ctx *c, const char *reason, int force_close);
 static void client_finalize(ssh_client_ctx *c);
 static void client_finish_close(ssh_client_ctx *c);
+static void client_maybe_release(ssh_client_ctx *c);
 static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch);
 static int client_needs_write(ssh_client_ctx *c);
 static void client_pump_io(ssh_client_ctx *c);
@@ -314,12 +315,14 @@ static void server_accept(ssh_server_ctx *s);
 static void server_close_internal(ssh_server_ctx *s, const char *reason);
 static void server_finalize(ssh_server_ctx *s);
 static void server_remove_session(ssh_server_ctx *s, ssh_server_session_ctx *sess);
+static void server_maybe_release(ssh_server_ctx *s);
 static void session_drive(ssh_server_session_ctx *s);
 static void session_update_poll(ssh_server_session_ctx *s);
 static void session_pump_io(ssh_server_session_ctx *s);
 static void session_close_internal(ssh_server_session_ctx *s, const char *reason, int force_close);
 static void session_finalize(ssh_server_session_ctx *s);
 static void session_finish_close(ssh_server_session_ctx *s);
+static void session_maybe_release(ssh_server_session_ctx *s);
 static void session_fail(ssh_server_session_ctx *s, const char *msg);
 static void session_start_attach_timer(ssh_server_session_ctx *s);
 static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len);
@@ -600,6 +603,7 @@ static void client_timer_close_cb(uv_handle_t *handle) {
         c->auth_timer = NULL;
     if ((uv_timer_t *)handle == c->keepalive_timer)
         c->keepalive_timer = NULL;
+    client_maybe_release(c);
     acton_free(handle);
 }
 
@@ -645,7 +649,46 @@ static void session_timer_close_cb(uv_handle_t *handle) {
         s->auth_timer = NULL;
     if ((uv_timer_t *)handle == s->keepalive_timer)
         s->keepalive_timer = NULL;
+    session_maybe_release(s);
     acton_free(handle);
+}
+
+static void client_maybe_release(ssh_client_ctx *c) {
+    if (c == NULL || !c->close_finalized)
+        return;
+    if (c->poll != NULL || c->connect_timer != NULL ||
+        c->auth_timer != NULL || c->keepalive_timer != NULL)
+        return;
+    if (c->close_reason != NULL) {
+        acton_free(c->close_reason);
+        c->close_reason = NULL;
+    }
+    acton_free(c);
+}
+
+static void server_maybe_release(ssh_server_ctx *s) {
+    if (s == NULL || !s->close_finalized)
+        return;
+    if (s->poll != NULL || s->sessions != NULL)
+        return;
+    if (s->close_reason != NULL) {
+        acton_free(s->close_reason);
+        s->close_reason = NULL;
+    }
+    acton_free(s);
+}
+
+static void session_maybe_release(ssh_server_session_ctx *s) {
+    if (s == NULL || !s->close_finalized)
+        return;
+    if (s->poll != NULL || s->attach_timer != NULL ||
+        s->auth_timer != NULL || s->keepalive_timer != NULL)
+        return;
+    if (s->close_reason != NULL) {
+        acton_free(s->close_reason);
+        s->close_reason = NULL;
+    }
+    acton_free(s);
 }
 
 static void client_notify_connect(ssh_client_ctx *c, const char *err) {
@@ -775,6 +818,9 @@ static void client_channel_close_cb(ssh_session session, ssh_channel channel, vo
     if (ch == NULL)
         return;
     ch->remote_close_seen = 1;
+    if (ch->pending_req != CHAN_REQ_NONE) {
+        return;
+    }
     channel_notify_close(ch, "closed");
 }
 
@@ -842,6 +888,10 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         acton_free(chunk);
     }
     ch->write_tail = NULL;
+    if (ch->pending_req != CHAN_REQ_NONE) {
+        ch->pending_req = CHAN_REQ_NONE;
+        channel_notify_error(ch, "SSH channel request failed: channel closed");
+    }
     if (ch->channel != NULL) {
         if (ssh_channel_is_closed(ch->channel)) {
             uint32_t exit_code = 0;
@@ -1140,6 +1190,7 @@ static void client_drive_channels(ssh_client_ctx *c) {
                 c->channels = next;
             }
             ch->next = NULL;
+            acton_free(ch);
         } else {
             prev = ch;
         }
@@ -1562,6 +1613,7 @@ static void client_finalize(ssh_client_ctx *c) {
     c->state = CLIENT_STATE_CLOSED;
     if (c->actor)
         c->actor->_client = toB_u64(0);
+    client_maybe_release(c);
 }
 
 static void client_abort_channels(ssh_client_ctx *c, int notify_channel_error) {
@@ -1573,6 +1625,7 @@ static void client_abort_channels(ssh_client_ctx *c, int notify_channel_error) {
         channel_notify_eof(ch);
         channel_finalize(c, ch);
         ch->next = NULL;
+        acton_free(ch);
         ch = next;
     }
     c->channels = NULL;
@@ -2435,6 +2488,7 @@ static void session_drive_channels(ssh_server_session_ctx *s) {
                 s->channels = next;
             }
             ch->next = NULL;
+            acton_free(ch);
         } else {
             prev = ch;
         }
@@ -3024,6 +3078,7 @@ static void server_remove_session(ssh_server_ctx *s, ssh_server_session_ctx *ses
         prev = cur;
         cur = cur->next;
     }
+    server_maybe_release(s);
 }
 
 static void server_finalize(ssh_server_ctx *s) {
@@ -3044,6 +3099,7 @@ static void server_finalize(ssh_server_ctx *s) {
     s->state = SERVER_STATE_CLOSED;
     if (s->actor)
         s->actor->_server = toB_u64(0);
+    server_maybe_release(s);
 }
 
 static void session_finalize(ssh_server_session_ctx *s) {
@@ -3062,6 +3118,7 @@ static void session_finalize(ssh_server_session_ctx *s) {
     s->state = SESSION_STATE_CLOSED;
     if (s->actor)
         s->actor->_session_id = toB_u64(0);
+    session_maybe_release(s);
 }
 
 static void session_reject_pending_messages(ssh_server_session_ctx *s) {
@@ -3084,6 +3141,7 @@ static void session_abort_channels(ssh_server_session_ctx *s) {
         server_channel_notify_close(ch, "Session closed");
         server_channel_finalize(ch);
         ch->next = NULL;
+        acton_free(ch);
         ch = next;
     }
     s->channels = NULL;
