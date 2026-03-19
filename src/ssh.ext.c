@@ -517,6 +517,8 @@ static int fd_has_data(int fd) {
         return 0;
     if (pfd.revents & POLLIN)
         return 1;
+    if (pfd.revents & (POLLHUP | POLLERR))
+        return 1;
     if (pfd.revents & POLLNVAL)
         return 0;
     return 0;
@@ -573,8 +575,10 @@ static int session_has_pending_write(ssh_session session) {
 
 static void client_poll_close_cb(uv_handle_t *handle) {
     ssh_client_ctx *c = (ssh_client_ctx *)handle->data;
-    if (c == NULL)
+    if (c == NULL) {
+        acton_free(handle);
         return;
+    }
     if (c->poll == (uv_poll_t *)handle) {
         c->poll = NULL;
         c->poll_events = 0;
@@ -582,35 +586,44 @@ static void client_poll_close_cb(uv_handle_t *handle) {
     if (c->state == CLIENT_STATE_CLOSING) {
         client_finalize(c);
     }
+    acton_free(handle);
 }
 
 static void client_timer_close_cb(uv_handle_t *handle) {
     ssh_client_ctx *c = (ssh_client_ctx *)handle->data;
-    if (c == NULL)
+    if (c == NULL) {
+        acton_free(handle);
         return;
+    }
     if ((uv_timer_t *)handle == c->connect_timer)
         c->connect_timer = NULL;
     if ((uv_timer_t *)handle == c->auth_timer)
         c->auth_timer = NULL;
     if ((uv_timer_t *)handle == c->keepalive_timer)
         c->keepalive_timer = NULL;
+    acton_free(handle);
 }
 
 static void server_poll_close_cb(uv_handle_t *handle) {
     ssh_server_ctx *s = (ssh_server_ctx *)handle->data;
-    if (s == NULL)
+    if (s == NULL) {
+        acton_free(handle);
         return;
+    }
     if (s->poll == (uv_poll_t *)handle)
         s->poll = NULL;
     if (s->state == SERVER_STATE_CLOSING) {
         server_finalize(s);
     }
+    acton_free(handle);
 }
 
 static void session_poll_close_cb(uv_handle_t *handle) {
     ssh_server_session_ctx *s = (ssh_server_session_ctx *)handle->data;
-    if (s == NULL)
+    if (s == NULL) {
+        acton_free(handle);
         return;
+    }
     if (s->poll == (uv_poll_t *)handle) {
         s->poll = NULL;
         s->poll_events = 0;
@@ -618,18 +631,22 @@ static void session_poll_close_cb(uv_handle_t *handle) {
     if (s->state == SESSION_STATE_CLOSING) {
         session_finalize(s);
     }
+    acton_free(handle);
 }
 
 static void session_timer_close_cb(uv_handle_t *handle) {
     ssh_server_session_ctx *s = (ssh_server_session_ctx *)handle->data;
-    if (s == NULL)
+    if (s == NULL) {
+        acton_free(handle);
         return;
+    }
     if ((uv_timer_t *)handle == s->attach_timer)
         s->attach_timer = NULL;
     if ((uv_timer_t *)handle == s->auth_timer)
         s->auth_timer = NULL;
     if ((uv_timer_t *)handle == s->keepalive_timer)
         s->keepalive_timer = NULL;
+    acton_free(handle);
 }
 
 static void client_notify_connect(ssh_client_ctx *c, const char *err) {
@@ -1290,6 +1307,12 @@ static void poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_toread(c->session);
         libssh_events |= UV_READABLE;
     }
+#ifdef UV_DISCONNECT
+    if (events & UV_DISCONNECT) {
+        ssh_set_fd_toread(c->session);
+        libssh_events |= UV_DISCONNECT;
+    }
+#endif
     if ((events & UV_WRITABLE) && fd_can_write(c->fd)) {
         c->write_ready = 1;
         ssh_set_fd_towrite(c->session);
@@ -2849,6 +2872,12 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_toread(s->session);
         libssh_events |= UV_READABLE;
     }
+#ifdef UV_DISCONNECT
+    if (events & UV_DISCONNECT) {
+        ssh_set_fd_toread(s->session);
+        libssh_events |= UV_DISCONNECT;
+    }
+#endif
     if ((events & UV_WRITABLE) && fd_can_write(s->fd)) {
         s->write_ready = 1;
         ssh_set_fd_towrite(s->session);
