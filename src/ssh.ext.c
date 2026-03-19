@@ -318,6 +318,7 @@ static void session_pump_io(ssh_server_session_ctx *s);
 static void session_close_internal(ssh_server_session_ctx *s, const char *reason, int force_close);
 static void session_finalize(ssh_server_session_ctx *s);
 static void session_finish_close(ssh_server_session_ctx *s);
+static void session_fail(ssh_server_session_ctx *s, const char *msg);
 static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch);
 static int session_needs_write(ssh_server_session_ctx *s);
 static void session_poll_cb(uv_poll_t *handle, int status, int events);
@@ -769,9 +770,11 @@ static int client_channel_write_wontblock_cb(ssh_session session, ssh_channel ch
     return 0;
 }
 
-static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
-    if (ch == NULL || ch->channel == NULL || ch->callbacks != NULL)
-        return;
+static int client_channel_setup_callbacks(ssh_channel_ctx *ch) {
+    if (ch == NULL || ch->channel == NULL)
+        return SSH_ERROR;
+    if (ch->callbacks != NULL)
+        return SSH_OK;
     struct ssh_channel_callbacks_struct *cb = acton_calloc(1, sizeof(*cb));
     ssh_callbacks_init(cb);
     cb->userdata = ch;
@@ -781,12 +784,13 @@ static void client_channel_setup_callbacks(ssh_channel_ctx *ch) {
     cb->channel_write_wontblock_function = client_channel_write_wontblock_cb;
     if (ssh_add_channel_callbacks(ch->channel, cb) != SSH_OK) {
         acton_free(cb);
-        return;
+        return SSH_ERROR;
     }
     ch->callbacks = cb;
     if (ssh_debug_enabled) {
         ssh_debug_log("client channel callbacks set ch=%p", (void *)ch);
     }
+    return SSH_OK;
 }
 
 static void channel_notify_eof(ssh_channel_ctx *ch) {
@@ -967,7 +971,10 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             channel_fail(c, ch, "Failed to create SSH channel");
             return;
         }
-        client_channel_setup_callbacks(ch);
+        if (client_channel_setup_callbacks(ch) != SSH_OK) {
+            channel_fail(c, ch, "Failed to set SSH channel callbacks");
+            return;
+        }
         if (ssh_debug_enabled) {
             ssh_debug_log("client channel new ch=%p callbacks=%p", (void *)ch, (void *)ch->callbacks);
         }
@@ -2126,9 +2133,11 @@ static int server_channel_write_wontblock_cb(ssh_session session, ssh_channel ch
     return 0;
 }
 
-static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
-    if (ch == NULL || ch->channel == NULL || ch->callbacks != NULL)
-        return;
+static int server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
+    if (ch == NULL || ch->channel == NULL)
+        return SSH_ERROR;
+    if (ch->callbacks != NULL)
+        return SSH_OK;
     struct ssh_channel_callbacks_struct *cb = acton_calloc(1, sizeof(*cb));
     ssh_callbacks_init(cb);
     cb->userdata = ch;
@@ -2138,12 +2147,13 @@ static void server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
     cb->channel_write_wontblock_function = server_channel_write_wontblock_cb;
     if (ssh_add_channel_callbacks(ch->channel, cb) != SSH_OK) {
         acton_free(cb);
-        return;
+        return SSH_ERROR;
     }
     ch->callbacks = cb;
     if (ssh_debug_enabled) {
         ssh_debug_log("server channel callbacks set ch=%p", (void *)ch);
     }
+    return SSH_OK;
 }
 
 static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
@@ -2401,6 +2411,16 @@ static void session_fail(ssh_server_session_ctx *s, const char *msg) {
     session_close_internal(s, msg, 1);
 }
 
+static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char *context) {
+    if (rc == SSH_OK || rc == SSH_AGAIN)
+        return 0;
+    char errmsg[256] = {0};
+    snprintf(errmsg, sizeof(errmsg), "%s: %s",
+             context, s != NULL && s->session != NULL ? ssh_get_error(s->session) : "unknown error");
+    session_fail(s, errmsg);
+    return -1;
+}
+
 static void session_start_auth_timer(ssh_server_session_ctx *s) {
     if (s == NULL || s->auth_timeout <= 0.0 || s->auth_timer != NULL)
         return;
@@ -2612,20 +2632,26 @@ static void session_drive(ssh_server_session_ctx *s) {
             }
             int type = ssh_message_type(msg);
             if (type == SSH_REQUEST_SERVICE) {
+                int rc;
                 const char *service = ssh_message_service_service(msg);
                 if (service && strcmp(service, "ssh-userauth") == 0) {
-                    ssh_message_service_reply_success(msg);
+                    rc = ssh_message_service_reply_success(msg);
                 } else {
-                    ssh_message_reply_default(msg);
+                    rc = ssh_message_reply_default(msg);
                 }
                 ssh_message_free(msg);
+                if (session_check_reply_rc(s, rc, "SSH service reply failed") != 0)
+                    return;
                 continue;
             }
             if (type == SSH_REQUEST_AUTH && ssh_message_subtype(msg) == SSH_AUTH_METHOD_PASSWORD) {
                 if (s->on_auth == NULL) {
+                    int rc;
                     ssh_message_auth_set_methods(msg, SSH_AUTH_METHOD_PASSWORD);
-                    ssh_message_reply_default(msg);
+                    rc = ssh_message_reply_default(msg);
                     ssh_message_free(msg);
+                    if (session_check_reply_rc(s, rc, "SSH auth reject failed") != 0)
+                        return;
                     continue;
                 }
                 const char *user = ssh_message_auth_user(msg);
@@ -2648,8 +2674,10 @@ static void session_drive(ssh_server_session_ctx *s) {
                 session_update_poll(s);
                 return;
             }
-            ssh_message_reply_default(msg);
+            int rc = ssh_message_reply_default(msg);
             ssh_message_free(msg);
+            if (session_check_reply_rc(s, rc, "SSH auth reply failed") != 0)
+                return;
             continue;
         }
 
@@ -2666,14 +2694,20 @@ static void session_drive(ssh_server_session_ctx *s) {
                 int type = ssh_message_type(msg);
                 if (type == SSH_REQUEST_CHANNEL_OPEN) {
                     if (s->pending_channel_open != NULL) {
-                        ssh_message_reply_default(msg);
+                        int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
+                            return;
                     } else if (ssh_message_subtype(msg) != SSH_CHANNEL_SESSION) {
-                        ssh_message_reply_default(msg);
+                        int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
+                            return;
                     } else if (s->on_channel_open == NULL) {
-                        ssh_message_reply_default(msg);
+                        int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
+                            return;
                     } else {
                         s->pending_channel_open = msg;
                         $action f = ($action)s->on_channel_open;
@@ -2684,12 +2718,16 @@ static void session_drive(ssh_server_session_ctx *s) {
                     ssh_channel chan = ssh_message_channel_request_channel(msg);
                     ssh_server_channel_ctx *ch = server_channel_from_ssh(s, chan);
                     if (ch == NULL || ch->pending_req != NULL) {
-                        ssh_message_reply_default(msg);
+                        int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel request reject failed") != 0)
+                            return;
                     } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_EXEC) {
                         if (s->on_exec == NULL) {
-                            ssh_message_reply_default(msg);
+                            int rc = ssh_message_reply_default(msg);
                             ssh_message_free(msg);
+                            if (session_check_reply_rc(s, rc, "SSH exec reject failed") != 0)
+                                return;
                         } else {
                             const char *cmd = ssh_message_channel_request_command(msg);
                             ch->pending_req = msg;
@@ -2701,8 +2739,10 @@ static void session_drive(ssh_server_session_ctx *s) {
                         }
                     } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM) {
                         if (s->on_subsystem == NULL) {
-                            ssh_message_reply_default(msg);
+                            int rc = ssh_message_reply_default(msg);
                             ssh_message_free(msg);
+                            if (session_check_reply_rc(s, rc, "SSH subsystem reject failed") != 0)
+                                return;
                         } else {
                             const char *name = ssh_message_channel_request_subsystem(msg);
                             ch->pending_req = msg;
@@ -2713,20 +2753,27 @@ static void session_drive(ssh_server_session_ctx *s) {
                             break;
                         }
                     } else {
-                        ssh_message_reply_default(msg);
+                        int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel request reject failed") != 0)
+                            return;
                     }
                 } else if (type == SSH_REQUEST_SERVICE) {
+                    int rc;
                     const char *service = ssh_message_service_service(msg);
                     if (service && strcmp(service, "ssh-connection") == 0) {
-                        ssh_message_service_reply_success(msg);
+                        rc = ssh_message_service_reply_success(msg);
                     } else {
-                        ssh_message_reply_default(msg);
+                        rc = ssh_message_reply_default(msg);
                     }
                     ssh_message_free(msg);
+                    if (session_check_reply_rc(s, rc, "SSH connection service reply failed") != 0)
+                        return;
                 } else {
-                    ssh_message_reply_default(msg);
+                    int rc = ssh_message_reply_default(msg);
                     ssh_message_free(msg);
+                    if (session_check_reply_rc(s, rc, "SSH request reply failed") != 0)
+                        return;
                 }
             }
             session_drive_channels(s);
@@ -3272,9 +3319,11 @@ $R sshQ_ServerSessionD_accept_authG_local(sshQ_ServerSession self, $Cont c$cont)
     if (s == NULL || s->pending_auth == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_message_auth_reply_success(s->pending_auth, 0);
+    int rc = ssh_message_auth_reply_success(s->pending_auth, 0);
     ssh_message_free(s->pending_auth);
     s->pending_auth = NULL;
+    if (session_check_reply_rc(s, rc, "SSH auth accept failed") != 0)
+        return $R_CONT(c$cont, B_None);
     s->state = SESSION_STATE_READY;
     stop_timer(&s->auth_timer, session_timer_close_cb);
     session_start_keepalive(s);
@@ -3289,10 +3338,12 @@ $R sshQ_ServerSessionD_reject_authG_local(sshQ_ServerSession self, $Cont c$cont,
         return $R_CONT(c$cont, B_None);
 
     ssh_message_auth_set_methods(s->pending_auth, SSH_AUTH_METHOD_PASSWORD);
-    ssh_message_reply_default(s->pending_auth);
+    int rc = ssh_message_reply_default(s->pending_auth);
     ssh_message_free(s->pending_auth);
     s->pending_auth = NULL;
     (void)reason;
+    if (session_check_reply_rc(s, rc, "SSH auth reject failed") != 0)
+        return $R_CONT(c$cont, B_None);
     session_drive(s);
 
     return $R_CONT(c$cont, B_None);
@@ -3308,13 +3359,15 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
 
     ssh_channel chan = ssh_message_channel_request_open_reply_accept(s->pending_channel_open);
     if (chan == NULL) {
-        ssh_message_reply_default(s->pending_channel_open);
+        int rc = ssh_message_reply_default(s->pending_channel_open);
         ssh_message_free(s->pending_channel_open);
         s->pending_channel_open = NULL;
         if (on_close) {
             $action2 f = ($action2)on_close;
             f->$class->__asyn__(f, channel, to$str((char *)"Failed to accept channel open"));
         }
+        if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
+            return $R_CONT(c$cont, B_None);
         session_drive(s);
         return $R_CONT(c$cont, B_None);
     }
@@ -3339,7 +3392,14 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
     ch->on_data = ($action2)on_data;
     ch->on_stderr = ($action2)on_stderr;
     ch->on_close = ($action2)on_close;
-    server_channel_setup_callbacks(ch);
+    if (server_channel_setup_callbacks(ch) != SSH_OK) {
+        server_channel_notify_close(ch, "Failed to set SSH channel callbacks");
+        if (ch->channel != NULL)
+            ssh_channel_close(ch->channel);
+        server_channel_finalize(ch);
+        session_drive(s);
+        return $R_CONT(c$cont, B_None);
+    }
     if (ssh_debug_enabled) {
         ssh_debug_log("server channel new ch=%p callbacks=%p", (void *)ch, (void *)ch->callbacks);
     }
@@ -3357,10 +3417,12 @@ $R sshQ_ServerSessionD_reject_channelG_local(sshQ_ServerSession self, $Cont c$co
     if (s == NULL || s->pending_channel_open == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_message_reply_default(s->pending_channel_open);
+    int rc = ssh_message_reply_default(s->pending_channel_open);
     ssh_message_free(s->pending_channel_open);
     s->pending_channel_open = NULL;
     (void)reason;
+    if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
+        return $R_CONT(c$cont, B_None);
     session_drive(s);
     return $R_CONT(c$cont, B_None);
 }
@@ -3379,10 +3441,12 @@ $R sshQ_ServerSessionD_channel_accept_requestG_local(sshQ_ServerSession self, $C
     if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_message_channel_request_reply_success(ch->pending_req);
+    int rc = ssh_message_channel_request_reply_success(ch->pending_req);
     ssh_message_free(ch->pending_req);
     ch->pending_req = NULL;
     ch->pending_req_type = SCHAN_REQ_NONE;
+    if (session_check_reply_rc(s, rc, "SSH channel request accept failed") != 0)
+        return $R_CONT(c$cont, B_None);
     session_drive(s);
     return $R_CONT(c$cont, B_None);
 }
@@ -3393,11 +3457,13 @@ $R sshQ_ServerSessionD_channel_reject_requestG_local(sshQ_ServerSession self, $C
     if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_message_reply_default(ch->pending_req);
+    int rc = ssh_message_reply_default(ch->pending_req);
     ssh_message_free(ch->pending_req);
     ch->pending_req = NULL;
     ch->pending_req_type = SCHAN_REQ_NONE;
     (void)reason;
+    if (session_check_reply_rc(s, rc, "SSH channel request reject failed") != 0)
+        return $R_CONT(c$cont, B_None);
     session_drive(s);
     return $R_CONT(c$cont, B_None);
 }
@@ -3438,7 +3504,7 @@ $R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, 
     if (server_channel_validate(s, ch) != 0 || ch->channel == NULL)
         return $R_CONT(c$cont, B_None);
     int rc = ssh_channel_request_send_exit_status(ch->channel, fromB_int(status));
-    if (rc != SSH_OK) {
+    if (rc != SSH_OK && rc != SSH_AGAIN) {
         char errmsg[256] = {0};
         snprintf(errmsg, sizeof(errmsg), "SSH server send exit status failed: %s", ssh_get_error(s->session));
         server_channel_notify_close(ch, errmsg);

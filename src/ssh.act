@@ -226,6 +226,8 @@ actor RunCommand(client: Client,
         on_exit(ch, _exit_code, _exit_signal, out_buf, err_buf, _error)
 
     def _on_open(ch: Channel, err: ?str):
+        if _done:
+            return
         if err is not None:
             _error = err
             _finish(ch)
@@ -233,6 +235,8 @@ actor RunCommand(client: Client,
         ch.request_exec(cmd)
 
     def _on_stdout(ch: Channel, data: ?bytes):
+        if _done:
+            return
         if data is not None:
             out_buf += data
         else:
@@ -240,6 +244,8 @@ actor RunCommand(client: Client,
             _check_done(ch)
 
     def _on_stderr(ch: Channel, data: ?bytes):
+        if _done:
+            return
         if data is not None:
             err_buf += data
         else:
@@ -247,12 +253,16 @@ actor RunCommand(client: Client,
             _check_done(ch)
 
     def _on_exit(ch: Channel, code: int, sig: ?str):
+        if _done:
+            return
         _exited = True
         _exit_code = code
         _exit_signal = sig
         _check_done(ch)
 
     def _on_close(ch: Channel, reason: str):
+        if _done:
+            return
         if _error is None and reason != "closed":
             _error = reason
         if _error is not None:
@@ -267,6 +277,10 @@ actor RunCommand(client: Client,
 
     if timeout is not None:
         def _on_timeout():
+            if _done:
+                return
+            _error = "timeout"
+            _finish(_channel)
             _channel.close()
         after timeout: _on_timeout()
 
