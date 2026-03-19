@@ -2509,3 +2509,154 @@ actor RunCommandExitStatusTester(t: testing.EnvT):
 def _test_ssh_runcommand_exit_status(t: testing.EnvT):
     """RunCommand should collect stdout, stderr, and exit status."""
     RunCommandExitStatusTester(t)
+
+
+actor AuthTimeoutTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var client_done = False
+    var server_closed = False
+    var session_closed = False
+    var client_close_requested = False
+    var server_close_requested = False
+
+    def maybe_finish():
+        if done:
+            return
+        if client_done and server_closed and session_closed:
+            done = True
+            t.success()
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        request_client_close()
+        request_server_close()
+        done = True
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for auth timeout test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        finish_error("unexpected auth callback")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        if reason != "SSH authentication timeout":
+            finish_error("unexpected session close reason: " + reason)
+            return
+        session_closed = True
+        request_server_close()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        log.info("hostkey state: " + state, None)
+        return
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            if err.find("Received SSH_MSG_DISCONNECT") >= 0:
+                client_done = True
+                maybe_finish()
+                return
+            finish_error("client connect error: " + err)
+            return
+        client = c
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_done = True
+        if session_closed:
+            request_server_close()
+        maybe_finish()
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 56000 + (random.randint(0, 2000) + attempts * 157) % 2000
+        server_close_requested = False
+        client_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+            auth_timeout=0.2,
+        )
+
+    after 0: start_server()
+    after 5.0: on_timeout()
+
+
+def _test_ssh_auth_timeout(t: testing.EnvT):
+    """Server auth timeout should still fire after attach."""
+    AuthTimeoutTester(t)

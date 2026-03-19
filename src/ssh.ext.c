@@ -259,6 +259,7 @@ typedef struct ssh_server_session_ctx {
     ssh_session session;
     uv_poll_t *poll;
     int poll_events;
+    uv_timer_t *attach_timer;
     uv_timer_t *auth_timer;
     uv_timer_t *keepalive_timer;
     double auth_timeout;
@@ -623,6 +624,8 @@ static void session_timer_close_cb(uv_handle_t *handle) {
     ssh_server_session_ctx *s = (ssh_server_session_ctx *)handle->data;
     if (s == NULL)
         return;
+    if ((uv_timer_t *)handle == s->attach_timer)
+        s->attach_timer = NULL;
     if ((uv_timer_t *)handle == s->auth_timer)
         s->auth_timer = NULL;
     if ((uv_timer_t *)handle == s->keepalive_timer)
@@ -2425,13 +2428,14 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
 }
 
 static void session_start_attach_timer(ssh_server_session_ctx *s) {
-    if (s == NULL || s->auth_timer != NULL)
+    if (s == NULL || s->attach_timer != NULL)
         return;
-    s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
-    s->auth_timer->data = s;
-    uv_timer_init(get_uv_loop(), s->auth_timer);
-    uv_timer_start(s->auth_timer, session_auth_timeout_cb,
-                   (uint64_t)(SSH_ATTACH_TIMEOUT_SEC * 1000.0), 0);
+    double timeout = s->auth_timeout > 0.0 ? s->auth_timeout : SSH_ATTACH_TIMEOUT_SEC;
+    s->attach_timer = acton_calloc(1, sizeof(uv_timer_t));
+    s->attach_timer->data = s;
+    uv_timer_init(get_uv_loop(), s->attach_timer);
+    uv_timer_start(s->attach_timer, session_auth_timeout_cb,
+                   (uint64_t)(timeout * 1000.0), 0);
 }
 
 static void session_start_auth_timer(ssh_server_session_ctx *s) {
@@ -3133,6 +3137,7 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
     }
 
     stop_timer(&s->auth_timer, session_timer_close_cb);
+    stop_timer(&s->attach_timer, session_timer_close_cb);
     stop_timer(&s->keepalive_timer, session_timer_close_cb);
 
     s->state = SESSION_STATE_CLOSING;
@@ -3332,7 +3337,7 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
         session_close_internal(s, errmsg, 1);
         return $R_CONT(c$cont, B_None);
     }
-    stop_timer(&s->auth_timer, session_timer_close_cb);
+    stop_timer(&s->attach_timer, session_timer_close_cb);
     s->actor = self;
     self->_session_id = session_id;
     s->attached = 1;
