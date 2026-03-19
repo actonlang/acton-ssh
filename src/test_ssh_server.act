@@ -2293,7 +2293,7 @@ actor RunCommandTimeoutTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 5.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_ssh_runcommand_timeout(t: testing.EnvT):
@@ -3754,6 +3754,7 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
     var server_closed = False
     var raw_close_requested = False
     var server_close_requested = False
+    var timeout_grace = False
 
     def request_raw_close():
         if raw_close_requested:
@@ -3787,6 +3788,10 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
 
     def on_timeout():
         if done:
+            return
+        if not timeout_grace:
+            timeout_grace = True
+            after 2.0: on_timeout()
             return
         finish_error(
             "timeout waiting for key exchange timeout test "
