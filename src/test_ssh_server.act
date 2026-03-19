@@ -1449,6 +1449,437 @@ def _test_ssh_concurrent_channel_writes(t: testing.EnvT):
     ConcurrentChannelWriteTester(t)
 
 
+actor CrossHandleOwnershipTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    CLIENT1_PAYLOAD = b"client-one"
+    CLIENT2_PAYLOAD = b"client-two"
+    BAD_CLIENT_PAYLOAD = b"wrong-client"
+    SERVER1_REPLY = b"server-one"
+    SERVER2_REPLY = b"server-two"
+    BAD_SERVER_PAYLOAD = b"wrong-server"
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client1: ?ssh.Client = None
+    var client2: ?ssh.Client = None
+    var client_channel1: ?ssh.Channel = None
+    var client_channel2: ?ssh.Channel = None
+    var server_session1: ?ssh.ServerSession = None
+    var server_session2: ?ssh.ServerSession = None
+    var server_channel1: ?ssh.ServerChannel = None
+    var server_channel2: ?ssh.ServerChannel = None
+    var client1_buf = b""
+    var client2_buf = b""
+    var server1_buf = b""
+    var server2_buf = b""
+    var io_started = False
+    var replies_sent = False
+    var shutdown_started = False
+    var client1_opened = False
+    var client2_opened = False
+    var client1_ok = False
+    var client2_ok = False
+    var server1_ok = False
+    var server2_ok = False
+    var client_close_count = 0
+    var client_channel_close_count = 0
+    var server_channel_close_count = 0
+    var session_close_count = 0
+    var server_closed = False
+    var client1_close_requested = False
+    var client2_close_requested = False
+    var server_close_requested = False
+
+    def request_client1_close():
+        if client1_close_requested:
+            return
+        client1_close_requested = True
+        if client1 is not None:
+            client1.close()
+
+    def request_client2_close():
+        if client2_close_requested:
+            return
+        client2_close_requested = True
+        if client2 is not None:
+            client2.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def begin_shutdown():
+        if shutdown_started:
+            return
+        shutdown_started = True
+        if client_channel1 is not None:
+            client_channel1.close()
+        if client_channel2 is not None:
+            client_channel2.close()
+        request_client1_close()
+        request_client2_close()
+        if server_session1 is not None:
+            server_session1.close()
+        if server_session2 is not None:
+            server_session2.close()
+        request_server_close()
+
+    def maybe_finish():
+        if done:
+            return
+        if client1_ok and client2_ok and server1_ok and server2_ok and \
+           client_close_count == 2 and client_channel_close_count == 2 and \
+           server_channel_close_count == 2 and session_close_count == 2 and \
+           server_closed:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        begin_shutdown()
+        t.error(Exception(msg))
+
+    def maybe_start_io():
+        if io_started or done:
+            return
+        if not client1_opened or not client2_opened:
+            return
+        if client1 is not None:
+            if client_channel1 is not None:
+                if client_channel2 is not None:
+                    if server_channel1 is not None:
+                        if server_channel2 is not None:
+                            io_started = True
+                            client1.channel_write(client_channel2, BAD_CLIENT_PAYLOAD)
+                            client_channel1.write(CLIENT1_PAYLOAD)
+                            client_channel2.write(CLIENT2_PAYLOAD)
+
+    def maybe_send_replies():
+        if replies_sent or done:
+            return
+        if not server1_ok or not server2_ok:
+            return
+        if server_session1 is not None:
+            if server_channel1 is not None:
+                if server_channel2 is not None:
+                    replies_sent = True
+                    server_session1.channel_write(server_channel2, BAD_SERVER_PAYLOAD)
+                    server_channel1.write(SERVER1_REPLY)
+                    server_channel2.write(SERVER2_REPLY)
+                    return
+        finish_error("server channels not ready for reply")
+
+    def maybe_shutdown():
+        if client1_ok and client2_ok:
+            begin_shutdown()
+
+    def on_timeout():
+        if done:
+            return
+        finish_error("timeout waiting for cross-handle ownership test")
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client1()
+        after 0.01: start_client2()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        return
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        if server_channel1 is None:
+            server_session1 = sess
+            ch = ssh.ServerChannel(sess, srv1_on_data, srv1_on_stderr, srv1_on_close)
+            server_channel1 = ch
+            sess.accept_channel(ch)
+        else:
+            if server_channel2 is None:
+                server_session2 = sess
+                ch = ssh.ServerChannel(sess, srv2_on_data, srv2_on_stderr, srv2_on_close)
+                server_channel2 = ch
+                sess.accept_channel(ch)
+            else:
+                finish_error("unexpected extra server channel")
+                return
+        maybe_start_io()
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name != "echo":
+            finish_error("unexpected subsystem: " + name)
+            return
+        ch.accept_request()
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_close_count += 1
+        maybe_finish()
+
+    def srv1_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server1_buf += data
+            if server1_buf.find(BAD_CLIENT_PAYLOAD) >= 0:
+                finish_error("cross-client payload leaked into server channel 1")
+                return
+            if len(server1_buf) > len(CLIENT1_PAYLOAD):
+                finish_error("server channel 1 received extra data")
+                return
+            if len(server1_buf) == len(CLIENT1_PAYLOAD):
+                if server1_buf == CLIENT1_PAYLOAD:
+                    if server1_ok:
+                        finish_error("client-one payload delivered twice")
+                        return
+                    server1_ok = True
+                else:
+                    if server1_buf == CLIENT2_PAYLOAD:
+                        if server2_ok:
+                            finish_error("client-two payload delivered twice")
+                            return
+                        server2_ok = True
+                    else:
+                        finish_error("server channel 1 received wrong payload")
+                        return
+                maybe_send_replies()
+
+    def srv1_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            finish_error("server channel 1 received unexpected stderr")
+
+    def srv1_on_close(ch: ssh.ServerChannel, reason: str):
+        server_channel_close_count += 1
+        maybe_finish()
+
+    def srv2_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server2_buf += data
+            if server2_buf.find(BAD_CLIENT_PAYLOAD) >= 0:
+                finish_error("cross-client payload leaked into server channel 2")
+                return
+            if len(server2_buf) > len(CLIENT2_PAYLOAD):
+                finish_error("server channel 2 received extra data")
+                return
+            if len(server2_buf) == len(CLIENT2_PAYLOAD):
+                if server2_buf == CLIENT2_PAYLOAD:
+                    if server2_ok:
+                        finish_error("client-two payload delivered twice")
+                        return
+                    server2_ok = True
+                else:
+                    if server2_buf == CLIENT1_PAYLOAD:
+                        if server1_ok:
+                            finish_error("client-one payload delivered twice")
+                            return
+                        server1_ok = True
+                    else:
+                        finish_error("server channel 2 received wrong payload")
+                        return
+                maybe_send_replies()
+
+    def srv2_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            finish_error("server channel 2 received unexpected stderr")
+
+    def srv2_on_close(ch: ssh.ServerChannel, reason: str):
+        server_channel_close_count += 1
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client1_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client 1 connect error: " + err)
+            return
+        client_channel1 = ssh.Channel(c, ch1_open, ch1_out, ch1_err, ch1_exit, ch1_close)
+
+    def on_client2_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client 2 connect error: " + err)
+            return
+        client_channel2 = ssh.Channel(c, ch2_open, ch2_out, ch2_err, ch2_exit, ch2_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_close_count += 1
+        maybe_finish()
+
+    def ch1_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("client channel 1 open error: " + err)
+            return
+        client1_opened = True
+        client_channel1 = ch
+        ch.request_subsystem("echo")
+        maybe_start_io()
+
+    def ch1_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            client1_buf += data
+            if client1_buf.find(BAD_SERVER_PAYLOAD) >= 0:
+                finish_error("cross-session server payload leaked into client channel 1")
+                return
+            if len(client1_buf) > len(SERVER1_REPLY):
+                finish_error("client channel 1 received extra data")
+                return
+            if len(client1_buf) == len(SERVER1_REPLY):
+                if client1_buf == SERVER1_REPLY:
+                    if client1_ok:
+                        finish_error("server-one reply delivered twice")
+                        return
+                    client1_ok = True
+                else:
+                    if client1_buf == SERVER2_REPLY:
+                        if client2_ok:
+                            finish_error("server-two reply delivered twice")
+                            return
+                        client2_ok = True
+                    else:
+                        finish_error("client channel 1 received wrong payload")
+                        return
+                maybe_shutdown()
+
+    def ch1_err(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("client channel 1 received unexpected stderr")
+
+    def ch1_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch1_close(ch: ssh.Channel, reason: str):
+        client_channel_close_count += 1
+        maybe_finish()
+
+    def ch2_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("client channel 2 open error: " + err)
+            return
+        client2_opened = True
+        client_channel2 = ch
+        ch.request_subsystem("echo")
+        maybe_start_io()
+
+    def ch2_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            client2_buf += data
+            if client2_buf.find(BAD_SERVER_PAYLOAD) >= 0:
+                finish_error("cross-session server payload leaked into client channel 2")
+                return
+            if len(client2_buf) > len(SERVER2_REPLY):
+                finish_error("client channel 2 received extra data")
+                return
+            if len(client2_buf) == len(SERVER2_REPLY):
+                if client2_buf == SERVER2_REPLY:
+                    if client2_ok:
+                        finish_error("server-two reply delivered twice")
+                        return
+                    client2_ok = True
+                else:
+                    if client2_buf == SERVER1_REPLY:
+                        if client1_ok:
+                            finish_error("server-one reply delivered twice")
+                            return
+                        client1_ok = True
+                    else:
+                        finish_error("client channel 2 received wrong payload")
+                        return
+                maybe_shutdown()
+
+    def ch2_err(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("client channel 2 received unexpected stderr")
+
+    def ch2_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch2_close(ch: ssh.Channel, reason: str):
+        client_channel_close_count += 1
+        maybe_finish()
+
+    def start_client1():
+        client1 = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client1_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_client2():
+        client2 = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client2_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 50000 + (random.randint(0, 2000) + attempts * 131) % 2000
+        server_close_requested = False
+        client1_close_requested = False
+        client2_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 5.0: on_timeout()
+
+
+def _test_ssh_cross_handle_ownership(t: testing.EnvT):
+    """Wrong client or session should not drive another channel."""
+    CrossHandleOwnershipTester(t)
+
+
 actor UnsupportedRequestTester(t: testing.EnvT):
     log = logging.Logger(t.log_handler)
 

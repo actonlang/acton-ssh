@@ -125,6 +125,7 @@ typedef struct write_chunk {
 typedef struct ssh_channel_ctx {
     struct ssh_channel_ctx *next;
     ssh_channel channel;
+    struct ssh_client_ctx *client;
     struct ssh_channel_callbacks_struct *callbacks;
     sshQ_Channel actor;
     channel_state_t state;
@@ -1823,6 +1824,7 @@ $R sshQ_ClientD_channel_createG_local(sshQ_Client self, $Cont c$cont, sshQ_Chann
     }
 
     ssh_channel_ctx *ch = acton_calloc(1, sizeof(ssh_channel_ctx));
+    ch->client = c;
     ch->actor = channel;
     ch->callbacks = NULL;
     ch->state = CHAN_STATE_INIT;
@@ -1853,9 +1855,33 @@ $R sshQ_ClientD_channel_createG_local(sshQ_Client self, $Cont c$cont, sshQ_Chann
 
 static int channel_validate(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (c == NULL || ch == NULL) {
-        return -1;
+        return 1;
+    }
+    if (ch->client != c) {
+        if (ssh_debug_enabled) {
+            ssh_debug_log("client channel ownership mismatch: client=%p owner=%p ch=%p",
+                          (void *)c, (void *)ch->client, (void *)ch);
+        }
+        return 1;
     }
     if (ch->state == CHAN_STATE_ERROR || ch->state == CHAN_STATE_CLOSED) {
+        return 2;
+    }
+    return 0;
+}
+
+static int server_channel_validate(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
+    if (s == NULL || ch == NULL) {
+        return -1;
+    }
+    if (ch->session != s) {
+        if (ssh_debug_enabled) {
+            ssh_debug_log("server channel ownership mismatch: session=%p owner=%p ch=%p",
+                          (void *)s, (void *)ch->session, (void *)ch);
+        }
+        return -1;
+    }
+    if (ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR) {
         return -1;
     }
     return 0;
@@ -1864,8 +1890,9 @@ static int channel_validate(ssh_client_ctx *c, ssh_channel_ctx *ch) {
 $R sshQ_ClientD_channel_request_execG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str cmd) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
-    if (channel_validate(c, ch) != 0) {
-        if (ch != NULL)
+    int valid = channel_validate(c, ch);
+    if (valid != 0) {
+        if (valid == 2 && ch != NULL)
             channel_notify_error(ch, "Channel not ready");
         return $R_CONT(c$cont, B_None);
     }
@@ -1889,8 +1916,9 @@ $R sshQ_ClientD_channel_request_execG_local(sshQ_Client self, $Cont c$cont, sshQ
 $R sshQ_ClientD_channel_request_shellG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str term, B_int cols, B_int rows, B_int width_px, B_int height_px, B_bool with_pty) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
-    if (channel_validate(c, ch) != 0) {
-        if (ch != NULL)
+    int valid = channel_validate(c, ch);
+    if (valid != 0) {
+        if (valid == 2 && ch != NULL)
             channel_notify_error(ch, "Channel not ready");
         return $R_CONT(c$cont, B_None);
     }
@@ -1920,8 +1948,9 @@ $R sshQ_ClientD_channel_request_shellG_local(sshQ_Client self, $Cont c$cont, ssh
 $R sshQ_ClientD_channel_request_subsystemG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str name) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
-    if (channel_validate(c, ch) != 0) {
-        if (ch != NULL)
+    int valid = channel_validate(c, ch);
+    if (valid != 0) {
+        if (valid == 2 && ch != NULL)
             channel_notify_error(ch, "Channel not ready");
         return $R_CONT(c$cont, B_None);
     }
@@ -1945,8 +1974,9 @@ $R sshQ_ClientD_channel_request_subsystemG_local(sshQ_Client self, $Cont c$cont,
 $R sshQ_ClientD_channel_writeG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_bytes data) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
-    if (channel_validate(c, ch) != 0) {
-        if (ch != NULL)
+    int valid = channel_validate(c, ch);
+    if (valid != 0) {
+        if (valid == 2 && ch != NULL)
             channel_notify_error(ch, "Channel not ready");
         return $R_CONT(c$cont, B_None);
     }
@@ -3346,7 +3376,7 @@ $R sshQ_ServerSessionD_closeG_local(sshQ_ServerSession self, $Cont c$cont) {
 $R sshQ_ServerSessionD_channel_accept_requestG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL || ch->pending_req == NULL)
+    if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
         return $R_CONT(c$cont, B_None);
 
     ssh_message_channel_request_reply_success(ch->pending_req);
@@ -3360,7 +3390,7 @@ $R sshQ_ServerSessionD_channel_accept_requestG_local(sshQ_ServerSession self, $C
 $R sshQ_ServerSessionD_channel_reject_requestG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_str reason) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL || ch->pending_req == NULL)
+    if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
         return $R_CONT(c$cont, B_None);
 
     ssh_message_reply_default(ch->pending_req);
@@ -3375,7 +3405,7 @@ $R sshQ_ServerSessionD_channel_reject_requestG_local(sshQ_ServerSession self, $C
 $R sshQ_ServerSessionD_channel_writeG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_bytes data) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL)
+    if (server_channel_validate(s, ch) != 0)
         return $R_CONT(c$cont, B_None);
     server_channel_queue_write(ch, data, 0);
     session_drive(s);
@@ -3385,7 +3415,7 @@ $R sshQ_ServerSessionD_channel_writeG_local(sshQ_ServerSession self, $Cont c$con
 $R sshQ_ServerSessionD_channel_write_stderrG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_bytes data) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL)
+    if (server_channel_validate(s, ch) != 0)
         return $R_CONT(c$cont, B_None);
     server_channel_queue_write(ch, data, 1);
     session_drive(s);
@@ -3395,7 +3425,7 @@ $R sshQ_ServerSessionD_channel_write_stderrG_local(sshQ_ServerSession self, $Con
 $R sshQ_ServerSessionD_channel_send_eofG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL)
+    if (server_channel_validate(s, ch) != 0)
         return $R_CONT(c$cont, B_None);
     ch->send_eof = 1;
     session_drive(s);
@@ -3405,7 +3435,7 @@ $R sshQ_ServerSessionD_channel_send_eofG_local(sshQ_ServerSession self, $Cont c$
 $R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_int status) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL || ch->channel == NULL)
+    if (server_channel_validate(s, ch) != 0 || ch->channel == NULL)
         return $R_CONT(c$cont, B_None);
     int rc = ssh_channel_request_send_exit_status(ch->channel, fromB_int(status));
     if (rc != SSH_OK) {
@@ -3421,7 +3451,7 @@ $R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, 
 $R sshQ_ServerSessionD_channel_closeG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
-    if (s == NULL || ch == NULL)
+    if (server_channel_validate(s, ch) != 0)
         return $R_CONT(c$cont, B_None);
     ch->send_eof = 1;
     ch->close_requested = 1;
