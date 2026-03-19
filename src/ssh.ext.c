@@ -85,6 +85,7 @@ extern struct $Cont $Done$instance;
 #define SSH_READ_BUFSIZE 4096
 #define SSH_IO_PUMP_LIMIT 128
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
+#define SSH_KEYEX_TIMEOUT_SEC 2.0
 #define SSH_SERVER_ACCEPT_LIMIT 64
 static int ssh_debug_enabled = 0;
 static int ssh_libssh_log_level = SSH_LOG_NOLOG;
@@ -328,6 +329,7 @@ static void session_finish_close(ssh_server_session_ctx *s);
 static void session_maybe_release(ssh_server_session_ctx *s);
 static void session_fail(ssh_server_session_ctx *s, const char *msg);
 static void session_start_attach_timer(ssh_server_session_ctx *s);
+static void session_start_keyex_timer(ssh_server_session_ctx *s);
 static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len);
 static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch);
 static int session_needs_write(ssh_server_session_ctx *s);
@@ -2546,24 +2548,42 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
     return -1;
 }
 
+static void session_restart_auth_timer(ssh_server_session_ctx *s, double timeout_sec) {
+    if (s == NULL)
+        return;
+    if (timeout_sec <= 0.0)
+        return;
+    if (s->auth_timer == NULL) {
+        s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
+        s->auth_timer->data = s;
+        uv_timer_init(get_uv_loop(), s->auth_timer);
+    } else {
+        uv_timer_stop(s->auth_timer);
+    }
+    uv_timer_start(s->auth_timer, session_auth_timeout_cb,
+                   (uint64_t)(timeout_sec * 1000.0), 0);
+}
+
 static void session_start_attach_timer(ssh_server_session_ctx *s) {
     if (s == NULL || s->attach_timer != NULL)
         return;
-    double timeout = s->auth_timeout > 0.0 ? s->auth_timeout : SSH_ATTACH_TIMEOUT_SEC;
     s->attach_timer = acton_calloc(1, sizeof(uv_timer_t));
     s->attach_timer->data = s;
     uv_timer_init(get_uv_loop(), s->attach_timer);
     uv_timer_start(s->attach_timer, session_auth_timeout_cb,
-                   (uint64_t)(timeout * 1000.0), 0);
+                   (uint64_t)(SSH_ATTACH_TIMEOUT_SEC * 1000.0), 0);
+}
+
+static void session_start_keyex_timer(ssh_server_session_ctx *s) {
+    if (s == NULL)
+        return;
+    double timeout = s->auth_timeout > SSH_KEYEX_TIMEOUT_SEC ?
+                     s->auth_timeout : SSH_KEYEX_TIMEOUT_SEC;
+    session_restart_auth_timer(s, timeout);
 }
 
 static void session_start_auth_timer(ssh_server_session_ctx *s) {
-    if (s == NULL || s->auth_timeout <= 0.0 || s->auth_timer != NULL)
-        return;
-    s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
-    s->auth_timer->data = s;
-    uv_timer_init(get_uv_loop(), s->auth_timer);
-    uv_timer_start(s->auth_timer, session_auth_timeout_cb, (uint64_t)(s->auth_timeout * 1000.0), 0);
+    session_restart_auth_timer(s, s != NULL ? s->auth_timeout : 0.0);
 }
 
 static void session_start_keepalive(ssh_server_session_ctx *s) {
@@ -2770,6 +2790,7 @@ static void session_drive(ssh_server_session_ctx *s) {
             int rc = ssh_handle_key_exchange(s->session);
             if (rc == SSH_OK) {
                 s->state = SESSION_STATE_AUTH;
+                stop_timer(&s->attach_timer, session_timer_close_cb);
                 session_start_auth_timer(s);
                 ssh_set_auth_methods(s->session, SSH_AUTH_METHOD_PASSWORD);
                 continue;
@@ -3496,7 +3517,6 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
         session_close_internal(s, errmsg, 1);
         return $R_CONT(c$cont, B_None);
     }
-    stop_timer(&s->attach_timer, session_timer_close_cb);
     s->actor = self;
     self->_session_id = session_id;
     s->attached = 1;
@@ -3508,7 +3528,10 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
     s->auth_timeout = fromB_float(self->server->_auth_timeout);
     s->keepalive_interval = fromB_float(self->server->_keepalive_interval);
     s->keepalive_enabled = fromB_bool(self->server->_keepalive_enabled) ? 1 : 0;
-    session_start_auth_timer(s);
+    if (s->state == SESSION_STATE_KEYEX) {
+        stop_timer(&s->attach_timer, session_timer_close_cb);
+        session_start_keyex_timer(s);
+    }
     if (ssh_debug_enabled) {
         ssh_debug_log("server session attach: callbacks set, driving session");
     }
