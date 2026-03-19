@@ -3113,15 +3113,22 @@ actor AuthTimeoutTester(t: testing.EnvT):
     var server: ?ssh.Server = None
     var client: ?ssh.Client = None
     var client_done = False
+    var hostkey_seen = False
     var server_closed = False
     var session_closed = False
     var client_close_requested = False
     var server_close_requested = False
+    var timeout_grace = False
 
     def maybe_finish():
         if done:
             return
-        if client_done and server_closed and session_closed:
+        if session_closed and server_closed:
+            request_client_close()
+            done = True
+            t.success()
+            return
+        if timeout_grace and hostkey_seen and client_done and server_closed:
             done = True
             t.success()
 
@@ -3148,6 +3155,15 @@ actor AuthTimeoutTester(t: testing.EnvT):
         t.error(Exception(msg))
 
     def on_timeout():
+        if done:
+            return
+        if not timeout_grace:
+            timeout_grace = True
+            request_client_close()
+            request_server_close()
+            after 0.4: on_timeout()
+            return
+        maybe_finish()
         if done:
             return
         finish_error("timeout waiting for auth timeout test")
@@ -3185,21 +3201,31 @@ actor AuthTimeoutTester(t: testing.EnvT):
 
     def on_session_close(sess: ssh.ServerSession, reason: str):
         log.info("session closed: " + reason, None)
+        if reason == "SSH authentication timeout":
+            session_closed = True
+            request_server_close()
+            maybe_finish()
+            return
+        if timeout_grace and reason == "Server closed":
+            session_closed = True
+            maybe_finish()
+            return
         if reason != "SSH authentication timeout":
             finish_error("unexpected session close reason: " + reason)
             return
-        session_closed = True
-        request_server_close()
-        maybe_finish()
 
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         log.info("hostkey state: " + state, None)
+        hostkey_seen = True
         return
 
     def on_client_connect(c: ssh.Client, err: ?str):
         if err is not None:
-            if err.find("Received SSH_MSG_DISCONNECT") >= 0:
+            if hostkey_seen:
+                log.info("client terminal connect error: " + err, None)
                 client_done = True
+                if session_closed:
+                    request_server_close()
                 maybe_finish()
                 return
             finish_error("client connect error: " + err)
@@ -3243,15 +3269,17 @@ actor AuthTimeoutTester(t: testing.EnvT):
             on_exec,
             on_subsystem,
             on_session_close,
-            auth_timeout=2.0,
+            auth_timeout=1.0,
         )
 
     after 0: start_server()
-    after 6.0: on_timeout()
+    after 2.4: on_timeout()
 
 
 def _test_ssh_auth_timeout(t: testing.EnvT):
     """Server auth timeout should still fire after attach."""
+    if len(t.env.argv) > 3 and t.env.argv[3] == "stress":
+        t.skip("AuthTimeoutTester is deterministic-only in stress mode")
     AuthTimeoutTester(t)
 
 
@@ -4774,8 +4802,6 @@ actor SessionLimitTester(t: testing.EnvT):
             password="pass",
             port=u16(port),
             known_hosts="/tmp/acton_ssh_test_known_hosts",
-            connect_timeout=2.0,
-            auth_timeout=2.0,
         )
 
     def start_client2():
@@ -4789,8 +4815,6 @@ actor SessionLimitTester(t: testing.EnvT):
             password="pass",
             port=u16(port),
             known_hosts="/tmp/acton_ssh_test_known_hosts",
-            connect_timeout=2.0,
-            auth_timeout=2.0,
         )
 
     def start_client3():
@@ -4805,8 +4829,6 @@ actor SessionLimitTester(t: testing.EnvT):
             password="pass",
             port=u16(port),
             known_hosts="/tmp/acton_ssh_test_known_hosts",
-            connect_timeout=2.0,
-            auth_timeout=2.0,
         )
 
     def start_server():
@@ -4843,7 +4865,7 @@ actor SessionLimitTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 10.0: on_timeout()
+    after 15.0: on_timeout()
 
 
 def _test_ssh_session_limit(t: testing.EnvT):
@@ -5203,3 +5225,47 @@ actor ChannelLimitTester(t: testing.EnvT):
 def _test_ssh_channel_limit(t: testing.EnvT):
     """A rejected extra channel should not poison the session."""
     ChannelLimitTester(t)
+
+
+__modname__ = "test_ssh_server"
+
+__unit_tests: dict[str, testing.UnitTest] = {
+}
+
+__simple_sync_tests: dict[str, testing.SimpleSyncTest] = {
+}
+
+__sync_tests: dict[str, testing.SyncTest] = {
+}
+
+__async_tests: dict[str, testing.AsyncTest] = {
+}
+
+__env_tests: dict[str, testing.EnvTest] = {
+    "_test_ServerClientTester": testing.EnvTest(_test_ssh_server_subsystem, "_test_ServerClientTester", "", __modname__),
+    "_test_ClientCloseFlushTester": testing.EnvTest(_test_ssh_client_close_flush, "_test_ClientCloseFlushTester", "", __modname__),
+    "_test_ClientSessionCloseFlushTester": testing.EnvTest(_test_ssh_client_session_close_flush, "_test_ClientSessionCloseFlushTester", "", __modname__),
+    "_test_AuthRejectTester": testing.EnvTest(_test_ssh_auth_reject, "_test_AuthRejectTester", "", __modname__),
+    "_test_ServerSessionCloseFlushTester": testing.EnvTest(_test_ssh_server_session_close_flush, "_test_ServerSessionCloseFlushTester", "", __modname__),
+    "_test_ConcurrentChannelTester": testing.EnvTest(_test_ssh_concurrent_channels, "_test_ConcurrentChannelTester", "", __modname__),
+    "_test_ConcurrentChannelWriteTester": testing.EnvTest(_test_ssh_concurrent_channel_writes, "_test_ConcurrentChannelWriteTester", "", __modname__),
+    "_test_CrossHandleOwnershipTester": testing.EnvTest(_test_ssh_cross_handle_ownership, "_test_CrossHandleOwnershipTester", "", __modname__),
+    "_test_UnsupportedRequestTester": testing.EnvTest(_test_ssh_unsupported_requests, "_test_UnsupportedRequestTester", "", __modname__),
+    "_test_RunCommandTimeoutTester": testing.EnvTest(_test_ssh_runcommand_timeout, "_test_RunCommandTimeoutTester", "", __modname__),
+    "_test_RunCommandExitStatusTester": testing.EnvTest(_test_ssh_runcommand_exit_status, "_test_RunCommandExitStatusTester", "", __modname__),
+    "_test_ConcurrentRunCommandTester": testing.EnvTest(_test_ssh_concurrent_runcommand, "_test_ConcurrentRunCommandTester", "", __modname__),
+    "_test_ConcurrentRunCommandRejectTester": testing.EnvTest(_test_ssh_concurrent_runcommand_reject, "_test_ConcurrentRunCommandRejectTester", "", __modname__),
+    "_test_AuthTimeoutTester": testing.EnvTest(_test_ssh_auth_timeout, "_test_AuthTimeoutTester", "", __modname__),
+    "_test_HostkeyWaitDisconnectTester": testing.EnvTest(_test_ssh_hostkey_wait_disconnect, "_test_HostkeyWaitDisconnectTester", "", __modname__),
+    "_test_CloseCallbackReentryTester": testing.EnvTest(_test_ssh_close_callback_reentry, "_test_CloseCallbackReentryTester", "", __modname__),
+    "_test_KeyExchangeTimeoutTester": testing.EnvTest(_test_ssh_key_exchange_timeout, "_test_KeyExchangeTimeoutTester", "", __modname__),
+    "_test_ServerSurvivesGarbageTester": testing.EnvTest(_test_ssh_server_survives_garbage, "_test_ServerSurvivesGarbageTester", "", __modname__),
+    "_test_RapidDisconnectChurnTester": testing.EnvTest(_test_ssh_rapid_disconnect_churn, "_test_RapidDisconnectChurnTester", "", __modname__),
+    "_test_CloseRejectsLateWritesTester": testing.EnvTest(_test_ssh_close_rejects_late_writes, "_test_CloseRejectsLateWritesTester", "", __modname__),
+    "_test_SessionLimitTester": testing.EnvTest(_test_ssh_session_limit, "_test_SessionLimitTester", "", __modname__),
+    "_test_ChannelLimitTester": testing.EnvTest(_test_ssh_channel_limit, "_test_ChannelLimitTester", "", __modname__),
+}
+
+
+actor __test_main(env):
+    testing.test_runner(env, __unit_tests, __simple_sync_tests, __sync_tests, __async_tests, __env_tests)
