@@ -4587,3 +4587,619 @@ actor CloseRejectsLateWritesTester(t: testing.EnvT):
 def _test_ssh_close_rejects_late_writes(t: testing.EnvT):
     """Channel writes should be ignored once parent close starts."""
     CloseRejectsLateWritesTester(t)
+
+
+actor SessionLimitTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client1: ?ssh.Client = None
+    var client2: ?ssh.Client = None
+    var client3: ?ssh.Client = None
+    var client1_close_requested = False
+    var client3_close_requested = False
+    var server_close_requested = False
+    var client1_ready = False
+    var client1_closed = False
+    var client2_failed = False
+    var client3_started = False
+    var client3_ready = False
+    var client3_closed = False
+    var server_closed = False
+    var session_ready_count = 0
+    var session_close_count = 0
+
+    def request_client1_close():
+        if client1_close_requested:
+            return
+        client1_close_requested = True
+        if client1 is not None:
+            client1.close()
+
+    def request_client3_close():
+        if client3_close_requested:
+            return
+        client3_close_requested = True
+        if client3 is not None:
+            client3.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_start_client3():
+        if done or client3_started:
+            return
+        if client2_failed and client1_closed and session_close_count >= 1:
+            client3_started = True
+            start_client3()
+
+    def maybe_finish():
+        if done:
+            return
+        if client1_ready and client1_closed and client2_failed and client3_ready and \
+           client3_closed and server_closed and session_ready_count == 2 and \
+           session_close_count == 2:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client1_close()
+        request_client3_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for session limit test "
+            "(client1_ready=" + str(client1_ready) +
+            ", client1_closed=" + str(client1_closed) +
+            ", client2_failed=" + str(client2_failed) +
+            ", client3_ready=" + str(client3_ready) +
+            ", client3_closed=" + str(client3_closed) +
+            ", session_ready_count=" + str(session_ready_count) +
+            ", session_close_count=" + str(session_close_count) +
+            ", server_closed=" + str(server_closed) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client1()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        session_ready_count += 1
+        if session_ready_count > 2:
+            finish_error("unexpected extra session became ready")
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open during session limit test")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_close_count += 1
+        maybe_start_client3()
+        if client3_closed and session_close_count >= 2:
+            request_server_close()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client1_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client 1 connect error: " + err)
+            return
+        client1 = c
+        client1_ready = True
+        start_client2()
+
+    def on_client2_connect(c: ssh.Client, err: ?str):
+        if err is None:
+            finish_error("client 2 unexpectedly connected over session limit")
+            return
+        client2_failed = True
+        request_client1_close()
+        maybe_start_client3()
+
+    def on_client3_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client 3 connect error after freeing session slot: " + err)
+            return
+        client3 = c
+        client3_ready = True
+        request_client3_close()
+
+    def on_client1_close(c: ssh.Client, reason: str):
+        log.info("client 1 closed: " + reason, None)
+        client1_closed = True
+        maybe_start_client3()
+        maybe_finish()
+
+    def on_client3_close(c: ssh.Client, reason: str):
+        log.info("client 3 closed: " + reason, None)
+        client3_closed = True
+        if session_close_count >= 2:
+            request_server_close()
+        maybe_finish()
+
+    def on_client2_close(c: ssh.Client, reason: str):
+        log.info("client 2 closed: " + reason, None)
+
+    def start_client1():
+        client1_close_requested = False
+        client1 = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client1_connect,
+            on_client1_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+            connect_timeout=2.0,
+            auth_timeout=2.0,
+        )
+
+    def start_client2():
+        client2 = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client2_connect,
+            on_client2_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+            connect_timeout=2.0,
+            auth_timeout=2.0,
+        )
+
+    def start_client3():
+        client3_close_requested = False
+        client3 = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client3_connect,
+            on_client3_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+            connect_timeout=2.0,
+            auth_timeout=2.0,
+        )
+
+    def start_server():
+        attempts += 1
+        port = 50000 + (random.randint(0, 3000) + attempts * 461) % 3000
+        client1 = None
+        client2 = None
+        client3 = None
+        client1_close_requested = False
+        client3_close_requested = False
+        server_close_requested = False
+        client1_ready = False
+        client1_closed = False
+        client2_failed = False
+        client3_started = False
+        client3_ready = False
+        client3_closed = False
+        server_closed = False
+        session_ready_count = 0
+        session_close_count = 0
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+            max_sessions=1,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_session_limit(t: testing.EnvT):
+    """A rejected extra session should not poison the server."""
+    SessionLimitTester(t)
+
+
+actor ChannelLimitClientFactory(client: ssh.Client,
+                                ch2_open_cb: action(ssh.Channel, ?str) -> None,
+                                ch2_out_cb: action(ssh.Channel, ?bytes) -> None,
+                                ch2_err_cb: action(ssh.Channel, ?bytes) -> None,
+                                ch2_exit_cb: action(ssh.Channel, int, ?str) -> None,
+                                ch2_close_cb: action(ssh.Channel, str) -> None,
+                                ch3_open_cb: action(ssh.Channel, ?str) -> None,
+                                ch3_out_cb: action(ssh.Channel, ?bytes) -> None,
+                                ch3_err_cb: action(ssh.Channel, ?bytes) -> None,
+                                ch3_exit_cb: action(ssh.Channel, int, ?str) -> None,
+                                ch3_close_cb: action(ssh.Channel, str) -> None):
+    var _ch2: ?ssh.Channel = None
+    var _ch3: ?ssh.Channel = None
+
+    action def open_ch2() -> None:
+        _ch2 = ssh.Channel(client, ch2_open_cb, ch2_out_cb, ch2_err_cb, ch2_exit_cb, ch2_close_cb)
+
+    action def open_ch3() -> None:
+        _ch3 = ssh.Channel(client, ch3_open_cb, ch3_out_cb, ch3_err_cb, ch3_exit_cb, ch3_close_cb)
+
+
+actor ChannelLimitTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    MSG1 = b"one"
+    ACK1 = b"ack-one"
+    MSG3 = b"three"
+    ACK3 = b"ack-three"
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var session: ?ssh.ServerSession = None
+    var client: ?ssh.Client = None
+    var factory: ?ChannelLimitClientFactory = None
+    var ch1: ?ssh.Channel = None
+    var ch2: ?ssh.Channel = None
+    var ch3: ?ssh.Channel = None
+    var client_close_requested = False
+    var server_close_requested = False
+    var ch3_started = False
+    var ch1_acked = False
+    var ch2_failed = False
+    var ch1_closed = False
+    var ch3_acked = False
+    var ch3_closed = False
+    var client_closed = False
+    var session_closed = False
+    var server_closed = False
+    var server_channel_open_count = 0
+    var server_channel_close_count = 0
+
+    def request_client_close():
+        if client_close_requested:
+            return
+        client_close_requested = True
+        if client is not None:
+            client.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def maybe_start_ch3():
+        if done or ch3_started:
+            return
+        if not (ch2_failed and ch1_closed and server_channel_close_count >= 1):
+            return
+        if factory is not None:
+            ch3_started = True
+            factory.open_ch3()
+        else:
+            finish_error("client factory missing when reopening channel after limit rejection")
+
+    def maybe_finish():
+        if done:
+            return
+        if ch1_acked and ch2_failed and ch1_closed and ch3_acked and ch3_closed and \
+           client_closed and session_closed and server_closed and \
+           server_channel_open_count == 2 and server_channel_close_count == 2:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        request_client_close()
+        request_server_close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for channel limit test "
+            "(ch1_acked=" + str(ch1_acked) +
+            ", ch2_failed=" + str(ch2_failed) +
+            ", ch1_closed=" + str(ch1_closed) +
+            ", ch3_acked=" + str(ch3_acked) +
+            ", ch3_closed=" + str(ch3_closed) +
+            ", client_closed=" + str(client_closed) +
+            ", session_closed=" + str(session_closed) +
+            ", server_closed=" + str(server_closed) +
+            ", server_channel_open_count=" + str(server_channel_open_count) +
+            ", server_channel_close_count=" + str(server_channel_close_count) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        session = sess
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        session = sess
+        server_channel_open_count += 1
+        if server_channel_open_count > 2:
+            finish_error("unexpected extra server channel open")
+            return
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name != "echo":
+            finish_error("unexpected subsystem request: " + name)
+            return
+        ch.accept_request()
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        request_server_close()
+        maybe_finish()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is None:
+            return
+        if data == MSG1:
+            ch.write(ACK1)
+            return
+        if data == MSG3:
+            ch.write(ACK3)
+            return
+        finish_error("unexpected server payload: " + str(data))
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            finish_error("server received unexpected stderr")
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        log.info("server channel closed: " + reason, None)
+        server_channel_close_count += 1
+        maybe_start_ch3()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        client = c
+        factory = ChannelLimitClientFactory(c, ch2_open, ch2_out, ch2_err, ch2_exit, ch2_close,
+                                            ch3_open, ch3_out, ch3_err, ch3_exit, ch3_close)
+        ch1 = ssh.Channel(c, ch1_open, ch1_out, ch1_err, ch1_exit, ch1_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        client_closed = True
+        if session_closed:
+            request_server_close()
+        maybe_finish()
+
+    def ch1_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("channel 1 open error: " + err)
+            return
+        ch1 = ch
+        ch.request_subsystem("echo")
+        ch.write(MSG1)
+
+    def ch1_out(ch: ssh.Channel, data: ?bytes):
+        if data is None:
+            return
+        if data != ACK1:
+            finish_error("channel 1 received unexpected payload: " + str(data))
+            return
+        if ch1_acked:
+            finish_error("channel 1 received duplicate ACK")
+            return
+        ch1_acked = True
+        if factory is not None:
+            factory.open_ch2()
+        else:
+            finish_error("client factory missing for second channel open")
+
+    def ch1_err(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("channel 1 received unexpected stderr")
+
+    def ch1_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch1_close(ch: ssh.Channel, reason: str):
+        log.info("channel 1 closed: " + reason, None)
+        ch1_closed = True
+        maybe_start_ch3()
+        maybe_finish()
+
+    def ch2_open(ch: ssh.Channel, err: ?str):
+        if err is None:
+            finish_error("channel 2 unexpectedly opened over channel limit")
+            return
+        ch2_failed = True
+        if ch1 is not None:
+            ch1.close()
+        maybe_start_ch3()
+
+    def ch2_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("channel 2 received unexpected data")
+
+    def ch2_err(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("channel 2 received unexpected stderr")
+
+    def ch2_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch2_close(ch: ssh.Channel, reason: str):
+        return
+
+    def ch3_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("channel 3 open error after freeing slot: " + err)
+            return
+        ch3 = ch
+        ch.request_subsystem("echo")
+        ch.write(MSG3)
+
+    def ch3_out(ch: ssh.Channel, data: ?bytes):
+        if data is None:
+            return
+        if data != ACK3:
+            finish_error("channel 3 received unexpected payload: " + str(data))
+            return
+        if ch3_acked:
+            finish_error("channel 3 received duplicate ACK")
+            return
+        ch3_acked = True
+        ch.close()
+
+    def ch3_err(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            finish_error("channel 3 received unexpected stderr")
+
+    def ch3_exit(ch: ssh.Channel, code: int, sig: ?str):
+        return
+
+    def ch3_close(ch: ssh.Channel, reason: str):
+        log.info("channel 3 closed: " + reason, None)
+        ch3_closed = True
+        request_client_close()
+        maybe_finish()
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 50000 + (random.randint(0, 3000) + attempts * 503) % 3000
+        session = None
+        client = None
+        factory = None
+        ch1 = None
+        ch2 = None
+        ch3 = None
+        client_close_requested = False
+        server_close_requested = False
+        ch3_started = False
+        ch1_acked = False
+        ch2_failed = False
+        ch1_closed = False
+        ch3_acked = False
+        ch3_closed = False
+        client_closed = False
+        session_closed = False
+        server_closed = False
+        server_channel_open_count = 0
+        server_channel_close_count = 0
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+            max_channels_per_session=1,
+        )
+
+    after 0: start_server()
+    after 10.0: on_timeout()
+
+
+def _test_ssh_channel_limit(t: testing.EnvT):
+    """A rejected extra channel should not poison the session."""
+    ChannelLimitTester(t)

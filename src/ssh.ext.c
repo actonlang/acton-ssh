@@ -85,6 +85,7 @@ extern struct $Cont $Done$instance;
 #define SSH_READ_BUFSIZE 4096
 #define SSH_IO_PUMP_LIMIT 128
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
+#define SSH_SERVER_ACCEPT_LIMIT 64
 static int ssh_debug_enabled = 0;
 static int ssh_libssh_log_level = SSH_LOG_NOLOG;
 
@@ -291,6 +292,8 @@ typedef struct ssh_server_ctx {
     uv_poll_t *poll;
     int fd;
     server_state_t state;
+    int max_sessions;
+    int max_channels_per_session;
     int listen_notified;
     int listen_ok;
     int close_notified;
@@ -689,6 +692,42 @@ static void session_maybe_release(ssh_server_session_ctx *s) {
         s->close_reason = NULL;
     }
     acton_free(s);
+}
+
+static int server_session_count(ssh_server_ctx *s) {
+    int count = 0;
+    if (s == NULL)
+        return 0;
+    ssh_server_session_ctx *sess = s->sessions;
+    while (sess != NULL) {
+        count++;
+        sess = sess->next;
+    }
+    return count;
+}
+
+static int session_channel_count(ssh_server_session_ctx *s) {
+    int count = 0;
+    if (s == NULL)
+        return 0;
+    ssh_server_channel_ctx *ch = s->channels;
+    while (ch != NULL) {
+        count++;
+        ch = ch->next;
+    }
+    return count;
+}
+
+static int server_session_limit_reached(ssh_server_ctx *s) {
+    if (s == NULL || s->max_sessions <= 0)
+        return 0;
+    return server_session_count(s) >= s->max_sessions;
+}
+
+static int session_channel_limit_reached(ssh_server_session_ctx *s) {
+    if (s == NULL || s->server == NULL || s->server->max_channels_per_session <= 0)
+        return 0;
+    return session_channel_count(s) >= s->server->max_channels_per_session;
 }
 
 static void client_notify_connect(ssh_client_ctx *c, const char *err) {
@@ -2837,6 +2876,15 @@ static void session_drive(ssh_server_session_ctx *s) {
                         ssh_message_free(msg);
                         if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
                             return;
+                    } else if (session_channel_limit_reached(s)) {
+                        if (ssh_debug_enabled) {
+                            ssh_debug_log("server session: rejecting channel open limit=%d",
+                                          s->server ? s->server->max_channels_per_session : 0);
+                        }
+                        int rc = ssh_message_reply_default(msg);
+                        ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH channel open reject failed") != 0)
+                            return;
                     } else if (s->on_channel_open == NULL) {
                         int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
@@ -2979,7 +3027,8 @@ static void server_accept(ssh_server_ctx *s) {
     if (s == NULL || s->state != SERVER_STATE_LISTENING)
         return;
 
-    while (1) {
+    int accepted = 0;
+    while (accepted < SSH_SERVER_ACCEPT_LIMIT) {
         socket_t fd = accept(s->fd, NULL, NULL);
         if (fd == SSH_INVALID_SOCKET) {
             if (errno == EINTR) {
@@ -2993,18 +3042,28 @@ static void server_accept(ssh_server_ctx *s) {
             server_fail(s, errmsg);
             return;
         }
+        accepted++;
+
+        if (server_session_limit_reached(s)) {
+            if (ssh_debug_enabled) {
+                ssh_debug_log("server accept: rejecting fd=%d session limit=%d",
+                              (int)fd, s->max_sessions);
+            }
+            close(fd);
+            continue;
+        }
 
         if (fd_set_nonblocking(fd) != 0) {
+            log_warn("SSH accept: failed to set accepted fd nonblocking");
             close(fd);
-            server_fail(s, "Failed to set accepted fd nonblocking");
-            return;
+            continue;
         }
 
         ssh_session session = ssh_new();
         if (session == NULL) {
+            log_warn("SSH accept: failed to create SSH session");
             close(fd);
-            server_fail(s, "Failed to create SSH session");
-            return;
+            continue;
         }
 
         if (ssh_debug_enabled) {
@@ -3013,12 +3072,12 @@ static void server_accept(ssh_server_ctx *s) {
 
         int rc = ssh_bind_accept_fd(s->bind, session, fd);
         if (rc != SSH_OK) {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "SSH accept failed: %s", ssh_get_error(s->bind));
+            if (ssh_debug_enabled) {
+                ssh_debug_log("server accept: accept_fd failed: %s", ssh_get_error(s->bind));
+            }
             close(fd);
             ssh_free(session);
-            server_fail(s, errmsg);
-            return;
+            continue;
         }
 
         ssh_set_blocking(session, 0);
@@ -3030,9 +3089,10 @@ static void server_accept(ssh_server_ctx *s) {
         sess->owner_wt = s->actor ? (int)s->actor->$affinity : 0;
         sess->auth_timeout = s->actor ? fromB_float(((sshQ_Server)s->actor)->_auth_timeout) : 0.0;
         if (sess->fd < 0) {
+            log_warn("SSH accept: failed to get accepted session fd");
+            ssh_disconnect(session);
             ssh_free(session);
-            server_fail(s, "Failed to get SSH session fd");
-            return;
+            continue;
         }
         session_start_attach_timer(sess);
 
@@ -3286,6 +3346,8 @@ $R sshQ_ServerD__initG_local(sshQ_Server self, $Cont c$cont) {
     s->on_listen = ($action2)self->_on_listen;
     s->on_close = ($action2)self->_on_close;
     s->state = SERVER_STATE_INIT;
+    s->max_sessions = fromB_int(self->_max_sessions);
+    s->max_channels_per_session = fromB_int(self->_max_channels_per_session);
 
     self->_server = toB_u64((unsigned long)s);
 

@@ -32,6 +32,7 @@ Notes:
   - ?bytes callbacks use None to signal EOF.
   - Timeouts and keepalive are configurable; host keys are generated in-memory
     unless host_key_path is set.
+  - Server admission limits are configurable; values <= 0 disable a limit.
   - For debugging, set ACTON_SSH_DEBUG and ACTON_SSH_LIBSSH_LOG.
 """
 
@@ -302,6 +303,8 @@ actor Server(cap: net.TCPListenCap,
              auth_timeout: float=10.0,
              keepalive_interval: float=30.0,
              keepalive_enabled: bool=True,
+             max_sessions: int=128,
+             max_channels_per_session: int=32,
              ):
     """SSH Server"""
 
@@ -314,6 +317,8 @@ actor Server(cap: net.TCPListenCap,
     var _auth_timeout: float = auth_timeout
     var _keepalive_interval: float = keepalive_interval
     var _keepalive_enabled: bool = keepalive_enabled
+    var _max_sessions: int = max_sessions
+    var _max_channels_per_session: int = max_channels_per_session
     var _on_listen: action(Server, ?str) -> None = on_listen
     var _on_close: action(Server, str) -> None = on_close
 
