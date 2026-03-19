@@ -84,6 +84,7 @@ extern struct $Cont $Done$instance;
 
 #define SSH_READ_BUFSIZE 4096
 #define SSH_IO_PUMP_LIMIT 128
+#define SSH_ATTACH_TIMEOUT_SEC 5.0
 static int ssh_debug_enabled = 0;
 static int ssh_libssh_log_level = SSH_LOG_NOLOG;
 
@@ -319,6 +320,8 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
 static void session_finalize(ssh_server_session_ctx *s);
 static void session_finish_close(ssh_server_session_ctx *s);
 static void session_fail(ssh_server_session_ctx *s, const char *msg);
+static void session_start_attach_timer(ssh_server_session_ctx *s);
+static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len);
 static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch);
 static int session_needs_write(ssh_server_session_ctx *s);
 static void session_poll_cb(uv_poll_t *handle, int status, int events);
@@ -2421,6 +2424,16 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
     return -1;
 }
 
+static void session_start_attach_timer(ssh_server_session_ctx *s) {
+    if (s == NULL || s->auth_timer != NULL)
+        return;
+    s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
+    s->auth_timer->data = s;
+    uv_timer_init(get_uv_loop(), s->auth_timer);
+    uv_timer_start(s->auth_timer, session_auth_timeout_cb,
+                   (uint64_t)(SSH_ATTACH_TIMEOUT_SEC * 1000.0), 0);
+}
+
 static void session_start_auth_timer(ssh_server_session_ctx *s) {
     if (s == NULL || s->auth_timeout <= 0.0 || s->auth_timer != NULL)
         return;
@@ -2452,9 +2465,39 @@ static void session_auth_timeout_cb(uv_timer_t *timer) {
     ssh_server_session_ctx *s = (ssh_server_session_ctx *)timer->data;
     if (s == NULL)
         return;
+    if (!s->attached && s->state == SESSION_STATE_KEYEX) {
+        session_fail(s, "SSH session attach timeout");
+        return;
+    }
     if (s->state == SESSION_STATE_AUTH) {
         session_fail(s, "SSH authentication timeout");
     }
+}
+
+static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len) {
+    if (s == NULL || s->session == NULL || s->fd < 0) {
+        snprintf(errmsg, errmsg_len, "Failed to start SSH session poll");
+        return -1;
+    }
+    if (s->poll != NULL)
+        return 0;
+
+    s->poll = acton_calloc(1, sizeof(uv_poll_t));
+    s->poll->data = s;
+    int uv_rc = uv_poll_init(get_uv_loop(), s->poll, s->fd);
+    if (uv_rc != 0) {
+        uv_strerror_r(uv_rc, errmsg, errmsg_len);
+        acton_free(s->poll);
+        s->poll = NULL;
+        return -1;
+    }
+    s->poll_events = UV_READABLE | UV_WRITABLE;
+    uv_rc = uv_poll_start(s->poll, s->poll_events, session_poll_cb);
+    if (uv_rc != 0) {
+        uv_strerror_r(uv_rc, errmsg, errmsg_len);
+        return -1;
+    }
+    return 0;
 }
 
 static void session_keepalive_cb(uv_timer_t *timer) {
@@ -2888,30 +2931,13 @@ static void server_accept(ssh_server_ctx *s) {
         sess->state = SESSION_STATE_KEYEX;
         sess->fd = ssh_get_fd(session);
         sess->owner_wt = s->actor ? (int)s->actor->$affinity : 0;
+        sess->auth_timeout = s->actor ? fromB_float(((sshQ_Server)s->actor)->_auth_timeout) : 0.0;
         if (sess->fd < 0) {
             ssh_free(session);
             server_fail(s, "Failed to get SSH session fd");
             return;
         }
-        sess->poll = acton_calloc(1, sizeof(uv_poll_t));
-        sess->poll->data = sess;
-        int uv_rc = uv_poll_init(get_uv_loop(), sess->poll, sess->fd);
-        if (uv_rc != 0) {
-            char errmsg[256] = {0};
-            uv_strerror_r(uv_rc, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-            ssh_free(session);
-            server_fail(s, errmsg);
-            return;
-        }
-        sess->poll_events = UV_READABLE | UV_WRITABLE;
-        uv_rc = uv_poll_start(sess->poll, sess->poll_events, session_poll_cb);
-        if (uv_rc != 0) {
-            char errmsg[256] = {0};
-            uv_strerror_r(uv_rc, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-            ssh_free(session);
-            server_fail(s, errmsg);
-            return;
-        }
+        session_start_attach_timer(sess);
 
         sess->next = s->sessions;
         s->sessions = sess;
@@ -3290,9 +3316,23 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
     ssh_server_session_ctx *s = (ssh_server_session_ctx *)(unsigned long)fromB_u64(session_id);
     if (s == NULL)
         return $R_CONT(c$cont, B_None);
+    if (s->session == NULL || s->state == SESSION_STATE_CLOSED ||
+        s->state == SESSION_STATE_CLOSING || s->state == SESSION_STATE_ERROR) {
+        if (ssh_debug_enabled) {
+            ssh_debug_log("server session attach skipped closed id=%llu",
+                          (unsigned long long)fromB_u64(session_id));
+        }
+        return $R_CONT(c$cont, B_None);
+    }
     if (ssh_debug_enabled) {
         ssh_debug_log("server session attach: id=%llu", (unsigned long long)fromB_u64(session_id));
     }
+    char errmsg[256] = {0};
+    if (session_start_poll(s, errmsg, sizeof(errmsg)) != 0) {
+        session_close_internal(s, errmsg, 1);
+        return $R_CONT(c$cont, B_None);
+    }
+    stop_timer(&s->auth_timer, session_timer_close_cb);
     s->actor = self;
     self->_session_id = session_id;
     s->attached = 1;

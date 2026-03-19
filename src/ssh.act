@@ -372,8 +372,9 @@ actor ServerSession(server: Server,
         _debug("server session attach ready: " + str(session_id))
         _attach(session_id)
         _debug("server session attach: _attach returned for " + str(session_id))
-        server.on_session_ready(self)
-        _debug("server session attach: on_session_ready sent for " + str(session_id))
+        if _session_id != 0:
+            server.on_session_ready(self)
+            _debug("server session attach: on_session_ready sent for " + str(session_id))
 
     after 0: _attach_ready()
 
