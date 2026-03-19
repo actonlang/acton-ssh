@@ -3506,7 +3506,7 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
     if (s == NULL || s->pending_channel_open == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_channel chan = ssh_message_channel_request_open_reply_accept(s->pending_channel_open);
+    ssh_channel chan = ssh_channel_new(s->session);
     if (chan == NULL) {
         int rc = ssh_message_reply_default(s->pending_channel_open);
         ssh_message_free(s->pending_channel_open);
@@ -3520,6 +3520,23 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
         session_drive(s);
         return $R_CONT(c$cont, B_None);
     }
+    int rc = ssh_message_channel_request_open_reply_accept_channel(s->pending_channel_open, chan);
+    if (rc != SSH_OK && rc != SSH_AGAIN) {
+        ssh_channel_free(chan);
+        rc = ssh_message_reply_default(s->pending_channel_open);
+        ssh_message_free(s->pending_channel_open);
+        s->pending_channel_open = NULL;
+        if (on_close) {
+            $action2 f = ($action2)on_close;
+            f->$class->__asyn__(f, channel, to$str((char *)"Failed to accept channel open"));
+        }
+        if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
+            return $R_CONT(c$cont, B_None);
+        session_drive(s);
+        return $R_CONT(c$cont, B_None);
+    }
+    if (rc == SSH_AGAIN)
+        s->write_ready = 0;
     ssh_channel_set_blocking(chan, 0);
     ssh_message_free(s->pending_channel_open);
     s->pending_channel_open = NULL;
@@ -3546,6 +3563,7 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
         if (ch->channel != NULL)
             ssh_channel_close(ch->channel);
         server_channel_finalize(ch);
+        acton_free(ch);
         session_drive(s);
         return $R_CONT(c$cont, B_None);
     }

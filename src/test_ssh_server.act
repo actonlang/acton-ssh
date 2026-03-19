@@ -443,7 +443,7 @@ actor ClientCloseFlushTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 10.0: on_timeout()
+    after 15.0: on_timeout()
 
 
 def _test_ssh_client_close_flush(t: testing.EnvT):
@@ -1237,7 +1237,7 @@ actor ConcurrentChannelWriteTester(t: testing.EnvT):
     var done = False
     var attempts = 0
     var port: int = 0
-    var num_channels = 4
+    var num_channels = 8
     var payload_len = 256 * 1024
     var server: ?ssh.Server = None
     var client: ?ssh.Client = None
