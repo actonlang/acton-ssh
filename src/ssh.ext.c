@@ -818,10 +818,6 @@ static void client_channel_close_cb(ssh_session session, ssh_channel channel, vo
     if (ch == NULL)
         return;
     ch->remote_close_seen = 1;
-    if (ch->pending_req != CHAN_REQ_NONE) {
-        return;
-    }
-    channel_notify_close(ch, "closed");
 }
 
 static int client_channel_write_wontblock_cb(ssh_session session, ssh_channel channel,
@@ -907,7 +903,6 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                 ssh_string_free_char(signal);
             (void)core_dumped;
         }
-        channel_notify_exit(ch, exit_status, exit_signal);
         if (ch->callbacks) {
             ssh_remove_channel_callbacks(ch->channel, ch->callbacks);
             acton_free(ch->callbacks);
@@ -2207,7 +2202,6 @@ static void server_channel_close_cb(ssh_session session, ssh_channel channel, vo
     if (ch == NULL)
         return;
     ch->remote_close_seen = 1;
-    server_channel_notify_close(ch, "closed");
 }
 
 static int server_channel_write_wontblock_cb(ssh_session session, ssh_channel channel,

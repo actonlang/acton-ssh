@@ -3243,16 +3243,184 @@ actor AuthTimeoutTester(t: testing.EnvT):
             on_exec,
             on_subsystem,
             on_session_close,
-            auth_timeout=1.0,
+            auth_timeout=2.0,
+        )
+
+    after 0: start_server()
+    after 6.0: on_timeout()
+
+
+def _test_ssh_auth_timeout(t: testing.EnvT):
+    """Server auth timeout should still fire after attach."""
+    AuthTimeoutTester(t)
+
+
+actor HostkeyWaitDisconnectTester(t: testing.EnvT):
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var session: ?ssh.ServerSession = None
+    var hostkey_seen = False
+    var client_connect_count = 0
+    var session_close_count = 0
+    var server_close_count = 0
+    var session_close_requested = False
+    var server_close_requested = False
+
+    def maybe_finish():
+        if done:
+            return
+        if hostkey_seen and client_connect_count == 1 and session_close_count == 1 and \
+           server_close_count == 1:
+            done = True
+            t.success()
+
+    def request_session_close():
+        if session_close_requested:
+            return
+        if not hostkey_seen:
+            return
+        if session is None:
+            return
+        session_close_requested = True
+        sess = session
+        if sess is not None:
+            sess.close()
+
+    def request_server_close():
+        if server_close_requested:
+            return
+        server_close_requested = True
+        if server is not None:
+            server.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        request_server_close()
+        done = True
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for hostkey wait disconnect test "
+            "(hostkey_seen=" + str(hostkey_seen) +
+            ", client_connect_count=" + str(client_connect_count) +
+            ", session_close_count=" + str(session_close_count) +
+            ", server_close_count=" + str(server_close_count) + ")"
+        )
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            if attempts < 5:
+                request_server_close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_close_count += 1
+        if server_close_count > 1:
+            finish_error("server close callback called more than once")
+            return
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        session = sess
+        request_session_close()
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        finish_error("unexpected auth callback")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request: " + cmd)
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request: " + name)
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_close_count += 1
+        if session_close_count > 1:
+            finish_error("session close callback called more than once")
+            return
+        request_server_close()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        log.info("hostkey state: " + state, None)
+        if hostkey_seen:
+            finish_error("hostkey callback called more than once")
+            return
+        hostkey_seen = True
+        request_session_close()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        client_connect_count += 1
+        if client_connect_count > 1:
+            finish_error("client connect callback called more than once")
+            return
+        if err is None:
+            finish_error("client unexpectedly connected")
+            return
+        maybe_finish()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        finish_error("unexpected client close callback: " + reason)
+
+    def start_client():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = 36000 + (random.randint(0, 20000) + attempts * 191) % 20000
+        server_close_requested = False
+        session_close_requested = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+            auth_timeout=5.0,
         )
 
     after 0: start_server()
     after 8.0: on_timeout()
 
 
-def _test_ssh_auth_timeout(t: testing.EnvT):
-    """Server auth timeout should still fire after attach."""
-    AuthTimeoutTester(t)
+def _test_ssh_hostkey_wait_disconnect(t: testing.EnvT):
+    """Client should fail promptly if the server closes in hostkey wait."""
+    HostkeyWaitDisconnectTester(t)
 
 
 actor CloseCallbackReentryTester(t: testing.EnvT):
@@ -3268,6 +3436,8 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
     var session: ?ssh.ServerSession = None
     var client_channel: ?ssh.Channel = None
     var saw_reply = False
+    var client_stdout_eof_count = 0
+    var client_stderr_eof_count = 0
     var client_exit_count = 0
     var client_channel_close_count = 0
     var client_close_count = 0
@@ -3294,7 +3464,8 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
     def maybe_finish():
         if done:
             return
-        if saw_reply and client_exit_count == 1 and client_channel_close_count == 1 and \
+        if saw_reply and client_stdout_eof_count == 1 and client_stderr_eof_count == 1 and \
+           client_exit_count == 1 and client_channel_close_count == 1 and \
            client_close_count == 1 and server_channel_close_count == 1 and \
            session_close_count == 1 and server_close_count == 1:
             done = True
@@ -3315,6 +3486,8 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
         finish_error(
             "timeout waiting for close callback reentry test "
             "(reply=" + str(saw_reply) +
+            ", client_stdout_eof_count=" + str(client_stdout_eof_count) +
+            ", client_stderr_eof_count=" + str(client_stderr_eof_count) +
             ", client_exit_count=" + str(client_exit_count) +
             ", client_channel_close_count=" + str(client_channel_close_count) +
             ", client_close_count=" + str(client_close_count) +
@@ -3430,6 +3603,14 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
 
     def ch_out(ch: ssh.Channel, data: ?bytes):
         if data is None:
+            client_stdout_eof_count += 1
+            if client_stdout_eof_count > 1:
+                finish_error("client stdout EOF callback called more than once")
+                return
+            if client_channel_close_count > 0:
+                finish_error("client stdout EOF arrived after close callback")
+                return
+            maybe_finish()
             return
         if saw_reply:
             finish_error("client received duplicate reply")
@@ -3442,11 +3623,23 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
     def ch_err(ch: ssh.Channel, data: ?bytes):
         if data is not None:
             finish_error("client received unexpected stderr")
+            return
+        client_stderr_eof_count += 1
+        if client_stderr_eof_count > 1:
+            finish_error("client stderr EOF callback called more than once")
+            return
+        if client_channel_close_count > 0:
+            finish_error("client stderr EOF arrived after close callback")
+            return
+        maybe_finish()
 
     def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
         client_exit_count += 1
         if client_exit_count > 1:
             finish_error("client exit callback called more than once")
+            return
+        if client_channel_close_count > 0:
+            finish_error("client exit callback arrived after close callback")
             return
         if code != 7:
             finish_error("unexpected exit code: " + str(code))
@@ -3461,6 +3654,15 @@ actor CloseCallbackReentryTester(t: testing.EnvT):
         client_channel_close_count += 1
         if client_channel_close_count > 1:
             finish_error("client channel close callback called more than once")
+            return
+        if client_stdout_eof_count != 1:
+            finish_error("client close callback ran before stdout EOF")
+            return
+        if client_stderr_eof_count != 1:
+            finish_error("client close callback ran before stderr EOF")
+            return
+        if client_exit_count != 1:
+            finish_error("client close callback ran before exit callback")
             return
         ch.write(b"after-client-close")
         ch.send_eof()
