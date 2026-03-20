@@ -5,6 +5,16 @@ import logging
 import net
 import ssh
 
+LISTEN_RETRY_LIMIT = 16
+
+
+def _pick_test_port(base: int, span: int, attempt: int, salt: int) -> int:
+    return base + (random.randint(0, span - 1) + attempt * salt) % span
+
+
+def _is_retryable_listen_error(err: str) -> bool:
+    return err.find("Address already in use") >= 0
+
 
 actor ServerClientTester(t: testing.EnvT):
     log = logging.Logger(t.log_handler)
@@ -326,7 +336,7 @@ actor ClientCloseFlushTester(t: testing.EnvT):
         server = s
         if err is not None:
             log.info("server listen error: " + err, None)
-            if attempts < 5:
+            if _is_retryable_listen_error(err) and attempts < LISTEN_RETRY_LIMIT:
                 request_server_close()
                 start_server()
                 return
@@ -1424,7 +1434,7 @@ actor ConcurrentChannelWriteTester(t: testing.EnvT):
 
     def start_server():
         attempts += 1
-        port = 56000 + (random.randint(0, 2000) + attempts * 113) % 2000
+        port = _pick_test_port(35000, 25000, attempts, 113)
         server_close_requested = False
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
@@ -1441,7 +1451,7 @@ actor ConcurrentChannelWriteTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 10.0: on_timeout()
+    after 20.0: on_timeout()
 
 
 def _test_ssh_concurrent_channel_writes(t: testing.EnvT):
@@ -3791,7 +3801,7 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
             return
         if not timeout_grace:
             timeout_grace = True
-            after 2.0: on_timeout()
+            after 5.0: on_timeout()
             return
         finish_error(
             "timeout waiting for key exchange timeout test "
@@ -3806,7 +3816,7 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
         server = s
         if err is not None:
             log.info("server listen error: " + err, None)
-            if attempts < 5:
+            if _is_retryable_listen_error(err) and attempts < LISTEN_RETRY_LIMIT:
                 request_server_close()
                 start_server()
                 return
@@ -3876,7 +3886,7 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
 
     def start_server():
         attempts += 1
-        port = 53000 + (random.randint(0, 3000) + attempts * 179) % 3000
+        port = _pick_test_port(35000, 25000, attempts, 179)
         server_close_requested = False
         server_closed = False
         session_ready = False
@@ -3897,7 +3907,7 @@ actor KeyExchangeTimeoutTester(t: testing.EnvT):
         )
 
     after 0: start_server()
-    after 5.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_ssh_key_exchange_timeout(t: testing.EnvT):

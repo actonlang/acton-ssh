@@ -1204,7 +1204,6 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                     break;
             }
         }
-        channel_notify_eof(ch);
     }
 
     if (ch->channel != NULL && ch->remote_close_seen &&
@@ -2282,23 +2281,6 @@ static int server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
     return SSH_OK;
 }
 
-static void server_channel_notify_eof(ssh_server_channel_ctx *ch) {
-    if (ch->channel == NULL)
-        return;
-    if (ssh_channel_is_eof(ch->channel)) {
-        if (!ch->stdout_eof && ch->on_data) {
-            $action2 f = ($action2)ch->on_data;
-            f->$class->__asyn__(f, ch->actor, B_None);
-            ch->stdout_eof = 1;
-        }
-        if (!ch->stderr_eof && ch->on_stderr) {
-            $action2 f = ($action2)ch->on_stderr;
-            f->$class->__asyn__(f, ch->actor, B_None);
-            ch->stderr_eof = 1;
-        }
-    }
-}
-
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     while (ch->write_head != NULL) {
         server_write_chunk_t *chunk = ch->write_head;
@@ -2499,7 +2481,6 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
                 break;
         }
     }
-    server_channel_notify_eof(ch);
 
     if (ch->channel != NULL && ch->remote_close_seen &&
         ssh_channel_is_closed(ch->channel)) {
@@ -3435,6 +3416,8 @@ $R sshQ_ServerD__initG_local(sshQ_Server self, $Cont c$cont) {
         server_fail(s, "Failed to set host key");
         return $R_CONT(c$cont, B_None);
     }
+    /* ssh_bind takes ownership of IMPORT_KEY and frees it via ssh_bind_free(). */
+    s->hostkey = NULL;
 
     ssh_bind_set_blocking(s->bind, 0);
 
