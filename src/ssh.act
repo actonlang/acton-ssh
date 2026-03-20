@@ -120,6 +120,13 @@ actor Client(cap: net.TCPConnectCap,
         """Close the SSH client"""
         NotImplemented
 
+    proc def _cleanup_native() -> None:
+        NotImplemented
+
+    action def __cleanup__() -> None:
+        if _client != 0:
+            _cleanup_native()
+
     # Internal channel operations (used by Channel actor)
     action def channel_create(channel: Channel,
                               on_open: action(Channel, ?str) -> None,
@@ -202,6 +209,13 @@ actor Channel(client: Client,
     action def close() -> None:
         """Close the channel and discard unread inbound data"""
         client.channel_close(self)
+
+    proc def _cleanup_native() -> None:
+        NotImplemented
+
+    action def __cleanup__() -> None:
+        if _channel_id != 0:
+            _cleanup_native()
 
 
 actor RunCommand(client: Client,
@@ -335,6 +349,13 @@ actor Server(cap: net.TCPListenCap,
         """Close the SSH server"""
         NotImplemented
 
+    proc def _cleanup_native() -> None:
+        NotImplemented
+
+    action def __cleanup__() -> None:
+        if _server != 0:
+            _cleanup_native()
+
     action def on_session_pending(session_id: u64) -> None:
         _debug("server on_session_pending: " + str(session_id))
         ServerSession(self,
@@ -409,6 +430,13 @@ actor ServerSession(server: Server,
         """Close the SSH session"""
         NotImplemented
 
+    proc def _cleanup_native() -> None:
+        NotImplemented
+
+    action def __cleanup__() -> None:
+        if _session_id != 0:
+            _cleanup_native()
+
     # Internal channel operations (used by ServerChannel actor)
     action def channel_accept_request(channel: ServerChannel) -> None:
         NotImplemented
@@ -474,6 +502,13 @@ actor ServerChannel(session: ServerSession,
     action def close() -> None:
         """Close the channel and discard unread inbound data"""
         session.channel_close(self)
+
+    proc def _cleanup_native() -> None:
+        NotImplemented
+
+    action def __cleanup__() -> None:
+        if _channel_id != 0:
+            _cleanup_native()
 
 
 actor main(env):

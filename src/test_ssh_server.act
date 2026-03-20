@@ -2,6 +2,7 @@ import random
 import testing
 import logging
 
+import acton.rts
 import net
 import ssh
 
@@ -5242,6 +5243,347 @@ def _test_ssh_channel_limit(t: testing.EnvT):
     ChannelLimitTester(t)
 
 
+actor ServerCleanupTester(t: testing.EnvT):
+    t.require("gc_cleanup")
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var probe: ?ssh.Server = None
+    var server_listened = False
+    var server_collected = False
+    var probe_listened = False
+    var probe_closed = False
+    var gc_started = False
+
+    def maybe_finish():
+        if done:
+            return
+        if server_listened and server_collected and probe_listened and probe_closed:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for GC-cleaned server "
+            "(server_listened=" + str(server_listened) +
+            ", server_collected=" + str(server_collected) +
+            ", probe_listened=" + str(probe_listened) +
+            ", probe_closed=" + str(probe_closed) + ")"
+        )
+
+    def drive_gc():
+        if done:
+            return
+        blob = b"G" * (4 * 1024 * 1024)
+        work = 0
+        for i in range(32768):
+            work += i
+        if len(blob) == work:
+            finish_error("unreachable GC drive path")
+            return
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        after 0.02: drive_gc()
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if _is_retryable_listen_error(err) and attempts < LISTEN_RETRY_LIMIT:
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        server_listened = True
+        server = None
+        if not gc_started:
+            gc_started = True
+            after 0: drive_gc()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        if reason == "collected":
+            server_collected = True
+            if not probe_listened and probe is None:
+                start_probe()
+            maybe_finish()
+
+    def on_probe_listen(s: ssh.Server, err: ?str):
+        probe = s
+        if err is not None:
+            log.info("probe listen error: " + err, None)
+            probe = None
+            if _is_retryable_listen_error(err):
+                after 0.1: start_probe()
+                return
+            finish_error("probe listen error: " + err)
+            return
+        probe_listened = True
+        s.close()
+
+    def on_probe_close(s: ssh.Server, reason: str):
+        log.info("probe closed: " + reason, None)
+        probe_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        finish_error("unexpected session on GC-cleaned server test")
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        finish_error("unexpected auth request on GC-cleaned server test")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open on GC-cleaned server test")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request on GC-cleaned server test")
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request on GC-cleaned server test")
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        finish_error("unexpected session close on GC-cleaned server test")
+
+    def start_probe():
+        if done or probe_listened or probe is not None:
+            return
+        probe = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_probe_listen,
+            on_probe_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    def start_server():
+        attempts += 1
+        port = _pick_test_port(35000, 25000, attempts, 541)
+        server = None
+        probe = None
+        server_listened = False
+        server_collected = False
+        probe_listened = False
+        probe_closed = False
+        gc_started = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 60.0: on_timeout()
+
+
+def _test_ssh_server_gc_cleanup(t: testing.EnvT):
+    """An unreachable server actor should eventually close itself."""
+    ServerCleanupTester(t)
+
+
+actor ClientCleanupTester(t: testing.EnvT):
+    t.require("gc_cleanup")
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var attempts = 0
+    var port: int = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_close_requested = False
+    var server_listened = False
+    var client_connected = False
+    var session_opened = False
+    var session_closed = False
+    var server_closed = False
+    var gc_started = False
+
+    def maybe_finish():
+        if done:
+            return
+        if server_listened and client_connected and session_opened and session_closed and server_closed:
+            done = True
+            t.success()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        log.info("test error: " + msg, None)
+        if not server_close_requested and server is not None:
+            server_close_requested = True
+            server.close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        if done:
+            return
+        finish_error(
+            "timeout waiting for GC-cleaned client "
+            "(server_listened=" + str(server_listened) +
+            ", client_connected=" + str(client_connected) +
+            ", session_opened=" + str(session_opened) +
+            ", session_closed=" + str(session_closed) +
+            ", server_closed=" + str(server_closed) + ")"
+        )
+
+    def drive_gc():
+        if done:
+            return
+        blob = b"G" * (4 * 1024 * 1024)
+        work = 0
+        for i in range(32768):
+            work += i
+        if len(blob) == work:
+            finish_error("unreachable GC drive path")
+            return
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        acton.rts.gc(t.env.syscap)
+        after 0.02: drive_gc()
+
+    def on_server_listen(s: ssh.Server, err: ?str):
+        server = s
+        if err is not None:
+            log.info("server listen error: " + err, None)
+            if _is_retryable_listen_error(err) and attempts < LISTEN_RETRY_LIMIT:
+                if not server_close_requested and server is not None:
+                    server_close_requested = True
+                    server.close()
+                start_server()
+                return
+            finish_error("server listen error: " + err)
+            return
+        server_listened = True
+        start_client()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        log.info("server closed: " + reason, None)
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        session_opened = True
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == "user" and req.password == "pass":
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        finish_error("unexpected channel open on GC-cleaned client test")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        finish_error("unexpected exec request on GC-cleaned client test")
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        finish_error("unexpected subsystem request on GC-cleaned client test")
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        log.info("session closed: " + reason, None)
+        session_closed = True
+        if not server_close_requested and server is not None:
+            server_close_requested = True
+            server.close()
+        maybe_finish()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        client_connected = True
+        client = None
+        if not gc_started:
+            gc_started = True
+            after 0: drive_gc()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        log.info("client closed: " + reason, None)
+        return
+
+    def start_client():
+        client = None
+        client_connected = False
+        session_opened = False
+        session_closed = False
+        gc_started = False
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            "user",
+            on_client_connect,
+            on_client_close,
+            on_hostkey,
+            password="pass",
+            port=u16(port),
+            known_hosts="/tmp/acton_ssh_test_known_hosts",
+        )
+
+    def start_server():
+        attempts += 1
+        port = _pick_test_port(35000, 25000, attempts, 557)
+        client = None
+        server_close_requested = False
+        server_listened = False
+        client_connected = False
+        session_opened = False
+        session_closed = False
+        server_closed = False
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(port),
+            on_server_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+
+    after 0: start_server()
+    after 20.0: on_timeout()
+
+
+def _test_ssh_client_gc_cleanup(t: testing.EnvT):
+    """An unreachable client actor should eventually close itself."""
+    ClientCleanupTester(t)
+
+
 __modname__ = "test_ssh_server"
 
 __unit_tests: dict[str, testing.UnitTest] = {
@@ -5279,6 +5621,8 @@ __env_tests: dict[str, testing.EnvTest] = {
     "_test_CloseRejectsLateWritesTester": testing.EnvTest(_test_ssh_close_rejects_late_writes, "_test_CloseRejectsLateWritesTester", "", __modname__),
     "_test_SessionLimitTester": testing.EnvTest(_test_ssh_session_limit, "_test_SessionLimitTester", "", __modname__),
     "_test_ChannelLimitTester": testing.EnvTest(_test_ssh_channel_limit, "_test_ChannelLimitTester", "", __modname__),
+    "_test_ServerCleanupTester": testing.EnvTest(_test_ssh_server_gc_cleanup, "_test_ServerCleanupTester", "", __modname__),
+    "_test_ClientCleanupTester": testing.EnvTest(_test_ssh_client_gc_cleanup, "_test_ClientCleanupTester", "", __modname__),
 }
 
 
