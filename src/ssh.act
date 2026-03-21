@@ -394,6 +394,9 @@ actor ServerSession(server: Server,
     proc def _attach(session_id: u64) -> None:
         NotImplemented
 
+    proc def _drive_attached() -> None:
+        NotImplemented
+
     action def _attach_ready() -> None:
         _debug("server session attach ready: " + str(session_id))
         _attach(session_id)
@@ -401,6 +404,7 @@ actor ServerSession(server: Server,
         if _session_id != 0:
             server.on_session_ready(self)
             _debug("server session attach: on_session_ready sent for " + str(session_id))
+            _drive_attached()
 
     after 0: _attach_ready()
 

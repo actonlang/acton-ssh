@@ -186,6 +186,7 @@ typedef struct ssh_client_ctx {
     char *close_reason;
     enum ssh_known_hosts_e hostkey_state;
     ssh_channel_ctx *channels;
+    ssh_channel_ctx *retired_channels;
     $action2 on_connect;
     $action2 on_close;
     $action3 on_hostkey;
@@ -275,10 +276,12 @@ typedef struct ssh_server_session_ctx {
     int close_notified;
     int close_finalized;
     int close_force;
+    uint64_t pending_id;
     char *close_reason;
     ssh_message pending_auth;
     ssh_message pending_channel_open;
     ssh_server_channel_ctx *channels;
+    ssh_server_channel_ctx *retired_channels;
     $action2 on_auth;
     $action on_channel_open;
     $action3 on_exec;
@@ -463,6 +466,8 @@ static const char *hostkey_state_str(enum ssh_known_hosts_e state) {
 static ssh_client_ctx *client_from_actor(sshQ_Client self) {
     if (self == NULL)
         return NULL;
+    if (self->_client == NULL)
+        return NULL;
     unsigned long ptr = fromB_u64(self->_client);
     if (ptr == 0)
         return NULL;
@@ -471,6 +476,8 @@ static ssh_client_ctx *client_from_actor(sshQ_Client self) {
 
 static ssh_channel_ctx *channel_from_actor(sshQ_Channel channel) {
     if (channel == NULL)
+        return NULL;
+    if (channel->_channel_id == NULL)
         return NULL;
     unsigned long ptr = fromB_u64(channel->_channel_id);
     if (ptr == 0)
@@ -481,14 +488,33 @@ static ssh_channel_ctx *channel_from_actor(sshQ_Channel channel) {
 static ssh_server_ctx *server_from_actor(sshQ_Server self) {
     if (self == NULL)
         return NULL;
+    if (self->_server == NULL)
+        return NULL;
     unsigned long ptr = fromB_u64(self->_server);
     if (ptr == 0)
         return NULL;
     return (ssh_server_ctx *)ptr;
 }
 
+static ssh_server_session_ctx *session_from_pending_token(ssh_server_ctx *server, B_u64 session_id) {
+    if (server == NULL)
+        return NULL;
+    uint64_t token = fromB_u64(session_id);
+    if (token == 0)
+        return NULL;
+    ssh_server_session_ctx *cur = server->sessions;
+    while (cur != NULL) {
+        if (cur->pending_id == token)
+            return cur;
+        cur = cur->next;
+    }
+    return NULL;
+}
+
 static ssh_server_session_ctx *session_from_actor(sshQ_ServerSession self) {
     if (self == NULL)
+        return NULL;
+    if (self->_session_id == NULL)
         return NULL;
     unsigned long ptr = fromB_u64(self->_session_id);
     if (ptr == 0)
@@ -498,6 +524,8 @@ static ssh_server_session_ctx *session_from_actor(sshQ_ServerSession self) {
 
 static ssh_server_channel_ctx *server_channel_from_actor(sshQ_ServerChannel channel) {
     if (channel == NULL)
+        return NULL;
+    if (channel->_channel_id == NULL)
         return NULL;
     unsigned long ptr = fromB_u64(channel->_channel_id);
     if (ptr == 0)
@@ -603,6 +631,52 @@ static int session_has_pending_write(ssh_session session) {
         return 0;
     int pending = ssh_get_status(session) | ssh_get_poll_flags(session);
     return (pending & SSH_WRITE_PENDING) != 0;
+}
+
+static uint64_t next_pending_session_id = 1;
+
+static uint64_t alloc_pending_session_id(void) {
+    return __atomic_fetch_add(&next_pending_session_id, 1, __ATOMIC_RELAXED);
+}
+
+static void client_retire_channel(ssh_client_ctx *c, ssh_channel_ctx *ch) {
+    if (c == NULL || ch == NULL)
+        return;
+    ch->next = c->retired_channels;
+    c->retired_channels = ch;
+}
+
+static void client_free_retired_channels(ssh_client_ctx *c) {
+    if (c == NULL)
+        return;
+    ssh_channel_ctx *ch = c->retired_channels;
+    c->retired_channels = NULL;
+    while (ch != NULL) {
+        ssh_channel_ctx *next = ch->next;
+        ch->next = NULL;
+        acton_free(ch);
+        ch = next;
+    }
+}
+
+static void session_retire_channel(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
+    if (s == NULL || ch == NULL)
+        return;
+    ch->next = s->retired_channels;
+    s->retired_channels = ch;
+}
+
+static void session_free_retired_channels(ssh_server_session_ctx *s) {
+    if (s == NULL)
+        return;
+    ssh_server_channel_ctx *ch = s->retired_channels;
+    s->retired_channels = NULL;
+    while (ch != NULL) {
+        ssh_server_channel_ctx *next = ch->next;
+        ch->next = NULL;
+        acton_free(ch);
+        ch = next;
+    }
 }
 
 static void client_poll_close_cb(uv_handle_t *handle) {
@@ -1260,8 +1334,7 @@ static void client_drive_channels(ssh_client_ctx *c) {
             } else {
                 c->channels = next;
             }
-            ch->next = NULL;
-            acton_free(ch);
+            client_retire_channel(c, ch);
         } else {
             prev = ch;
         }
@@ -1681,6 +1754,7 @@ static void client_finalize(ssh_client_ctx *c) {
         ssh_free(c->session);
         c->session = NULL;
     }
+    client_free_retired_channels(c);
 
     client_notify_close(c, c->close_reason ? c->close_reason : "closed");
     c->state = CLIENT_STATE_CLOSED;
@@ -1699,8 +1773,7 @@ static void client_abort_channels(ssh_client_ctx *c, int notify_channel_error) {
             channel_notify_error(ch, "Session closed");
         channel_notify_eof(ch);
         channel_finalize(c, ch);
-        ch->next = NULL;
-        acton_free(ch);
+        client_retire_channel(c, ch);
         ch = next;
     }
     c->channels = NULL;
@@ -2572,8 +2645,7 @@ static void session_drive_channels(ssh_server_session_ctx *s) {
             } else {
                 s->channels = next;
             }
-            ch->next = NULL;
-            acton_free(ch);
+            session_retire_channel(s, ch);
         } else {
             prev = ch;
         }
@@ -3156,6 +3228,7 @@ static void server_accept(ssh_server_ctx *s) {
         sess->server = s;
         sess->session = session;
         sess->state = SESSION_STATE_KEYEX;
+        sess->pending_id = alloc_pending_session_id();
         sess->fd = ssh_get_fd(session);
         sshQ_Server act = server_actor_ref(s);
         sess->owner_wt = act ? (int)act->$affinity : 0;
@@ -3177,11 +3250,13 @@ static void server_accept(ssh_server_ctx *s) {
 
         if (act) {
             if (ssh_debug_enabled) {
-                ssh_debug_log("server accept: scheduling session pending act=%p session=%p", (void *)act, (void *)sess);
+                ssh_debug_log("server accept: scheduling session pending act=%p session=%llu",
+                              (void *)act, (unsigned long long)sess->pending_id);
             }
-            act->$class->on_session_pending(act, toB_u64((unsigned long)sess));
+            act->$class->on_session_pending(act, toB_u64(sess->pending_id));
             if (ssh_debug_enabled) {
-                ssh_debug_log("server accept: on_session_pending call returned session=%p", (void *)sess);
+                ssh_debug_log("server accept: on_session_pending call returned session=%llu",
+                              (unsigned long long)sess->pending_id);
             }
         }
     }
@@ -3239,10 +3314,12 @@ static void session_finalize(ssh_server_session_ctx *s) {
         ssh_free(s->session);
         s->session = NULL;
     }
+    session_free_retired_channels(s);
 
     server_remove_session(s->server, s);
     session_notify_close(s, s->close_reason ? s->close_reason : "closed");
     s->state = SESSION_STATE_CLOSED;
+    s->pending_id = 0;
     sshQ_ServerSession actor = session_actor_ref(s);
     if (actor)
         actor->_session_id = toB_u64(0);
@@ -3269,8 +3346,7 @@ static void session_abort_channels(ssh_server_session_ctx *s) {
         ssh_server_channel_ctx *next = ch->next;
         server_channel_notify_close(ch, "Session closed");
         server_channel_finalize(ch);
-        ch->next = NULL;
-        acton_free(ch);
+        session_retire_channel(s, ch);
         ch = next;
     }
     s->channels = NULL;
@@ -3551,7 +3627,8 @@ $R sshQ_ServerD__cleanup_nativeG_local(sshQ_Server self, $Cont c$cont) {
 }
 
 $R sshQ_ServerSessionD__pin_affinityG_local(sshQ_ServerSession self, $Cont c$cont) {
-    ssh_server_session_ctx *s = (ssh_server_session_ctx *)(unsigned long)fromB_u64(self->session_id);
+    ssh_server_ctx *server = server_from_actor(self->server);
+    ssh_server_session_ctx *s = session_from_pending_token(server, self->session_id);
     if (s != NULL && s->owner_wt >= 0) {
         set_actor_affinity(s->owner_wt);
     } else {
@@ -3561,7 +3638,8 @@ $R sshQ_ServerSessionD__pin_affinityG_local(sshQ_ServerSession self, $Cont c$con
 }
 
 $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u64 session_id) {
-    ssh_server_session_ctx *s = (ssh_server_session_ctx *)(unsigned long)fromB_u64(session_id);
+    ssh_server_ctx *server = server_from_actor(self->server);
+    ssh_server_session_ctx *s = session_from_pending_token(server, session_id);
     if (s == NULL)
         return $R_CONT(c$cont, B_None);
     if (s->session == NULL || s->state == SESSION_STATE_CLOSED ||
@@ -3581,8 +3659,9 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
         return $R_CONT(c$cont, B_None);
     }
     s->actor = self;
-    self->_session_id = session_id;
+    self->_session_id = toB_u64((unsigned long)s);
     s->attached = 1;
+    s->pending_id = 0;
     s->on_auth = ($action2)self->_on_auth;
     s->on_channel_open = ($action)self->_on_channel_open;
     s->on_exec = (self->_on_exec == B_None) ? NULL : ($action3)self->_on_exec;
@@ -3596,12 +3675,19 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, B_u
         session_start_keyex_timer(s);
     }
     if (ssh_debug_enabled) {
-        ssh_debug_log("server session attach: callbacks set, driving session");
+        ssh_debug_log("server session attach: callbacks set");
+    }
+    return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ServerSessionD__drive_attachedG_local(sshQ_ServerSession self, $Cont c$cont) {
+    ssh_server_session_ctx *s = session_from_actor(self);
+    if (s == NULL || !s->attached)
+        return $R_CONT(c$cont, B_None);
+    if (ssh_debug_enabled) {
+        ssh_debug_log("server session drive attached");
     }
     session_drive(s);
-    if (ssh_debug_enabled) {
-        ssh_debug_log("server session attach: session_drive returned");
-    }
     return $R_CONT(c$cont, B_None);
 }
 
