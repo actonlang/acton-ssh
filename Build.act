@@ -3,7 +3,7 @@ fingerprint = 0xb650ac2857701cb1
 zig_dependencies = {
    "libssh": (
       url="https://github.com/precla/libssh/archive/refs/heads/zig-build.tar.gz",
-      hash="libssh-0.11.0-kUQJanViKgBVUmjYqAyLKjnqqHdDvSkdnU1qaMwFPzV-",
+      hash="libssh-0.11.0-kUQJaoJiKgDjZpTAyxxo6GamiMzj9LPxlEr2FacwOxIR",
       artifacts=[ "ssh" ]
   )
 }
