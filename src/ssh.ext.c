@@ -6,705 +6,412 @@
 // acton includes
 #include <rts/rts.h>
 
-#include "netconf.h"
-
-#ifndef DEBUG_MODE
-// #define DEBUG_MODE    /* uncomment for pretty prints */
-#endif
-
-#define BUF_SIZE 512
+/* Declared in rts/io.h but not always in the include path */
+uv_loop_t *get_uv_loop();
 
 enum client_state {
-    S_CONNECT,
     S_AUTH,
+    S_AUTH_KBDINT,
     S_CHANNEL_OPEN,
-    S_SUBSYSTEM,
-    S_SHELL_REQUEST,
-    S_SEND_COMMAND,
-    S_RECV_COMMAND_OUTPUT,
-    S_SEND_HELLO,
-    S_RECV_HELLO,
-    S_SEND_GET,
-    S_SEND_GET_WRITING,
-    S_RECV_GET,
-    S_CLOSE,
-    S_CLOSE_WRITING,
-    S_RECV_CLOSE_REPLY,
-    S_CLEANUP,
-    S_DONE,
+    S_REQUEST_TYPE,
+    S_READY,
     S_ERROR
 };
 
-enum client_operation {
-    OP_SSH,
-    OP_HELLO,
-    OP_HELLO_REPLY,
-    OP_GET,
-    OP_GET_REPLY,
-    OP_CLOSE,
-    OP_CLOSE_REPLY
-};
-
 typedef struct {
-    const char *data;
-    size_t len;
-    size_t sent;
-} write_buffer_t;
-
-typedef struct {
-    uv_loop_t *loop;
-
     ssh_session session;
     ssh_channel channel;
     uv_poll_t *poll;
-    const char *subsystem;
-
     int fd;
     enum client_state state;
-    const char *host;
-    int port;
-    const char *user;
-    const char *password;
 
-    /* current write buffer */
-    write_buffer_t write_buf;
+    /* pending write buffer */
+    char *write_buf;
+    size_t write_len;
+    size_t write_sent;
 
-    char *payload;
-    char *response;
-
-    /* read buffer */
-    char *reply;
-    size_t reply_len;
-    size_t reply_cap;
+    /* actor reference for callbacks */
+    sshQ_Client actor;
 } client_t;
 
-static char *client_operation_to_str(enum client_operation op) {
-    switch (op) {
-    case OP_SSH:
-        return "OP_SSH";
-    case OP_HELLO:
-        return "OP_HELLO";
-    case OP_HELLO_REPLY:
-        return "OP_HELLO_REPLY";
-    case OP_GET:
-        return "OP_GET";
-    case OP_GET_REPLY:
-        return "OP_GET_REPLY";
-    case OP_CLOSE:
-        return "OP_CLOSE";
-    case OP_CLOSE_REPLY:
-        return "OP_CLOSE_REPLY";
-    default:
-        return "";
-    }
-    return "";
-}
+/* Forward declarations */
+static void poll_cb(uv_poll_t *handle, int status, int events);
 
-/* Simple helper to append to reply buffer */
-static int append_reply(client_t *c, const char *buf, size_t n) {
-    if (n == 0)
-        return 0;
-    if (c->reply_len + n + 1 > c->reply_cap) {
-        size_t newcap = (c->reply_cap == 0) ? BUF_SIZE : c->reply_cap * 2;
-        while (newcap < c->reply_len + n + 1) {
-            newcap *= 2;
-        }
-        char *p = realloc(c->reply, newcap);
-        if (!p) {
-            printf("ERROR: realloc failed\n");
-            return -1;
-        }
-        c->reply = p;
-        c->reply_cap = newcap;
+/* Helper: set up SSH session, connect, and start polling on the RTS loop */
+static int client_setup(client_t *c, sshQ_Client self) {
+    int err = 0;
+
+    c->actor = self;
+    c->channel = NULL;
+    c->write_buf = NULL;
+    c->write_len = 0;
+    c->write_sent = 0;
+
+    c->session = ssh_new();
+    if (!c->session)
+        return -1;
+
+    const char *host = (const char *)fromB_str(self->host);
+    int port = (int)fromB_int(self->port);
+    const char *user = (const char *)fromB_str(self->username);
+
+    ssh_options_set(c->session, SSH_OPTIONS_HOST, host);
+    ssh_options_set(c->session, SSH_OPTIONS_PORT, &port);
+    ssh_options_set(c->session, SSH_OPTIONS_USER, user);
+    ssh_session_set_disconnect_message(c->session, "Disconnecting SSH, powered by Acton");
+
+    /* Blocking TCP connect (fast) */
+    err = ssh_connect(c->session);
+    if (err != SSH_OK) {
+        ssh_free(c->session);
+        c->session = NULL;
+        return -1;
     }
-    memcpy(c->reply + c->reply_len, buf, n);
-    c->reply_len += n;
-    c->reply[c->reply_len] = '\0';
+
+    c->state = S_AUTH;
+    ssh_set_blocking(c->session, 0);
+
+    c->fd = ssh_get_fd(c->session);
+    if (c->fd < 0) {
+        ssh_disconnect(c->session);
+        ssh_free(c->session);
+        c->session = NULL;
+        return -1;
+    }
+
+    /* Use the RTS event loop instead of a private loop */
+    c->poll = (uv_poll_t *)acton_malloc(sizeof(uv_poll_t));
+    err = uv_poll_init(get_uv_loop(), c->poll, c->fd);
+    if (err < 0) {
+        ssh_disconnect(c->session);
+        ssh_free(c->session);
+        c->session = NULL;
+        return -1;
+    }
+
+    c->poll->data = c;
+    err = uv_poll_start(c->poll, UV_READABLE | UV_WRITABLE, poll_cb);
+    if (err < 0) {
+        uv_close((uv_handle_t *)c->poll, NULL);
+        ssh_disconnect(c->session);
+        ssh_free(c->session);
+        c->session = NULL;
+        return -1;
+    }
+
     return 0;
 }
 
-/* Print libssh error and transition to error */
-static void set_error(client_t *c, const char *msg) {
-    printf("ERROR: %s: %s\n", msg, ssh_get_error(c->session));
-    c->state = S_ERROR;
-}
-
-/* Initialize write buffer for sending data */
-static void init_write_buffer(client_t *c, const char *data) {
-    c->write_buf.data = data;
-    c->write_buf.len = strlen(data);
-    c->write_buf.sent = 0;
-}
-
-/* Generic write operation - returns 1 if complete, 0 if more needed, -1 if error */
-static int do_write(client_t *c, enum client_operation operation) {
-    if (c->write_buf.sent >= c->write_buf.len) {
-        return 1; /* complete */
-    }
-
-    int wrote = ssh_channel_write(c->channel, c->write_buf.data + c->write_buf.sent,
-                                 (uint32_t)(c->write_buf.len - c->write_buf.sent));
-
-    if (wrote > 0) {
-        c->write_buf.sent += (size_t)wrote;
-        if (c->write_buf.sent >= c->write_buf.len) {
-            printf("%s fully sent\n", client_operation_to_str(operation));
-            return 1; /* complete */
-        }
-        return 0; /* more data to send */
-    } else if (wrote == SSH_ERROR) {
-        char error_msg[256];
-        snprintf(error_msg, sizeof(error_msg), "ssh_channel_write failed for %s", client_operation_to_str(operation));
-        set_error(c, error_msg);
-        return -1; /* error */
-    } else if (wrote == SSH_AGAIN || wrote == 0) {
-        return 0; /* not writable now */
-    } else {
-        char error_msg[256] = { 0 };
-        snprintf(error_msg, sizeof(error_msg), "ssh_channel_write returned unexpected value for %s", client_operation_to_str(operation));
-        set_error(c, error_msg);
-        return -1; /* error */
-    }
-}
-
-/* Generic read operation - returns 1 if complete, 0 if more needed, -1 if error */
-static int do_read(client_t *c, enum client_operation operation, enum client_state next_state) {
-    char buf[BUF_SIZE] = { 0 };
-    int n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf)-1, 0);
-    if (n > 0) {
-        if (append_reply(c, buf, (size_t)n) != 0) {
-            set_error(c, "realloc failed");
-            return -1;
-        }
-#ifdef DEBUG_MODE
-        printf("Read %s %d bytes (total %zu)\n", client_operation_to_str(operation), n, c->reply_len);
-#endif
-        /* Check for RFC6242 end-of-message token */
-        if (!strcmp(c->subsystem, "netconf") && strstr(c->reply, "]]>]]>") != NULL) {
-#ifdef DEBUG_MODE
-            printf("=== NETCONF %s ===\n%s\n=== end ===\n", client_operation_to_str(operation), c->reply);
-#endif
-            // save response so it can be returned
-            if (operation == OP_GET_REPLY) {
-                c->response = strdup(c->reply);
-            }
-            /* Reset reply buffer for next message */
-            c->reply_len = 0;
-            c->reply[0] = '\0';
-            c->state = next_state;
-            return 1; /* complete */
-        }
-        return 0; /* more data expected */
-    } else if (n == 0) {
-        if (ssh_channel_is_eof(c->channel) || (c->reply && (c->reply_len > 0))) {
-            if (c->reply && c->reply_len > 0) {
-                c->response = strdup(c->reply);
-#ifdef DEBUG_MODE
-                printf("=== Reply %s (partial) ===\n%s\n=== end ===\n", client_operation_to_str(operation), c->reply);
-#endif
-            }
-            c->state = S_CLEANUP;
-            return 1; /* complete via EOF */
-        }
-        return 0; /* no data now, wait */
-    } else {
-        snprintf(buf, sizeof(buf), "ssh_channel_read_nonblocking failed during %s", client_operation_to_str(operation));
-        set_error(c, buf);
-        return -1; /* error */
-    }
-}
-
-/* Called whenever the polled fd has activity (readable/writable) */
+/* Called whenever the polled fd has activity — drives connection state machine
+ * and delivers data to Acton via callbacks */
 static void poll_cb(uv_poll_t *handle, int status, int events) {
-    (void)status;
-    int rc = 0;
-    client_t *c = NULL;
-
-    if (handle == NULL || handle->data == NULL) {
-        printf("ERROR: handle == NULL || handle->data == NULL\n");
+    if (!handle || !handle->data)
         return;
-    }
 
-    c = (client_t*)handle->data;
+    client_t *c = (client_t *)handle->data;
+    sshQ_Client self = c->actor;
+    int rc;
 
-    if (c->state == S_DONE || c->state == S_ERROR) {
-        if (c->state == S_DONE)
-            printf("uv loop is done. stopping it\n");
-        else if (c->state == S_ERROR)
-            printf("uv loop encountered and error. stopping it\n");
+    if (status < 0) {
+        $action2 f = ($action2)self->on_error;
+        f->$class->__asyn__(f, self, to$str((char *)uv_strerror(status)));
         uv_poll_stop(c->poll);
         return;
     }
 
-    /* Drive a simple state machine */
     switch (c->state) {
-    case S_AUTH:
-        rc = ssh_userauth_password(c->session, NULL, c->password);
+    case S_AUTH: {
+        if ((void *)self->password == (void *)B_None || self->password == NULL) {
+            $action2 f = ($action2)self->on_error;
+            f->$class->__asyn__(f, self, to$str("No authentication method available"));
+            uv_poll_stop(c->poll);
+            return;
+        }
+        rc = ssh_userauth_password(c->session, NULL, (const char *)fromB_str(self->password));
         if (rc == SSH_AUTH_SUCCESS) {
-            printf("Authenticated (password)\n");
             c->state = S_CHANNEL_OPEN;
         } else if (rc == SSH_AUTH_AGAIN) {
             return;
         } else {
-            set_error(c, "ssh_userauth_password failed");
+            /* Password auth failed/denied — try keyboard-interactive */
+            c->state = S_AUTH_KBDINT;
+        }
+        break;
+    }
+    case S_AUTH_KBDINT: {
+        rc = ssh_userauth_kbdint(c->session, NULL, NULL);
+        if (rc == SSH_AUTH_INFO) {
+            int nprompts = ssh_userauth_kbdint_getnprompts(c->session);
+            for (int i = 0; i < nprompts; i++) {
+                ssh_userauth_kbdint_setanswer(c->session, i,
+                    (const char *)fromB_str(self->password));
+            }
+            /* Need another round — stay in S_AUTH_KBDINT */
+            return;
+        } else if (rc == SSH_AUTH_SUCCESS) {
+            c->state = S_CHANNEL_OPEN;
+        } else if (rc == SSH_AUTH_AGAIN) {
+            return;
+        } else {
+            char errmsg[512];
+            snprintf(errmsg, sizeof(errmsg), "Authentication failed: %s", ssh_get_error(c->session));
+            $action2 f = ($action2)self->on_error;
+            f->$class->__asyn__(f, self, to$str(errmsg));
+            uv_poll_stop(c->poll);
             return;
         }
-        /* fallthrough */
+        break;
+    }
     case S_CHANNEL_OPEN:
         if (!c->channel) {
             c->channel = ssh_channel_new(c->session);
             if (!c->channel) {
-                set_error(c, "ssh_channel_new failed");
+                $action2 f = ($action2)self->on_error;
+                f->$class->__asyn__(f, self, to$str("Failed to create SSH channel"));
+                uv_poll_stop(c->poll);
                 return;
             }
         }
         rc = ssh_channel_open_session(c->channel);
         if (rc == SSH_OK) {
-            printf("Channel opened\n");
-            c->state = S_SUBSYSTEM;
+            c->state = S_REQUEST_TYPE;
         } else if (rc == SSH_AGAIN) {
             return;
         } else {
-            set_error(c, "ssh_channel_open_session failed");
+            char errmsg[512];
+            snprintf(errmsg, sizeof(errmsg), "Failed to open channel: %s", ssh_get_error(c->session));
+            $action2 f = ($action2)self->on_error;
+            f->$class->__asyn__(f, self, to$str(errmsg));
+            uv_poll_stop(c->poll);
             return;
         }
-        /* fallthrough */
-    case S_SUBSYSTEM:
-        if (!strcmp(c->subsystem, "ssh")) {
-            /* For SSH subsystem, request a shell instead */
-            c->state = S_SHELL_REQUEST;
-        } else {
-            /* For other subsystems (like netconf), request the subsystem */
-            rc = ssh_channel_request_subsystem(c->channel, c->subsystem);
-            if (rc == SSH_OK) {
-                printf("Requested subsystem: %s\n", c->subsystem);
-                if (!strcmp(c->subsystem, "netconf"))
-                    init_write_buffer(c, NETCONF_HELLO_MSG);
-                c->state = S_SEND_HELLO;
-            } else if (rc == SSH_AGAIN) {
-                return;
-            } else {
-                set_error(c, "ssh_channel_request_subsystem failed");
-                return;
-            }
-        }
-        /* fallthrough for ssh subsystem */
-    case S_SHELL_REQUEST:
-        if (!strcmp(c->subsystem, "ssh")) {
+        break;
+    case S_REQUEST_TYPE:
+        if ((void *)self->subsystem == (void *)B_None || self->subsystem == NULL) {
+            /* No subsystem — request a shell */
             rc = ssh_channel_request_shell(c->channel);
-            if (rc == SSH_OK) {
-                printf("SSH shell established successfully\n");
-                init_write_buffer(c, c->payload);
-                c->state = S_SEND_COMMAND;
-            } else if (rc == SSH_AGAIN) {
-                return;
-            } else {
-                set_error(c, "ssh_channel_request_shell failed");
-                return;
-            }
-        }
-        break;
-    case S_SEND_COMMAND:
-        rc = do_write(c, OP_SSH);
-        if (rc == 1) {
-            // printf("Command '%s' sent, waiting for output...\n", c->payload);
-            c->state = S_RECV_COMMAND_OUTPUT;
-        } else if (rc == -1) {
-            return;
-        }
-        break;
-    case S_RECV_COMMAND_OUTPUT:
-        rc = do_read(c, OP_SSH, S_CLEANUP);
-        if (rc == -1) {
-            return;
-        }
-        break;
-    case S_SEND_HELLO:
-    if (!strcmp(c->subsystem, "netconf")) {
-            rc = do_write(c, OP_HELLO);
-            if (rc == 1) {
-                c->state = S_RECV_HELLO;
-            } else if (rc == -1) {
-                return;
-            }
         } else {
-            /* Skip NETCONF hello for non-NETCONF subsystems */
-            c->state = S_DONE;
+            rc = ssh_channel_request_subsystem(c->channel, (const char *)fromB_str(self->subsystem));
         }
-        break;
-    case S_RECV_HELLO:
-        rc = do_read(c, OP_HELLO_REPLY, S_SEND_GET);
-        if (rc == -1)
+        if (rc == SSH_OK) {
+            c->state = S_READY;
+            /* Connection fully established — notify Acton */
+            $action f = ($action)self->on_connect;
+            f->$class->__asyn__(f, self);
+        } else if (rc == SSH_AGAIN) {
             return;
-        break;
-    case S_SEND_GET:
-        init_write_buffer(c, c->payload);
-        c->state = S_SEND_GET_WRITING;
-        /* fallthrough */
-    case S_SEND_GET_WRITING:
-        rc = do_write(c, OP_GET);
-        if (rc == 1) {
-            c->state = S_RECV_GET;
-        } else if (rc == -1) {
+        } else {
+            char errmsg[512];
+            snprintf(errmsg, sizeof(errmsg), "Failed to request shell/subsystem: %s", ssh_get_error(c->session));
+            $action2 f = ($action2)self->on_error;
+            f->$class->__asyn__(f, self, to$str(errmsg));
+            uv_poll_stop(c->poll);
             return;
         }
         break;
-    case S_RECV_GET:
-        rc = do_read(c, OP_GET_REPLY, S_CLOSE);
-        if (rc == -1)
-            return;
-        break;
-    case S_CLOSE:
-        init_write_buffer(c, NETCONF_CLOSE_SESSION_MSG);
-        c->state = S_CLOSE_WRITING;
-        /* fallthrough */
-    case S_CLOSE_WRITING:
-        rc = do_write(c, OP_CLOSE);
-        if (rc == 1) {
-            printf("Close message fully sent, waiting for reply\n");
-            c->state = S_RECV_CLOSE_REPLY;
-        } else if (rc == -1) {
-            return;
+
+    case S_READY:
+        /* Flush any pending write data */
+        if (c->write_buf && c->write_sent < c->write_len && (events & UV_WRITABLE)) {
+            int wrote = ssh_channel_write(c->channel,
+                                          c->write_buf + c->write_sent,
+                                          (uint32_t)(c->write_len - c->write_sent));
+            if (wrote > 0) {
+                c->write_sent += (size_t)wrote;
+                if (c->write_sent >= c->write_len) {
+                    free(c->write_buf);
+                    c->write_buf = NULL;
+                    c->write_len = 0;
+                    c->write_sent = 0;
+                }
+            } else if (wrote == SSH_ERROR) {
+                $action2 f = ($action2)self->on_error;
+                f->$class->__asyn__(f, self, to$str("SSH channel write failed"));
+                uv_poll_stop(c->poll);
+                return;
+            }
+            /* SSH_AGAIN / 0: try again on next poll */
+        }
+
+        /* Read all available data from the channel */
+        {
+            char buf[8192];
+            int n;
+            while ((n = ssh_channel_read_nonblocking(c->channel, buf, sizeof(buf), 0)) > 0) {
+                $action2 f = ($action2)self->on_receive;
+                f->$class->__asyn__(f, self, to$bytesD_len(buf, n));
+            }
+            if (ssh_channel_is_eof(c->channel)) {
+                uv_poll_stop(c->poll);
+                if (self->on_remote_close) {
+                    $action f = ($action)self->on_remote_close;
+                    f->$class->__asyn__(f, self);
+                }
+            } else if (n < 0) {
+                $action2 f = ($action2)self->on_error;
+                f->$class->__asyn__(f, self, to$str((char *)ssh_get_error(c->session)));
+                uv_poll_stop(c->poll);
+            }
         }
         break;
-    case S_RECV_CLOSE_REPLY:
-        rc = do_read(c, OP_CLOSE_REPLY, S_CLEANUP);
-        if (rc == -1)
-            return;
-        break;
-    case S_CLEANUP:
-        c->state = S_DONE;
-        printf("Disconnected and cleaned up\n");
+
+    case S_ERROR:
         uv_poll_stop(c->poll);
-        uv_stop(c->loop);
-        return;
-    default:
-        return;
+        break;
     }
 }
 
-// Walk callback to close remaining handles
-static void close_walk_cb(uv_handle_t* handle, void* arg) {
-    if (!uv_is_closing(handle)) {
-        uv_close(handle, NULL);
-    }
-}
-
-void noop_free(void *ptr) {
-}
+/* ---- Module-level functions ---- */
 
 void sshQ___ext_init__() {
-    // TODO: can we avoid custom malloc in libssh? like let libssh use stock
-    // malloc and instead we would explicitly call free() from a finalizer()
-    // All things related to buffers for receiving data and similarly would have
-    // to be allocated on the GC-heap though since that data is passed outside
-    // of the SSH actor
-    // libssh_replace_allocator(
-    //     acton_gc_malloc,
-    //     acton_gc_realloc,
-    //     acton_gc_calloc,
-    //     noop_free,
-    //     acton_gc_strdup,
-    //     acton_gc_strndup);
     int r = ssh_init();
     if (r != SSH_OK)
         printf("SSH init failed (%d)\n", r);
-#ifdef DEBUG_MODE
-    else
-        printf("SSH extension successfully initialized\n");
-#endif
 }
 
 B_str sshQ_version() {
-    return to$str("0.1.0");
+    return to$str("0.2.0");
 }
 
-// Client
+/* ---- Client actor methods ---- */
 
-$R sshQ_ClientD__pin_affinityG_local (sshQ_Client self, $Cont c$cont) {
+$R sshQ_ClientD__pin_affinityG_local(sshQ_Client self, $Cont c$cont) {
     pin_actor_affinity();
     return $R_CONT(c$cont, B_None);
 }
 
-/* Helper: initialize client */
-static int client_init(client_t *c, sshQ_Client self) {
-    int err = 0;
-
-    c->session = ssh_new();
-    if (!c->session) {
-        printf("%s: ssh_new() Failed to create SSH session\n", __FUNCTION__);
-        goto err;
-    }
-
-    c->poll = calloc(1, sizeof(uv_poll_t));
-    if (!c->poll) {
-        printf("Failed to allocate poll handle\n");
-        goto err;
-    }
-
-    c->loop = malloc(sizeof(uv_loop_t));
-    if (c->loop == NULL) {
-        printf("Failed to allocate uv loop\n");
-        goto err;
-    }
-    uv_loop_init(c->loop);
-
-    // NOTE: uv_default_loop() can not be used since it error when having
-    // two clients at once
-    // c->loop = uv_default_loop(); // can not be used
-    // if (c->loop == NULL) {
-    //     printf("uv_default_loop failed\n");
-    //     goto err;
-    // }
-
-    c->channel = NULL;
-    c->reply = NULL;
-    c->reply_len = 0;
-    c->reply_cap = 0;
-    c->state = S_CONNECT;
-
-    /* Initialize write buffer to empty */
-    c->write_buf.data = NULL;
-    c->write_buf.len = 0;
-    c->write_buf.sent = 0;
-
-    c->host = (const char *)fromB_str(self->host);
-    c->port = self->port->val;
-    c->user = (const char *)fromB_str(self->username);
-    c->password = (const char *)fromB_str(self->password);
-    c->subsystem = (const char *)fromB_str(self->subsystem);
-
-    err = ssh_session_set_disconnect_message(c->session, "Disconnecting SSH, powered by Acton");
-    if (err != SSH_OK) {
-        printf("%s: ssh_session_set_disconnect_message() Error setting disconnect message: %d\n", __FUNCTION__, err);
-        goto err;
-    }
-
-    err = ssh_options_set(c->session, SSH_OPTIONS_HOST, c->host);
-    if (err != SSH_OK) {
-        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_HOST': %d\n", __FUNCTION__, err);
-        goto err;
-    }
-
-    err = ssh_options_set(c->session, SSH_OPTIONS_PORT, &c->port);
-    if (err != SSH_OK) {
-        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_PORT': %d\n", __FUNCTION__, err);
-        goto err;
-    }
-
-    err = ssh_options_set(c->session, SSH_OPTIONS_USER, c->user);
-    if (err != SSH_OK) {
-        printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_USER': %d\n", __FUNCTION__, err);
-        goto err;
-    }
-
-    return 0;
-err:
-    if (c->session) {
-        ssh_disconnect(c->session);
-        ssh_free(c->session);
-    }
-    if (c->loop) {
-        uv_loop_close(c->loop);
-        free(c->loop);
-    }
-    return -1;
-}
-
-$R sshQ_ClientD__initG_local (sshQ_Client self, $Cont c$cont) {
+$R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     pin_actor_affinity();
 
-    int err = 0;
-    client_t *client = calloc(1, sizeof(client_t));
-    if (client == NULL) {
-        printf("error allocating client_t\n");
-        goto err;
-    }
-    
-    if (client_init(client, self) != 0) {
-        fprintf(stderr, "Failed to init client\n");
-        goto err;
-    }
+    client_t *client = (client_t *)acton_malloc(sizeof(client_t));
+    memset(client, 0, sizeof(client_t));
 
-#ifdef DEBUG_MODE
-    // available: SSH_LOG_NOLOG, SSH_LOG_WARNING, SSH_LOG_PROTOCOL, SSH_LOG_PACKET, SSH_LOG_FUNCTIONS
-    err = ssh_set_log_level(SSH_LOG_FUNCTIONS);
-    if (err != SSH_OK)
-    {
-        printf("%s: ssh_set_log_level() Error setting log level: %d\n", __FUNCTION__, err);
+    if (client_setup(client, self) != 0) {
+        char errmsg[512];
+        if (client->session) {
+            snprintf(errmsg, sizeof(errmsg), "SSH connect failed: %s", ssh_get_error(client->session));
+        } else {
+            snprintf(errmsg, sizeof(errmsg), "SSH initialization failed");
+        }
+        $action2 f = ($action2)self->on_error;
+        f->$class->__asyn__(f, self, to$str(errmsg));
         return $R_CONT(c$cont, B_None);
-    }
-#endif
-
-    // should it auto-parse user config? for example from /home/user/.ssh/
-    // err = ssh_options_set(session, SSH_OPTIONS_PROCESS_CONFIG, "0");
-	// if (err != SSH_OK) {
-	// 	printf("%s: ssh_options_set() Error setting SSH option 'SSH_OPTIONS_PROCESS_CONFIG': %d\n", __FUNCTION__, err);
-	// 	return  $R_CONT(c$cont, B_None);
-	// }
-
-    err = ssh_connect(client->session);
-    if (err == SSH_ERROR) {
-        printf("%s: ssh_connect() Error connecting to SSH server: '%s' (%d)\n", __FUNCTION__, ssh_get_error(client->session), err);
-        goto err;
-    }
-    // connected, change state
-    client->state = S_AUTH;
-
-    ssh_set_blocking(client->session, 0);
-
-    // At this point ssh_get_fd should return a valid fd for uv_poll
-    client->fd = ssh_get_fd(client->session);
-    if (client->fd < 0) {
-        printf("Could not get SSH session fd\n");
-        goto err;
-    }
-
-    err = uv_poll_init(client->loop, client->poll, client->fd);
-    if (err < 0) {
-        printf("uv_poll_init failed: %s\n", uv_strerror(err));
-        goto err;
-    }
-
-    client->poll->data = client;
-
-    /* Watch for read/write events; libssh manages what it needs depending on state */
-    err = uv_poll_start(client->poll, UV_READABLE | UV_WRITABLE, poll_cb);
-    if (err < 0) {
-        printf("uv_poll_start failed: %s\n", uv_strerror(err));
-        goto err;
     }
 
     self->_client = toB_u64((unsigned long)client);
-
-    $action f = ($action) self->on_connect;
-    f->$class->__asyn__(f, self);
-
-    return $R_CONT(c$cont, B_None);
-err:
-    if (client) {
-        if (client->poll) {
-            uv_close((uv_handle_t*)client->poll, NULL);
-            free(client->poll);
-            client->poll = NULL;
-        }
-        if (client->loop) {
-            uv_loop_close(client->loop);
-            free(client->loop);
-            client->loop = NULL;
-        }
-        if (client->session) {
-            ssh_disconnect(client->session);
-            ssh_free(client->session);
-            client->session = NULL;
-        }
-        free(client);
-        client = NULL;
-    }
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_get_affinityG_local (sshQ_Client self, $Cont c$cont) {
-    printf("sshQ_ClientD_get_affinityG_local, affinity=%ld\n", self->$affinity);
+$R sshQ_ClientD_writeG_local(sshQ_Client self, $Cont c$cont, B_bytes data) {
+    client_t *client = (client_t *)fromB_u64(self->_client);
+    if (!client || !client->channel || client->state != S_READY) {
+        $action2 f = ($action2)self->on_error;
+        f->$class->__asyn__(f, self, to$str("Cannot write: not connected"));
+        return $R_CONT(c$cont, B_None);
+    }
+
+    /* If there is already pending data, append to the write buffer */
+    if (client->write_buf) {
+        size_t remaining = client->write_len - client->write_sent;
+        size_t new_len = remaining + data->nbytes;
+        char *new_buf = malloc(new_len);
+        if (!new_buf) {
+            $action2 f = ($action2)self->on_error;
+            f->$class->__asyn__(f, self, to$str("Write buffer allocation failed"));
+            return $R_CONT(c$cont, B_None);
+        }
+        memcpy(new_buf, client->write_buf + client->write_sent, remaining);
+        memcpy(new_buf + remaining, data->str, data->nbytes);
+        free(client->write_buf);
+        client->write_buf = new_buf;
+        client->write_len = new_len;
+        client->write_sent = 0;
+        return $R_CONT(c$cont, B_None);
+    }
+
+    /* Try to write directly */
+    int wrote = ssh_channel_write(client->channel, (const char *)data->str, (uint32_t)data->nbytes);
+    if (wrote == (int)data->nbytes) {
+        return $R_CONT(c$cont, B_None);
+    }
+
+    /* Partial or failed write — buffer the remainder for poll_cb to flush */
+    size_t sent = (wrote > 0) ? (size_t)wrote : 0;
+    size_t remaining = data->nbytes - sent;
+    client->write_buf = malloc(remaining);
+    if (!client->write_buf) {
+        $action2 f = ($action2)self->on_error;
+        f->$class->__asyn__(f, self, to$str("Write buffer allocation failed"));
+        return $R_CONT(c$cont, B_None);
+    }
+    memcpy(client->write_buf, (const char *)data->str + sent, remaining);
+    client->write_len = remaining;
+    client->write_sent = 0;
+
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_send_payloadG_local (sshQ_Client self, $Cont c$cont) {
-    int err = 0;
-
-    client_t *client = (client_t*)fromB_u64(self->_client);
-    if (client == NULL) {
-        printf("ERROR: client == NULL\n");
-        goto err_out;
+$R sshQ_ClientD_closeG_local(sshQ_Client self, $Cont c$cont, $action on_close) {
+    client_t *client = (client_t *)fromB_u64(self->_client);
+    if (!client) {
+        on_close->$class->__asyn__(on_close, self);
+        return $R_CONT(c$cont, B_None);
     }
 
-    client->payload = (const char *)fromB_str(self->_payload);
-
-#ifdef DEBUG_MODE
-    printf("Starting libuv loop client\n");
-#endif
-    uv_run(client->loop, UV_RUN_DEFAULT);
-#ifdef DEBUG_MODE
-    printf("Stopped libuv loop client\n");
-#endif
-
-    return $R_CONT(c$cont, client->response ? to$str(client->response) : B_None);
-err_out:
-    return $R_CONT(c$cont, B_None);
-}
-
-$R sshQ_ClientD_disconnectG_local (sshQ_Client self, $Cont c$cont) {
-    int err = 0;
-
-    if (self == NULL || self->_client == NULL) {
-        printf("self->_client == NULL\n");
-        goto out;
+    /* Stop polling */
+    if (client->poll) {
+        uv_poll_stop(client->poll);
+        uv_close((uv_handle_t *)client->poll, NULL);
+        client->poll = NULL;
     }
 
-    client_t *client = (client_t*)fromB_u64(self->_client);
-    if (client == NULL) {
-        printf("client == NULL, nothing to cleanup\n");
-        goto out;
-    }
-
-    /* cleanup */
-    /* graceful close of ssh channel & session */
+    /* Close SSH channel */
     if (client->channel) {
         ssh_channel_send_eof(client->channel);
         ssh_channel_close(client->channel);
         ssh_channel_free(client->channel);
         client->channel = NULL;
     }
+
+    /* Disconnect SSH session */
     if (client->session) {
         ssh_disconnect(client->session);
         ssh_free(client->session);
+        client->session = NULL;
     }
 
-    if (client->loop) {
-        // see MAKE_VALGRIND_HAPPY in libuv/test/task.h
+    /* Free write buffer */
+    if (client->write_buf) {
+        free(client->write_buf);
+        client->write_buf = NULL;
+    }
 
-        // walk the loop to close any remaining handles
-        uv_walk(client->loop, close_walk_cb, NULL);
+    self->_client = toB_u64(0);
 
-        // run the loop one more time to let close callbacks execute
-        // TODO: if this is executed after a previous c.disconnect() call in ssh.act
-        // then it will crash here. no matter if it's the same client object or a new one
-        uv_run(client->loop, UV_RUN_DEFAULT);
+    /* Invoke on_close callback */
+    on_close->$class->__asyn__(on_close, self);
 
-        // now it's safe to close the loop
-        err = uv_loop_close(client->loop);
-        if (err != 0) {
-            printf("WARNING: Loop close failed: %s\n", uv_strerror(err));
-            // If we still have handles, print debug info
-            if (err == UV_EBUSY) {
-                printf("There are still active handles in the loop. This is a leak.\n");
-            }
+    return $R_CONT(c$cont, B_None);
+}
+
+$R sshQ_ClientD__connectG_local(sshQ_Client self, $Cont c$cont, sshQ_Client c) {
+    pin_actor_affinity();
+
+    client_t *client = (client_t *)acton_malloc(sizeof(client_t));
+    memset(client, 0, sizeof(client_t));
+
+    if (client_setup(client, self) != 0) {
+        char errmsg[512];
+        if (client->session) {
+            snprintf(errmsg, sizeof(errmsg), "SSH reconnect failed: %s", ssh_get_error(client->session));
+        } else {
+            snprintf(errmsg, sizeof(errmsg), "SSH reconnect initialization failed");
         }
-        free(client->loop);
-        uv_library_shutdown();
+        $action2 f = ($action2)self->on_error;
+        f->$class->__asyn__(f, self, to$str(errmsg));
+        return $R_CONT(c$cont, B_None);
     }
 
-    if (client->reply) {
-        free(client->reply);
-        client->reply = NULL;
-    }
-    if (client->response) {
-        free(client->response);
-        client->response = NULL;
-    }
-    if (client->poll) {
-        free(client->poll);
-        client->poll = NULL;
-    }
-    if (client) {
-        free(client);
-        client = NULL;
-    }
-
-    if (ssh_finalize()) {
-        printf("%s: ssh_finalize error", __FUNCTION__);
-    }
-
-out:
+    self->_client = toB_u64((unsigned long)client);
     return $R_CONT(c$cont, B_None);
 }

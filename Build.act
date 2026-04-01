@@ -1,0 +1,9 @@
+name = "acton_ssh"
+fingerprint = 0xb650ac2857701cb1
+zig_dependencies = {
+   "libssh": (
+      url="https://github.com/precla/libssh/archive/refs/heads/zig-build.tar.gz",
+      hash="libssh-0.11.0-kUQJanViKgBVUmjYqAyLKjnqqHdDvSkdnU1qaMwFPzV-",
+      artifacts=[ "ssh" ]
+  )
+}

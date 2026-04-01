@@ -10,103 +10,116 @@ actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,
              on_connect: action(Client) -> None,
-             on_close: action(Client, str) -> None,
+             on_receive: action(Client, bytes) -> None,
+             on_error: action(Client, str) -> None,
+             on_remote_close: ?action(Client) -> None,
+             password: ?str=None,
              key: ?str=None,
-             password: str,
-             port: u16=22,
-             subsystem: str
-             ):
-    """SSH Client"""
+             port: int=22,
+             subsystem: ?str=None):
+    """SSH Client
 
-    # haha, this is really a pointer :P
+    Opens an SSH connection. If subsystem is None, opens a shell channel.
+    If subsystem is set (e.g. "netconf"), opens a subsystem channel instead.
+    """
+
     var _client: u64 = 0
-
-    var _payload: str = ""
 
     proc def _pin_affinity() -> None:
         NotImplemented
     _pin_affinity()
 
-    def get_client():
-        return _client
-
-    action def get_affinity() -> u64:
+    action def write(data: bytes) -> None:
+        """Write data to the SSH channel"""
         NotImplemented
 
-    def set_payload(p: str):
-        _payload = p
+    action def close(on_close: action(Client) -> None) -> None:
+        """Close the connection"""
+        NotImplemented
 
-    def get_payload():
-        return _payload
+    def reconnect():
+        close(_connect)
+
+    def _connect(c):
+        NotImplemented
 
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
     _init()
 
-#    action def close(on_close: action(TLSConnection) -> None) -> None:
-#        """Close the connection"""
-#        NotImplemented
-#
-#    def reconnect():
-#        close(_connect)
-#
-#    def _connect(c):
-#        NotImplemented
-
-    proc def disconnect() -> None:
-        """Disconnect the SSH client"""
-        NotImplemented
-
-    def send_payload() -> str:
-        """Send payload"""
-        NotImplemented
-
 
 actor main(env):
+    var _buf: bytes = b""
+
+    NETCONF_HELLO = b"""<?xml version="1.0" encoding="UTF-8"?>
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <capabilities>
+    <capability>urn:ietf:params:netconf:base:1.0</capability>
+  </capabilities>
+</hello>]]>]]>"""
+
+    NETCONF_GET_CONFIG = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10">
+  <get-config>
+    <source>
+      <running/>
+    </source>
+  </get-config>
+</rpc>]]>]]>"""
+
+    NETCONF_CLOSE = b"""<?xml version="1.0" encoding="UTF-8"?>
+<rpc message-id="9999" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <close-session/>
+</rpc>]]>]]>"""
+
+    var _state: int = 0  # 0=wait hello, 1=wait get-config reply, 2=wait close reply
+
     def on_connect(client: Client):
-        # print("Client connected")
-        return
+        print("Connected! Sending NETCONF hello...")
+        client.write(NETCONF_HELLO)
 
-    def on_close(client: Client, error: str):
-        # print("Connection closed", error)
-        return
+    def on_receive(client: Client, data: bytes):
+        _buf += data
+        s = _buf.decode()
+        if "]]>]]>" in s:
+            print("=== NETCONF message ===")
+            print(s)
+            print("=======================")
+            _buf = b""
 
-    print("NETCONF start...\n")
-    c1 = Client(
+            st = _state
+            if st == 0:
+                print("Got server hello, sending get-config...")
+                _state = 1
+                client.write(NETCONF_GET_CONFIG)
+            elif st == 1:
+                print("Got config, sending close-session...")
+                _state = 2
+                client.write(NETCONF_CLOSE)
+            elif st == 2:
+                print("Got close reply, done!")
+                def _on_close(c: Client):
+                    env.exit(0)
+                client.close(_on_close)
+
+    def on_error(client: Client, error: str):
+        print("Error:", error)
+        env.exit(1)
+
+    def on_remote_close(client: Client):
+        print("Remote closed connection")
+        env.exit(0)
+
+    c = Client(
         net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
         "localhost",
         "foo",
         on_connect,
-        on_close,
+        on_receive,
+        on_error,
+        on_remote_close,
         password="bar",
         port=830,
         subsystem="netconf",
     )
-
-    # get netconf server's capabilities
-    c1.set_payload('<?xml version="1.0" encoding="UTF-8"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="10"><get><filter type="subtree"><system xmlns="urn:ietf:params:xml:ns:yang:ietf-system"/></filter></get></rpc>]]>]]>')
-    # c1.set_payload('<?xml version="1.0"?><rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"message-id="101"><get-config><source><running/></source></get-config></rpc>]]>]]>')
-    print("\n=========== NC payload ===========\n" + c1.get_payload() + "\n=========== NC payload END ===========")
-    print("\n=========== NC response ===========\n" + c1.send_payload() + "\n=========== NC response END ===========\n")
-
-    c1.disconnect()
-
-    print("SSH start...\n")
-    c2 = Client(
-        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
-        "localhost",
-        "foo",
-        on_connect,
-        on_close,
-        password="bar",
-        port=22,
-        subsystem="ssh",
-    )
-    c2.set_payload('ls -ahl\n')
-    print("\n=========== SSH payload ===========\n" + c2.get_payload() + "\n=========== SSH payload END ===========")
-    print("\n=========== SSH response ===========\n" + c2.send_payload() + "\n=========== SSH response END ===========\n")
-
-    c2.disconnect()
-
-    env.exit(0)
