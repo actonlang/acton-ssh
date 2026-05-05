@@ -1,0 +1,9 @@
+name = "ssh"
+fingerprint = 0xee8dcc44255e0a2e
+zig_dependencies = {
+  "libssh": (
+        path="../acton-deps/libssh",
+        options={"WITH_SERVER": "true"},
+        artifacts=["ssh"]
+    )
+}
