@@ -1,4 +1,4 @@
-/* Acton impl hash: 65a3b87781c51cb7b2a04091d0a7ea81de8fc092174bd464b3f9d9fd480fe0c5 */
+/* Acton impl hash: a0e062e90602908759ff7f2f4f4b8648e92f000ff6d025bd04ad323efbafd901 */
 #include "rts/common.h"
 #include "out/types/test_ssh.h"
 #line 14 "src/test_ssh.act"
@@ -11557,7 +11557,7 @@ $R test_sshQ_EchoPayloadTesterD___init__ (test_sshQ_EchoPayloadTester self, $Con
             __builtin_unreachable();
         }
     }
-    B_range N_3range_iter = B_rangeG_new(4096LL, B_None, B_None);
+    B_range N_3range_iter = B_rangeG_new(1024LL, B_None, B_None);
     if ($PUSH()) {
         #line 671 "src/test_ssh.act"
         while (true) {
@@ -11945,9 +11945,9 @@ test_sshQ_L_440proc test_sshQ_L_440procG_new(test_sshQ_ConcurrentChannelsTester 
 }
 struct test_sshQ_L_440procG_class test_sshQ_L_440procG_methods;
 $R test_sshQ_L_439C_213cont (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Server C_214res) {
-    #line 811 "src/test_ssh.act"
+    #line 816 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->server = C_214res;
-    #line 822 "src/test_ssh.act"
+    #line 827 "src/test_ssh.act"
     $AFTER(toB_float(30.0), (($Cont)test_sshQ_L_440procG_new(self)));
     return $R_CONT(C_cont, B_None);
 }
@@ -12209,21 +12209,21 @@ test_sshQ_L_453action test_sshQ_L_453actionG_new(test_sshQ_ConcurrentChannelsTes
 }
 struct test_sshQ_L_453actionG_class test_sshQ_L_453actionG_methods;
 $R test_sshQ_L_454C_215cont (test_sshQ_ConcurrentChannelsTester self, B_str msg, $Cont C_cont, B_NoneType C_216res) {
-    #line 708 "src/test_ssh.act"
+    #line 713 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->done = B_True;
-    #line 709 "src/test_ssh.act"
+    #line 714 "src/test_ssh.act"
     if ($ISNOTNONE0(((test_sshQ_ConcurrentChannelsTester)(self))->client)) {
-        #line 710 "src/test_ssh.act"
+        #line 715 "src/test_ssh.act"
         ({ sshQ_Client $tmp = ((sshQ_Client)((test_sshQ_ConcurrentChannelsTester)(self))->client);
            ((B_Msg (*) ($WORD))((sshQ_Client)($tmp))->$class->close)($tmp); });
     }
-    #line 711 "src/test_ssh.act"
+    #line 716 "src/test_ssh.act"
     if ($ISNOTNONE0(((test_sshQ_ConcurrentChannelsTester)(self))->server)) {
-        #line 712 "src/test_ssh.act"
+        #line 717 "src/test_ssh.act"
         ({ sshQ_Server $tmp = ((sshQ_Server)((test_sshQ_ConcurrentChannelsTester)(self))->server);
            ((B_Msg (*) ($WORD))((sshQ_Server)($tmp))->$class->close)($tmp); });
     }
-    #line 713 "src/test_ssh.act"
+    #line 718 "src/test_ssh.act"
     ((B_Msg (*) ($WORD, B_Exception))((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->$class->error)(((test_sshQ_ConcurrentChannelsTester)(self))->t, B_ExceptionG_new(msg));
     return $R_CONT(C_cont, B_None);
 }
@@ -12267,11 +12267,11 @@ test_sshQ_L_455Cont test_sshQ_L_455ContG_new(test_sshQ_ConcurrentChannelsTester 
 }
 struct test_sshQ_L_455ContG_class test_sshQ_L_455ContG_methods;
 $R test_sshQ_L_456C_217cont (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, B_NoneType C_218res) {
-    #line 718 "src/test_ssh.act"
+    #line 723 "src/test_ssh.act"
     if (((B_bool)$AND(B_bool, $AND(B_bool, ((B_bool (*) ($WORD, B_int, B_int))((B_Eq)(test_sshQ_W_ConcurrentChannelsTester_128))->$class->__eq__)(test_sshQ_W_ConcurrentChannelsTester_128, toB_int(((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->completed)), toB_int(((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->NUM_CHANNELS))), ((test_sshQ_ConcurrentChannelsTester)(self))->client_closed), ((test_sshQ_ConcurrentChannelsTester)(self))->server_closed))->val) {
-        #line 719 "src/test_ssh.act"
+        #line 724 "src/test_ssh.act"
         ((test_sshQ_ConcurrentChannelsTester)(self))->done = B_True;
-        #line 720 "src/test_ssh.act"
+        #line 725 "src/test_ssh.act"
         ((B_Msg (*) ($WORD, B_str))((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->$class->success)(((test_sshQ_ConcurrentChannelsTester)(self))->t, B_None);
     }
     return $R_CONT(C_cont, B_None);
@@ -12380,7 +12380,7 @@ test_sshQ_L_463Cont test_sshQ_L_463ContG_new($Cont G_1) {
 }
 struct test_sshQ_L_463ContG_class test_sshQ_L_463ContG_methods;
 $R test_sshQ_L_461C_223cont ($Cont C_cont, test_sshQ_ConcurrentChannelsTester self, uint16_t C_224res) {
-    #line 729 "src/test_ssh.act"
+    #line 734 "src/test_ssh.act"
     uint16_t port = C_224res;
     return (($R (*) ($WORD, $Cont, uint16_t))((test_sshQ_ConcurrentChannelsTester)(self))->$class->start_clientG_local)(self, (($Cont)test_sshQ_L_463ContG_new(C_cont)), port);
 }
@@ -12531,7 +12531,7 @@ test_sshQ_L_469Cont test_sshQ_L_469ContG_new($Cont G_1) {
 struct test_sshQ_L_469ContG_class test_sshQ_L_469ContG_methods;
 $R test_sshQ_L_470C_231cont (sshQ_ServerSession sess, $Cont C_cont, sshQ_ServerChannel C_232res) {
     sshQ_ServerChannel C_4pre = C_232res;
-    #line 755 "src/test_ssh.act"
+    #line 760 "src/test_ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel))((sshQ_ServerSession)(sess))->$class->accept_channel)(sess, C_4pre);
     return $R_CONT(C_cont, B_None);
 }
@@ -13086,17 +13086,17 @@ test_sshQ_L_499Cont test_sshQ_L_499ContG_new($Cont G_1) {
 struct test_sshQ_L_499ContG_class test_sshQ_L_499ContG_methods;
 $R test_sshQ_L_497C_251cont (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, B_NoneType C_252res) {
     ((test_sshQ_ConcurrentChannelsTester)(self))->completed += 1LL;
-    #line 787 "src/test_ssh.act"
+    #line 792 "src/test_ssh.act"
     if (((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->completed) == ((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->NUM_CHANNELS)) {
-        #line 788 "src/test_ssh.act"
+        #line 793 "src/test_ssh.act"
         if ($ISNOTNONE0(((test_sshQ_ConcurrentChannelsTester)(self))->client)) {
-            #line 789 "src/test_ssh.act"
+            #line 794 "src/test_ssh.act"
             ({ sshQ_Client $tmp = ((sshQ_Client)((test_sshQ_ConcurrentChannelsTester)(self))->client);
                ((B_Msg (*) ($WORD))((sshQ_Client)($tmp))->$class->close)($tmp); });
         }
-        #line 790 "src/test_ssh.act"
+        #line 795 "src/test_ssh.act"
         if ($ISNOTNONE0(((test_sshQ_ConcurrentChannelsTester)(self))->server)) {
-            #line 791 "src/test_ssh.act"
+            #line 796 "src/test_ssh.act"
             ({ sshQ_Server $tmp = ((sshQ_Server)((test_sshQ_ConcurrentChannelsTester)(self))->server);
                ((B_Msg (*) ($WORD))((sshQ_Server)($tmp))->$class->close)($tmp); });
         }
@@ -13173,7 +13173,7 @@ test_sshQ_L_502Cont test_sshQ_L_502ContG_new(test_sshQ_ConcurrentChannelsTester 
 }
 struct test_sshQ_L_502ContG_class test_sshQ_L_502ContG_methods;
 $R test_sshQ_L_496C_249cont (B_Plus W_ConcurrentChannelsTester_713, B_str cmd, test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, B_Eq W_ConcurrentChannelsTester_730, B_bytes out, B_NoneType C_250res) {
-    #line 782 "src/test_ssh.act"
+    #line 787 "src/test_ssh.act"
     B_bytes expected = ({ B_str $tmp = ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_713))->$class->__add__)(W_ConcurrentChannelsTester_713, to$str("response to "), cmd);
                           ((B_bytes (*) ($WORD))((B_str)($tmp))->$class->encode)($tmp); });
     if (((B_bool)((B_bool (*) ($WORD, B_bytes, B_bytes))((B_Eq)(W_ConcurrentChannelsTester_730))->$class->__ne__)(W_ConcurrentChannelsTester_730, out, expected))->val) {
@@ -13366,7 +13366,7 @@ test_sshQ_L_508Cont test_sshQ_L_508ContG_new(B_Plus G_1, B_str G_2, test_sshQ_Co
     return $tmp;
 }
 struct test_sshQ_L_508ContG_class test_sshQ_L_508ContG_methods;
-#line 775 "src/test_ssh.act"
+#line 780 "src/test_ssh.act"
 $R test_sshQ_L_494on_run_exit (B_Plus W_ConcurrentChannelsTester_713, B_str cmd, test_sshQ_ConcurrentChannelsTester self, B_Eq W_ConcurrentChannelsTester_730, $Cont C_cont, sshQ_Channel ch, int64_t code, B_str sig, B_bytes out, B_bytes err_out, B_str error) {
     if ($ISNOTNONE0(error)) {
         return (($R (*) ($WORD, $Cont, B_str))((test_sshQ_ConcurrentChannelsTester)(self))->$class->finish_errorG_local)(self, (($Cont)test_sshQ_L_507ContG_new(C_cont)), ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_713))->$class->__add__)(W_ConcurrentChannelsTester_713, ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_713))->$class->__add__)(W_ConcurrentChannelsTester_713, ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_713))->$class->__add__)(W_ConcurrentChannelsTester_713, to$str("run "), cmd), to$str(" error: ")), ((B_str)error)));
@@ -13564,7 +13564,7 @@ test_sshQ_L_514Cont test_sshQ_L_514ContG_new($Cont G_1) {
 }
 struct test_sshQ_L_514ContG_class test_sshQ_L_514ContG_methods;
 $R test_sshQ_L_515C_265cont (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Client C_266res) {
-    #line 800 "src/test_ssh.act"
+    #line 805 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->client = C_266res;
     return $R_CONT(C_cont, B_None);
 }
@@ -14484,25 +14484,25 @@ test_sshQ_L_542proc test_sshQ_L_542procG_new(test_sshQ_ConcurrentChannelsTester 
 struct test_sshQ_L_542procG_class test_sshQ_L_542procG_methods;
 $R test_sshQ_ConcurrentChannelsTesterD___init__ (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, testingQ_EnvT t) {
     ((test_sshQ_ConcurrentChannelsTester)(self))->t = t;
-    #line 695 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->log = loggingQ_LoggerG_new(((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->log_handler);
-    #line 696 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->NUM_CHANNELS = 4LL;
-    #line 698 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->done = B_False;
-    #line 699 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->server = B_None;
     #line 700 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->client = B_None;
+    ((test_sshQ_ConcurrentChannelsTester)(self))->log = loggingQ_LoggerG_new(((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->log_handler);
     #line 701 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->completed = 0LL;
-    #line 702 "src/test_ssh.act"
-    ((test_sshQ_ConcurrentChannelsTester)(self))->client_closed = B_False;
+    ((test_sshQ_ConcurrentChannelsTester)(self))->NUM_CHANNELS = 4LL;
     #line 703 "src/test_ssh.act"
+    ((test_sshQ_ConcurrentChannelsTester)(self))->done = B_False;
+    #line 704 "src/test_ssh.act"
+    ((test_sshQ_ConcurrentChannelsTester)(self))->server = B_None;
+    #line 705 "src/test_ssh.act"
+    ((test_sshQ_ConcurrentChannelsTester)(self))->client = B_None;
+    #line 706 "src/test_ssh.act"
+    ((test_sshQ_ConcurrentChannelsTester)(self))->completed = 0LL;
+    #line 707 "src/test_ssh.act"
+    ((test_sshQ_ConcurrentChannelsTester)(self))->client_closed = B_False;
+    #line 708 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->server_closed = B_False;
     return sshQ_ServerG_newact((($Cont)test_sshQ_L_441ContG_new(self, C_cont)), netQ_TCPListenCapG_new(netQ_TCPCapG_new(netQ_NetCapG_new(((B_Env)(((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->env))->cap))), to$str("127.0.0.1"), B_u16G_new(((B_atom)toB_int(0LL)), B_None), (($action)test_sshQ_L_443actionG_new(self)), (($action)test_sshQ_L_445actionG_new(self)), (($action)test_sshQ_L_447actionG_new(self)), (($action)test_sshQ_L_449actionG_new(self)), (($action)test_sshQ_L_451actionG_new(self)), (($action)test_sshQ_L_453actionG_new(self)), B_None, B_None, B_None, B_None, B_None, B_None, B_None, B_None, B_None, B_None, B_None);
 }
-#line 705 "src/test_ssh.act"
+#line 710 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_finish_errorG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, B_str msg) {
     if (((B_bool)((test_sshQ_ConcurrentChannelsTester)(self))->done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -14511,7 +14511,7 @@ $R test_sshQ_ConcurrentChannelsTesterD_finish_errorG_local (test_sshQ_Concurrent
         return $R_CONT((($Cont)test_sshQ_L_455ContG_new(self, msg, C_cont)), B_None);
     }
 }
-#line 715 "src/test_ssh.act"
+#line 720 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_maybe_finishG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont) {
     if (((B_bool)((test_sshQ_ConcurrentChannelsTester)(self))->done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -14520,12 +14520,12 @@ $R test_sshQ_ConcurrentChannelsTesterD_maybe_finishG_local (test_sshQ_Concurrent
         return $R_CONT((($Cont)test_sshQ_L_457ContG_new(self, C_cont)), B_None);
     }
 }
-#line 722 "src/test_ssh.act"
+#line 727 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_timeoutG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont) {
     B_Plus W_ConcurrentChannelsTester_202 = (B_Plus)B_TimesD_strG_witness;
     return (($R (*) ($WORD, $Cont, B_str))((test_sshQ_ConcurrentChannelsTester)(self))->$class->finish_errorG_local)(self, (($Cont)test_sshQ_L_459ContG_new(C_cont)), ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_202))->$class->__add__)(W_ConcurrentChannelsTester_202, ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_202))->$class->__add__)(W_ConcurrentChannelsTester_202, ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_202))->$class->__add__)(W_ConcurrentChannelsTester_202, to$str("timeout, completed "), B_strG_new(((B_value)toB_int(((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->completed))))), to$str(" of ")), B_strG_new(((B_value)toB_int(((int64_t)((test_sshQ_ConcurrentChannelsTester)(self))->NUM_CHANNELS))))));
 }
-#line 725 "src/test_ssh.act"
+#line 730 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_listenG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Server s, B_str err) {
     B_Plus W_ConcurrentChannelsTester_235 = (B_Plus)B_TimesD_strG_witness;
     if ($ISNOTNONE0(err)) {
@@ -14535,72 +14535,72 @@ $R test_sshQ_ConcurrentChannelsTesterD_on_listenG_local (test_sshQ_ConcurrentCha
         return $R_CONT((($Cont)test_sshQ_L_467ContG_new(C_cont, self, s)), B_None);
     }
 }
-#line 732 "src/test_ssh.act"
+#line 737 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_server_closeG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Server s, B_str reason) {
-    #line 733 "src/test_ssh.act"
+    #line 738 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->server_closed = B_True;
     return (($R (*) ($WORD, $Cont))((test_sshQ_ConcurrentChannelsTester)(self))->$class->maybe_finishG_local)(self, (($Cont)test_sshQ_L_469ContG_new(C_cont)));
 }
-#line 736 "src/test_ssh.act"
+#line 741 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_sessionG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerSession sess) {
-    #line 737 "src/test_ssh.act"
+    #line 742 "src/test_ssh.act"
     return $R_CONT(C_cont, B_None);
 }
-#line 739 "src/test_ssh.act"
+#line 744 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_authG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerSession sess, sshQ_AuthRequest req) {
     B_Eq W_ConcurrentChannelsTester_315 = (B_Eq)B_OrdD_strG_witness;
     B_Eq W_ConcurrentChannelsTester_330 = ((B_Eq)$EqOptG_new(W_ConcurrentChannelsTester_315));
-    #line 740 "src/test_ssh.act"
+    #line 745 "src/test_ssh.act"
     if (((B_bool)$AND(B_bool, $AND(B_bool, ((B_bool (*) ($WORD, B_str, B_str))((B_Eq)(W_ConcurrentChannelsTester_315))->$class->__eq__)(W_ConcurrentChannelsTester_315, ((sshQ_AuthRequest)(req))->method, to$str("password")), ((B_bool (*) ($WORD, B_str, B_str))((B_Eq)(W_ConcurrentChannelsTester_315))->$class->__eq__)(W_ConcurrentChannelsTester_315, ((sshQ_AuthRequest)(req))->user, test_sshQ_TEST_USER)), ((B_bool (*) ($WORD, B_str, B_str))((B_Eq)(W_ConcurrentChannelsTester_330))->$class->__eq__)(W_ConcurrentChannelsTester_330, ((sshQ_AuthRequest)(req))->password, test_sshQ_TEST_PASS)))->val) {
-        #line 741 "src/test_ssh.act"
+        #line 746 "src/test_ssh.act"
         ((B_Msg (*) ($WORD))((sshQ_ServerSession)(sess))->$class->accept_auth)(sess);
     }
     else {
-        #line 743 "src/test_ssh.act"
+        #line 748 "src/test_ssh.act"
         ((B_Msg (*) ($WORD, B_str))((sshQ_ServerSession)(sess))->$class->reject_auth)(sess, to$str("invalid credentials"));
     }
     return $R_CONT(C_cont, B_None);
 }
-#line 745 "src/test_ssh.act"
+#line 750 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_srv_on_dataG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerChannel ch, B_bytes data) {
-    #line 746 "src/test_ssh.act"
+    #line 751 "src/test_ssh.act"
     return $R_CONT(C_cont, B_None);
 }
-#line 748 "src/test_ssh.act"
+#line 753 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_srv_on_stderrG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerChannel ch, B_bytes data) {
-    #line 749 "src/test_ssh.act"
+    #line 754 "src/test_ssh.act"
     return $R_CONT(C_cont, B_None);
 }
-#line 751 "src/test_ssh.act"
+#line 756 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_srv_on_closeG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerChannel ch, B_str reason) {
-    #line 752 "src/test_ssh.act"
+    #line 757 "src/test_ssh.act"
     return $R_CONT(C_cont, B_None);
 }
-#line 754 "src/test_ssh.act"
+#line 759 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_channel_openG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerSession sess) {
     return sshQ_ServerChannelG_newact((($Cont)test_sshQ_L_471ContG_new(sess, C_cont)), sess, (($action)test_sshQ_L_473actionG_new(self)), (($action)test_sshQ_L_475actionG_new(self)), (($action)test_sshQ_L_477actionG_new(self)));
 }
-#line 757 "src/test_ssh.act"
+#line 762 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_execG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_ServerSession sess, sshQ_ServerChannel ch, B_str cmd) {
     B_Plus W_ConcurrentChannelsTester_469 = (B_Plus)B_TimesD_strG_witness;
-    #line 758 "src/test_ssh.act"
+    #line 763 "src/test_ssh.act"
     ((B_Msg (*) ($WORD))((sshQ_ServerChannel)(ch))->$class->accept_request)(ch);
-    #line 759 "src/test_ssh.act"
+    #line 764 "src/test_ssh.act"
     ((B_Msg (*) ($WORD, B_bytes))((sshQ_ServerChannel)(ch))->$class->write)(ch, ({ B_str $tmp = ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_469))->$class->__add__)(W_ConcurrentChannelsTester_469, to$str("response to "), cmd);
                                                                                    ((B_bytes (*) ($WORD))((B_str)($tmp))->$class->encode)($tmp); }));
-    #line 760 "src/test_ssh.act"
+    #line 765 "src/test_ssh.act"
     ((B_Msg (*) ($WORD, int64_t))((sshQ_ServerChannel)(ch))->$class->send_exit_status)(ch, 0LL);
-    #line 761 "src/test_ssh.act"
+    #line 766 "src/test_ssh.act"
     ((B_Msg (*) ($WORD))((sshQ_ServerChannel)(ch))->$class->close)(ch);
     return $R_CONT(C_cont, B_None);
 }
-#line 763 "src/test_ssh.act"
+#line 768 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_hostkeyG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Client c, B_str state, sshQ_HostKeyInfo info) {
-    #line 764 "src/test_ssh.act"
+    #line 769 "src/test_ssh.act"
     ((B_Msg (*) ($WORD))((sshQ_Client)(c))->$class->accept_hostkey)(c);
     return $R_CONT(C_cont, B_None);
 }
-#line 766 "src/test_ssh.act"
+#line 771 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_connectG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Client c, B_str err) {
     B_Plus W_ConcurrentChannelsTester_570 = (B_Plus)B_TimesD_strG_witness;
     if ($ISNOTNONE0(err)) {
@@ -14610,21 +14610,21 @@ $R test_sshQ_ConcurrentChannelsTesterD_on_connectG_local (test_sshQ_ConcurrentCh
         return $R_CONT((($Cont)test_sshQ_L_493ContG_new(self, C_cont, c)), B_None);
     }
 }
-#line 773 "src/test_ssh.act"
+#line 778 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_start_runG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Client c, int64_t i) {
     B_Eq W_ConcurrentChannelsTester_730 = (B_Eq)B_OrdD_bytesG_witness;
     B_Plus W_ConcurrentChannelsTester_713 = (B_Plus)B_TimesD_strG_witness;
-    #line 774 "src/test_ssh.act"
+    #line 779 "src/test_ssh.act"
     B_str cmd = ((B_str (*) ($WORD, B_str, B_str))((B_Plus)(W_ConcurrentChannelsTester_713))->$class->__add__)(W_ConcurrentChannelsTester_713, to$str("cmd-"), B_strG_new(((B_value)toB_int(i))));
     return sshQ_RunCommandG_newact((($Cont)test_sshQ_L_510ContG_new(C_cont)), c, cmd, (($action)test_sshQ_L_512actionG_new(cmd, W_ConcurrentChannelsTester_713, W_ConcurrentChannelsTester_730, self)), toB_float(15.0));
 }
-#line 795 "src/test_ssh.act"
+#line 800 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_on_client_closeG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, sshQ_Client c, B_str reason) {
-    #line 796 "src/test_ssh.act"
+    #line 801 "src/test_ssh.act"
     ((test_sshQ_ConcurrentChannelsTester)(self))->client_closed = B_True;
     return (($R (*) ($WORD, $Cont))((test_sshQ_ConcurrentChannelsTester)(self))->$class->maybe_finishG_local)(self, (($Cont)test_sshQ_L_514ContG_new(C_cont)));
 }
-#line 799 "src/test_ssh.act"
+#line 804 "src/test_ssh.act"
 $R test_sshQ_ConcurrentChannelsTesterD_start_clientG_local (test_sshQ_ConcurrentChannelsTester self, $Cont C_cont, uint16_t port) {
     return sshQ_ClientG_newact((($Cont)test_sshQ_L_516ContG_new(self, C_cont)), netQ_TCPConnectCapG_new(netQ_TCPCapG_new(netQ_NetCapG_new(((B_Env)(((testingQ_EnvT)(((test_sshQ_ConcurrentChannelsTester)(self))->t))->env))->cap))), to$str("127.0.0.1"), test_sshQ_TEST_USER, (($action)test_sshQ_L_518actionG_new(self)), (($action)test_sshQ_L_520actionG_new(self)), (($action)test_sshQ_L_522actionG_new(self)), test_sshQ_TEST_PASS, B_None, B_None, toB_u16(port), B_None, B_None, B_None, B_None, B_None, B_None);
 }
@@ -14764,7 +14764,7 @@ test_sshQ_L_544Cont test_sshQ_L_544ContG_new($Cont G_1) {
     return $tmp;
 }
 struct test_sshQ_L_544ContG_class test_sshQ_L_544ContG_methods;
-#line 825 "src/test_ssh.act"
+#line 830 "src/test_ssh.act"
 $R test_sshQ__test_concurrent_channels ($Cont C_cont, testingQ_EnvT t) {
     return test_sshQ_ConcurrentChannelsTesterG_newact((($Cont)test_sshQ_L_544ContG_new(C_cont)), t);
 }

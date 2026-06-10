@@ -1,0 +1,139 @@
+"""Standalone echo throughput benchmark (loopback client <-> server)."""
+
+import net
+import ssh
+import time
+
+
+actor main(env):
+    payload_mb = 1
+    if len(env.argv) > 1:
+        pm = int(env.argv[1])
+        payload_mb = pm
+
+    var payload = b""
+    var echoed_len = 0
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var t_start = time.monotonic()
+    var t_connect = time.monotonic()
+
+    def fail(msg: str):
+        print("FAIL:", msg)
+        env.exit(1)
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            fail("listen: " + err)
+            return
+        port = await async s.bound_port()
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            "bench",
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password="bench",
+            port=port,
+        )
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            ch.write(data)
+        else:
+            ch.send_exit_status(0)
+            ch.close()
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.accept_request()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            fail("connect: " + err)
+            return
+        t_connect = time.monotonic()
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            fail("channel open: " + err)
+            return
+        ch.request_exec("echo-stream")
+        chunk_size = 65536
+        offset = 0
+        while offset < len(payload):
+            end = offset + chunk_size
+            if end > len(payload):
+                end = len(payload)
+            ch.write(payload[offset:end])
+            offset = end
+        ch.send_eof()
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            echoed_len += len(data)
+            if echoed_len >= len(payload):
+                t_end = time.monotonic()
+                dt_us = t_end.unix_us() - t_connect.unix_us()
+                if dt_us <= 0:
+                    dt_us = 1
+                kbps = (echoed_len * 1000000 // dt_us) // 1024
+                print("echoed", echoed_len, "bytes in", dt_us, "us =", kbps, "KiB/s")
+                ch.close()
+                if client is not None:
+                    client.close()
+                if server is not None:
+                    server.close()
+                env.exit(0)
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        pass
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        pass
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        pass
+
+    var pattern = b""
+    for i in range(256):
+        pattern += bytes([i])
+    for i in range(payload_mb * 4096):
+        payload += pattern
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )

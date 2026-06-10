@@ -764,7 +764,7 @@
 </div>
 
 <h2 class="type-context"><code>_test_echo_payload</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
-<div class="docstring">Stream 1 MiB through a server echo and verify integrity.</div>
+<div class="docstring">Stream 256 KiB through a server echo and verify integrity.<br><br>    Payload size is kept moderate so the test stays well within the test<br>    timeout under `acton test stress` with many concurrent workers; raw<br>    throughput is covered by the bench_echo program.<br>    </div>
 
 <div class="declaration-block">
 <h2 class="type-context"><span class="keyword">actor</span> <code>ConcurrentChannelsTester</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>

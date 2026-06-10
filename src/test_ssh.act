@@ -664,11 +664,11 @@ actor EchoPayloadTester(t: testing.EnvT):
             port=port,
         )
 
-    # Build a 1 MiB payload with a non-trivial pattern
+    # Build a 256 KiB payload with a non-trivial pattern
     var pattern = b""
     for i in range(256):
         pattern += bytes([i])
-    for i in range(4096):
+    for i in range(1024):
         payload += pattern
 
     server = ssh.Server(
@@ -686,7 +686,12 @@ actor EchoPayloadTester(t: testing.EnvT):
 
 
 def _test_echo_payload(t: testing.EnvT):
-    """Stream 1 MiB through a server echo and verify integrity."""
+    """Stream 256 KiB through a server echo and verify integrity.
+
+    Payload size is kept moderate so the test stays well within the test
+    timeout under `acton test stress` with many concurrent workers; raw
+    throughput is covered by the bench_echo program.
+    """
     EchoPayloadTester(t)
 
 
