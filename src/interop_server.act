@@ -70,7 +70,20 @@ actor main(env):
     def on_session_close(sess: ssh.ServerSession, reason: str):
         pass
 
+    # Optional authorized public key (authorized_keys "<type> <base64>" form,
+    # no comment) provided via ACTON_SSH_AUTH_KEY. When set, publickey auth is
+    # accepted for that key.
+    auth_key = env.getenv("ACTON_SSH_AUTH_KEY")
+
     def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "publickey":
+            ak = auth_key
+            pk = req.pubkey
+            if ak is not None and pk is not None and req.user == USER and pk == ak.encode():
+                sess.accept_auth()
+            else:
+                sess.reject_auth("unauthorized key")
+            return
         if req.method == "password" and req.user == USER and req.password == PASS:
             sess.accept_auth()
         else:

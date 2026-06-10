@@ -1,20 +1,20 @@
-/* Acton impl hash: 1e388d8f3fc24312cd53484511fb6cb40c1d3d536b079bba84c108af72206f74 */
+/* Acton impl hash: eb4513c645903bcb131c1508314087f0d03ed41882dd17f9ecd54227a60213e6 */
 #include "rts/common.h"
 #include "out/types/ssh.h"
 #include "src/ssh.ext.c"
 B_str sshQ_version ();
 /*
-#line 64 "src/ssh.act"
+#line 72 "src/ssh.act"
 B_str sshQ_version () {
-    #line 66 "src/ssh.act"
+    #line 74 "src/ssh.act"
     // NotImplemented
 }
 */
 B_NoneType sshQ__debug (B_str msg);
 /*
-#line 69 "src/ssh.act"
+#line 77 "src/ssh.act"
 B_NoneType sshQ__debug (B_str msg) {
-    #line 71 "src/ssh.act"
+    #line 79 "src/ssh.act"
     // NotImplemented
 }
 */
@@ -1104,7 +1104,7 @@ sshQ_L_31proc sshQ_L_31procG_new(sshQ_Channel G_1) {
 }
 struct sshQ_L_31procG_class sshQ_L_31procG_methods;
 $R sshQ_L_35C_11cont (sshQ_RunCommand self, $Cont C_cont, B_NoneType C_12res) {
-    #line 360 "src/ssh.act"
+    #line 381 "src/ssh.act"
     ((B_Msg (*) ($WORD))((sshQ_Channel)(((sshQ_RunCommand)(self))->_channel))->$class->close)(((sshQ_RunCommand)(self))->_channel);
     return $R_CONT(C_cont, B_None);
 }
@@ -1144,7 +1144,7 @@ sshQ_L_36Cont sshQ_L_36ContG_new(sshQ_RunCommand G_1, $Cont G_2) {
 }
 struct sshQ_L_36ContG_class sshQ_L_36ContG_methods;
 $R sshQ_L_34C_9cont (sshQ_RunCommand self, $Cont C_cont, B_NoneType C_10res) {
-    #line 358 "src/ssh.act"
+    #line 379 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_error = to$str("timeout");
     return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_finishG_local)(self, (($Cont)sshQ_L_36ContG_new(self, C_cont)), ((sshQ_RunCommand)(self))->_channel);
 }
@@ -1183,7 +1183,7 @@ sshQ_L_37Cont sshQ_L_37ContG_new(sshQ_RunCommand G_1, $Cont G_2) {
     return $tmp;
 }
 struct sshQ_L_37ContG_class sshQ_L_37ContG_methods;
-#line 355 "src/ssh.act"
+#line 376 "src/ssh.act"
 $R sshQ_L_33_on_timeout (sshQ_RunCommand self, $Cont C_cont) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -1227,10 +1227,10 @@ sshQ_L_38proc sshQ_L_38procG_new(sshQ_RunCommand G_1) {
 }
 struct sshQ_L_38procG_class sshQ_L_38procG_methods;
 $R sshQ_L_32C_7cont (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel C_8res) {
-    #line 352 "src/ssh.act"
+    #line 373 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_channel = C_8res;
     if ($ISNOTNONE0(((sshQ_RunCommand)(self))->timeout)) {
-        #line 361 "src/ssh.act"
+        #line 382 "src/ssh.act"
         $AFTER(((B_float)((sshQ_RunCommand)(self))->timeout), (($Cont)sshQ_L_38procG_new(self)));
         return $R_CONT(C_cont, B_None);
     }
@@ -1459,9 +1459,9 @@ sshQ_L_49action sshQ_L_49actionG_new(sshQ_RunCommand G_1) {
 }
 struct sshQ_L_49actionG_class sshQ_L_49actionG_methods;
 $R sshQ_L_50C_13cont (sshQ_RunCommand self, sshQ_Channel ch, $Cont C_cont, B_NoneType C_14res) {
-    #line 303 "src/ssh.act"
+    #line 324 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_done = B_True;
-    #line 304 "src/ssh.act"
+    #line 325 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, B_int, B_str, B_bytes, B_bytes, B_str))(($action)(((sshQ_RunCommand)(self))->on_exit))->$class->__asyn__)(((sshQ_RunCommand)(self))->on_exit, ch, toB_int(((int64_t)((sshQ_RunCommand)(self))->_exit_code)), ((sshQ_RunCommand)(self))->_exit_signal, ((sshQ_RunCommand)(self))->out_buf, ((sshQ_RunCommand)(self))->err_buf, ((sshQ_RunCommand)(self))->_error);
     return $R_CONT(C_cont, B_None);
 }
@@ -1505,7 +1505,7 @@ sshQ_L_51Cont sshQ_L_51ContG_new(sshQ_RunCommand G_1, sshQ_Channel G_2, $Cont G_
 }
 struct sshQ_L_51ContG_class sshQ_L_51ContG_methods;
 $R sshQ_L_53C_17cont (sshQ_Channel ch, sshQ_RunCommand self, $Cont C_cont, B_NoneType C_18res) {
-    #line 313 "src/ssh.act"
+    #line 334 "src/ssh.act"
     ((B_Msg (*) ($WORD, B_str))((sshQ_Channel)(ch))->$class->request_exec)(ch, ((sshQ_RunCommand)(self))->cmd);
     return $R_CONT(C_cont, B_None);
 }
@@ -1584,7 +1584,7 @@ sshQ_L_56Cont sshQ_L_56ContG_new(sshQ_Channel G_1, sshQ_RunCommand G_2, $Cont G_
 struct sshQ_L_56ContG_class sshQ_L_56ContG_methods;
 $R sshQ_L_52C_15cont (sshQ_Channel ch, sshQ_RunCommand self, $Cont C_cont, B_str err, B_NoneType C_16res) {
     if ($ISNOTNONE0(err)) {
-        #line 310 "src/ssh.act"
+        #line 331 "src/ssh.act"
         ((sshQ_RunCommand)(self))->_error = ((B_str)err);
         return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_finishG_local)(self, (($Cont)sshQ_L_55ContG_new(C_cont)), ch);
     }
@@ -1706,7 +1706,7 @@ $R sshQ_L_58C_21cont ($Cont C_cont, B_bytes data, sshQ_RunCommand self, sshQ_Cha
         return $R_CONT((($Cont)sshQ_L_60ContG_new(C_cont)), B_None);
     }
     else {
-        #line 321 "src/ssh.act"
+        #line 342 "src/ssh.act"
         ((sshQ_RunCommand)(self))->_out_done = B_True;
         return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_check_doneG_local)(self, (($Cont)sshQ_L_61ContG_new(C_cont)), ch);
     }
@@ -1825,7 +1825,7 @@ $R sshQ_L_63C_25cont ($Cont C_cont, B_bytes data, sshQ_RunCommand self, sshQ_Cha
         return $R_CONT((($Cont)sshQ_L_65ContG_new(C_cont)), B_None);
     }
     else {
-        #line 330 "src/ssh.act"
+        #line 351 "src/ssh.act"
         ((sshQ_RunCommand)(self))->_err_done = B_True;
         return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_check_doneG_local)(self, (($Cont)sshQ_L_66ContG_new(C_cont)), ch);
     }
@@ -1908,11 +1908,11 @@ sshQ_L_70Cont sshQ_L_70ContG_new($Cont G_1) {
 }
 struct sshQ_L_70ContG_class sshQ_L_70ContG_methods;
 $R sshQ_L_68C_29cont (sshQ_RunCommand self, int64_t code, B_str sig, $Cont C_cont, sshQ_Channel ch, B_NoneType C_30res) {
-    #line 336 "src/ssh.act"
+    #line 357 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exited = B_True;
-    #line 337 "src/ssh.act"
+    #line 358 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exit_code = code;
-    #line 338 "src/ssh.act"
+    #line 359 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exit_signal = sig;
     return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_check_doneG_local)(self, (($Cont)sshQ_L_70ContG_new(C_cont)), ch);
 }
@@ -1999,9 +1999,9 @@ sshQ_L_74Cont sshQ_L_74ContG_new($Cont G_1) {
 }
 struct sshQ_L_74ContG_class sshQ_L_74ContG_methods;
 $R sshQ_L_72C_33cont (sshQ_RunCommand self, B_Eq W_HostKeyInfo_980, B_str reason, $Cont C_cont, sshQ_Channel ch, B_NoneType C_34res) {
-    #line 344 "src/ssh.act"
+    #line 365 "src/ssh.act"
     if (((B_bool)$AND(B_bool, toB_bool($ISNONE0(((sshQ_RunCommand)(self))->_error)), ((B_bool (*) ($WORD, B_str, B_str))((B_Eq)(W_HostKeyInfo_980))->$class->__ne__)(W_HostKeyInfo_980, reason, to$str("closed"))))->val) {
-        #line 345 "src/ssh.act"
+        #line 366 "src/ssh.act"
         ((sshQ_RunCommand)(self))->_error = reason;
     }
     return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_finishG_local)(self, (($Cont)sshQ_L_74ContG_new(C_cont)), ch);
@@ -2862,7 +2862,7 @@ sshQ_L_102proc sshQ_L_102procG_new(sshQ_ServerSession G_1) {
 }
 struct sshQ_L_102procG_class sshQ_L_102procG_methods;
 $R sshQ_L_101C_45cont (sshQ_ServerSession self, $Cont C_cont, B_NoneType C_46res) {
-    #line 489 "src/ssh.act"
+    #line 510 "src/ssh.act"
     $AFTER(toB_float(0), (($Cont)sshQ_L_102procG_new(self)));
     return $R_CONT(C_cont, B_None);
 }
@@ -2968,7 +2968,7 @@ sshQ_L_107Cont sshQ_L_107ContG_new($Cont G_1) {
 struct sshQ_L_107ContG_class sshQ_L_107ContG_methods;
 $R sshQ_L_104C_47cont ($Cont C_cont, sshQ_ServerSession self, B_NoneType C_48res) {
     if (((uint64_t)((sshQ_ServerSession)(self))->_session_id) != 0UL) {
-        #line 486 "src/ssh.act"
+        #line 507 "src/ssh.act"
         ((B_Msg (*) ($WORD, sshQ_ServerSession))((sshQ_Server)(((sshQ_ServerSession)(self))->server))->$class->on_session_ready)(((sshQ_ServerSession)(self))->server, self);
         return (($R (*) ($WORD, $Cont))((sshQ_ServerSession)(self))->$class->_drive_attachedG_local)(self, (($Cont)sshQ_L_106ContG_new(C_cont)));
     }
@@ -4895,11 +4895,11 @@ struct sshQ_L_161procG_class sshQ_L_161procG_methods;
 B_NoneType sshQ_HostKeyInfoG_init (sshQ_HostKeyInfo self) {
     return B_None;
 }
-#line 87 "src/ssh.act"
+#line 95 "src/ssh.act"
 B_NoneType sshQ_HostKeyInfoD___init__ (sshQ_HostKeyInfo self, B_str key_type, B_str fingerprint) {
-    #line 88 "src/ssh.act"
+    #line 96 "src/ssh.act"
     ((sshQ_HostKeyInfo)(self))->key_type = key_type;
-    #line 89 "src/ssh.act"
+    #line 97 "src/ssh.act"
     ((sshQ_HostKeyInfo)(self))->fingerprint = fingerprint;
     return B_None;
 }
@@ -4932,17 +4932,17 @@ struct sshQ_HostKeyInfoG_class sshQ_HostKeyInfoG_methods;
 B_NoneType sshQ_AuthRequestG_init (sshQ_AuthRequest self) {
     return B_None;
 }
-#line 99 "src/ssh.act"
+#line 120 "src/ssh.act"
 B_NoneType sshQ_AuthRequestD___init__ (sshQ_AuthRequest self, B_str method, B_str user, B_str N_default_password, B_bytes N_default_pubkey) {
     B_str password = (($ISNONE0(N_default_password)) ? B_None : N_default_password);
     B_bytes pubkey = (($ISNONE0(N_default_pubkey)) ? B_None : N_default_pubkey);
-    #line 100 "src/ssh.act"
+    #line 121 "src/ssh.act"
     ((sshQ_AuthRequest)(self))->method = method;
-    #line 101 "src/ssh.act"
+    #line 122 "src/ssh.act"
     ((sshQ_AuthRequest)(self))->user = user;
-    #line 102 "src/ssh.act"
+    #line 123 "src/ssh.act"
     ((sshQ_AuthRequest)(self))->password = password;
-    #line 103 "src/ssh.act"
+    #line 124 "src/ssh.act"
     ((sshQ_AuthRequest)(self))->pubkey = pubkey;
     return B_None;
 }
@@ -5006,95 +5006,95 @@ $R sshQ_ClientD___init__ (sshQ_Client self, $Cont C_cont, netQ_TCPConnectCap cap
     ((sshQ_Client)(self))->keepalive_enabled = (($ISNONE0(((sshQ_Client)(self))->N_default_keepalive_enabled)) ? B_True : ((sshQ_Client)(self))->N_default_keepalive_enabled);
     ((sshQ_Client)(self))->close_timeout = (($ISNONE0(((sshQ_Client)(self))->N_default_close_timeout)) ? 5.0 : ((B_float)((sshQ_Client)(self))->N_default_close_timeout)->val);
     ((sshQ_Client)(self))->max_write_buffer = (($ISNONE0(((sshQ_Client)(self))->N_default_max_write_buffer)) ? 8388608LL : ((B_int)((sshQ_Client)(self))->N_default_max_write_buffer)->val);
-    #line 135 "src/ssh.act"
+    #line 156 "src/ssh.act"
     ((sshQ_Client)(self))->_client = 0UL;
-    #line 136 "src/ssh.act"
+    #line 157 "src/ssh.act"
     ((sshQ_Client)(self))->_host = ((sshQ_Client)(self))->host;
-    #line 137 "src/ssh.act"
+    #line 158 "src/ssh.act"
     ((sshQ_Client)(self))->_username = ((sshQ_Client)(self))->username;
-    #line 138 "src/ssh.act"
+    #line 159 "src/ssh.act"
     ((sshQ_Client)(self))->_password = ((sshQ_Client)(self))->password;
-    #line 139 "src/ssh.act"
+    #line 160 "src/ssh.act"
     ((sshQ_Client)(self))->_private_key_file = ((sshQ_Client)(self))->private_key_file;
-    #line 140 "src/ssh.act"
+    #line 161 "src/ssh.act"
     ((sshQ_Client)(self))->_private_key_passphrase = ((sshQ_Client)(self))->private_key_passphrase;
-    #line 141 "src/ssh.act"
+    #line 162 "src/ssh.act"
     ((sshQ_Client)(self))->_known_hosts = ((sshQ_Client)(self))->known_hosts;
-    #line 142 "src/ssh.act"
+    #line 163 "src/ssh.act"
     ((sshQ_Client)(self))->_connect_timeout = ((double)((sshQ_Client)(self))->connect_timeout);
-    #line 143 "src/ssh.act"
+    #line 164 "src/ssh.act"
     ((sshQ_Client)(self))->_auth_timeout = ((double)((sshQ_Client)(self))->auth_timeout);
-    #line 144 "src/ssh.act"
+    #line 165 "src/ssh.act"
     ((sshQ_Client)(self))->_keepalive_interval = ((double)((sshQ_Client)(self))->keepalive_interval);
-    #line 145 "src/ssh.act"
+    #line 166 "src/ssh.act"
     ((sshQ_Client)(self))->_keepalive_enabled = ((sshQ_Client)(self))->keepalive_enabled;
-    #line 146 "src/ssh.act"
+    #line 167 "src/ssh.act"
     ((sshQ_Client)(self))->_close_timeout = ((double)((sshQ_Client)(self))->close_timeout);
-    #line 147 "src/ssh.act"
+    #line 168 "src/ssh.act"
     ((sshQ_Client)(self))->_max_write_buffer = ((int64_t)((sshQ_Client)(self))->max_write_buffer);
-    #line 148 "src/ssh.act"
+    #line 169 "src/ssh.act"
     ((sshQ_Client)(self))->_on_connect = ((sshQ_Client)(self))->on_connect;
-    #line 149 "src/ssh.act"
+    #line 170 "src/ssh.act"
     ((sshQ_Client)(self))->_on_close = ((sshQ_Client)(self))->on_close;
-    #line 150 "src/ssh.act"
+    #line 171 "src/ssh.act"
     ((sshQ_Client)(self))->_on_hostkey = ((sshQ_Client)(self))->on_hostkey;
     return (($R (*) ($WORD, $Cont))((sshQ_Client)(self))->$class->_pin_affinityG_local)(self, (($Cont)sshQ_L_2ContG_new(self, C_cont)));
 }
 $R sshQ_ClientD__pin_affinityG_local (sshQ_Client self, $Cont C_cont);
 /*
-#line 152 "src/ssh.act"
+#line 173 "src/ssh.act"
 $R sshQ_ClientD__pin_affinityG_local (sshQ_Client self, $Cont C_cont) {
-    #line 153 "src/ssh.act"
+    #line 174 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont C_cont);
 /*
-#line 156 "src/ssh.act"
+#line 177 "src/ssh.act"
 $R sshQ_ClientD__initG_local (sshQ_Client self, $Cont C_cont) {
-    #line 158 "src/ssh.act"
+    #line 179 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_accept_hostkeyG_local (sshQ_Client self, $Cont C_cont);
 /*
-#line 161 "src/ssh.act"
+#line 182 "src/ssh.act"
 $R sshQ_ClientD_accept_hostkeyG_local (sshQ_Client self, $Cont C_cont) {
-    #line 163 "src/ssh.act"
+    #line 184 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_reject_hostkeyG_local (sshQ_Client self, $Cont C_cont, B_str reason);
 /*
-#line 165 "src/ssh.act"
+#line 186 "src/ssh.act"
 $R sshQ_ClientD_reject_hostkeyG_local (sshQ_Client self, $Cont C_cont, B_str reason) {
-    #line 167 "src/ssh.act"
+    #line 188 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_closeG_local (sshQ_Client self, $Cont C_cont);
 /*
-#line 169 "src/ssh.act"
+#line 190 "src/ssh.act"
 $R sshQ_ClientD_closeG_local (sshQ_Client self, $Cont C_cont) {
-    #line 171 "src/ssh.act"
+    #line 192 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD__cleanup_nativeG_local (sshQ_Client self, $Cont C_cont);
 /*
-#line 173 "src/ssh.act"
+#line 194 "src/ssh.act"
 $R sshQ_ClientD__cleanup_nativeG_local (sshQ_Client self, $Cont C_cont) {
-    #line 174 "src/ssh.act"
+    #line 195 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 176 "src/ssh.act"
+#line 197 "src/ssh.act"
 $R sshQ_ClientD___cleanup__G_local (sshQ_Client self, $Cont C_cont) {
     if (((uint64_t)((sshQ_Client)(self))->_client) != 0UL) {
         return (($R (*) ($WORD, $Cont))((sshQ_Client)(self))->$class->_cleanup_nativeG_local)(self, (($Cont)sshQ_L_4ContG_new(C_cont)));
@@ -5105,63 +5105,63 @@ $R sshQ_ClientD___cleanup__G_local (sshQ_Client self, $Cont C_cont) {
 }
 $R sshQ_ClientD_channel_createG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, $action on_open, $action on_stdout, $action on_stderr, $action on_exit, $action on_close);
 /*
-#line 181 "src/ssh.act"
+#line 202 "src/ssh.act"
 $R sshQ_ClientD_channel_createG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, $action on_open, $action on_stdout, $action on_stderr, $action on_exit, $action on_close) {
-    #line 187 "src/ssh.act"
+    #line 208 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_request_execG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str cmd);
 /*
-#line 189 "src/ssh.act"
+#line 210 "src/ssh.act"
 $R sshQ_ClientD_channel_request_execG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str cmd) {
-    #line 190 "src/ssh.act"
+    #line 211 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_request_shellG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, B_bool with_pty);
 /*
-#line 192 "src/ssh.act"
+#line 213 "src/ssh.act"
 $R sshQ_ClientD_channel_request_shellG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, B_bool with_pty) {
-    #line 199 "src/ssh.act"
+    #line 220 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_request_subsystemG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str name);
 /*
-#line 201 "src/ssh.act"
+#line 222 "src/ssh.act"
 $R sshQ_ClientD_channel_request_subsystemG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_str name) {
-    #line 202 "src/ssh.act"
+    #line 223 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_writeG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_bytes data);
 /*
-#line 204 "src/ssh.act"
+#line 225 "src/ssh.act"
 $R sshQ_ClientD_channel_writeG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel, B_bytes data) {
-    #line 205 "src/ssh.act"
+    #line 226 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_send_eofG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel);
 /*
-#line 207 "src/ssh.act"
+#line 228 "src/ssh.act"
 $R sshQ_ClientD_channel_send_eofG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel) {
-    #line 208 "src/ssh.act"
+    #line 229 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ClientD_channel_closeG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel);
 /*
-#line 210 "src/ssh.act"
+#line 231 "src/ssh.act"
 $R sshQ_ClientD_channel_closeG_local (sshQ_Client self, $Cont C_cont, sshQ_Channel channel) {
-    #line 211 "src/ssh.act"
+    #line 232 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
@@ -5343,33 +5343,33 @@ $R sshQ_ChannelD___init__ (sshQ_Channel self, $Cont C_cont, sshQ_Client client, 
     ((sshQ_Channel)(self))->on_stderr = on_stderr;
     ((sshQ_Channel)(self))->on_exit = on_exit;
     ((sshQ_Channel)(self))->on_close = on_close;
-    #line 230 "src/ssh.act"
+    #line 251 "src/ssh.act"
     ((sshQ_Channel)(self))->_channel_id = 0UL;
-    #line 231 "src/ssh.act"
+    #line 252 "src/ssh.act"
     ((sshQ_Channel)(self))->_on_open = ((sshQ_Channel)(self))->on_open;
-    #line 232 "src/ssh.act"
+    #line 253 "src/ssh.act"
     ((sshQ_Channel)(self))->_on_stdout = ((sshQ_Channel)(self))->on_stdout;
-    #line 233 "src/ssh.act"
+    #line 254 "src/ssh.act"
     ((sshQ_Channel)(self))->_on_stderr = ((sshQ_Channel)(self))->on_stderr;
-    #line 234 "src/ssh.act"
+    #line 255 "src/ssh.act"
     ((sshQ_Channel)(self))->_on_exit = ((sshQ_Channel)(self))->on_exit;
-    #line 235 "src/ssh.act"
+    #line 256 "src/ssh.act"
     ((sshQ_Channel)(self))->_on_close = ((sshQ_Channel)(self))->on_close;
     return (($R (*) ($WORD, $Cont))((sshQ_Channel)(self))->$class->_initG_local)(self, C_cont);
 }
-#line 237 "src/ssh.act"
+#line 258 "src/ssh.act"
 $R sshQ_ChannelD__initG_local (sshQ_Channel self, $Cont C_cont) {
-    #line 238 "src/ssh.act"
+    #line 259 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, $action, $action, $action, $action, $action))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_create)(((sshQ_Channel)(self))->client, self, ((sshQ_Channel)(self))->_on_open, ((sshQ_Channel)(self))->_on_stdout, ((sshQ_Channel)(self))->_on_stderr, ((sshQ_Channel)(self))->_on_exit, ((sshQ_Channel)(self))->_on_close);
     return $R_CONT(C_cont, B_None);
 }
-#line 241 "src/ssh.act"
+#line 262 "src/ssh.act"
 $R sshQ_ChannelD_request_execG_local (sshQ_Channel self, $Cont C_cont, B_str cmd) {
-    #line 243 "src/ssh.act"
+    #line 264 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, B_str))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_request_exec)(((sshQ_Channel)(self))->client, self, cmd);
     return $R_CONT(C_cont, B_None);
 }
-#line 245 "src/ssh.act"
+#line 266 "src/ssh.act"
 $R sshQ_ChannelD_request_shellG_local (sshQ_Channel self, $Cont C_cont, B_str N_default_term, B_int N_default_cols, B_int N_default_rows, B_int N_default_width_px, B_int N_default_height_px, B_bool N_default_with_pty) {
     B_str term = (($ISNONE0(N_default_term)) ? to$str("xterm-256color") : N_default_term);
     int64_t cols = (($ISNONE0(N_default_cols)) ? 80LL : ((B_int)N_default_cols)->val);
@@ -5377,44 +5377,44 @@ $R sshQ_ChannelD_request_shellG_local (sshQ_Channel self, $Cont C_cont, B_str N_
     int64_t width_px = (($ISNONE0(N_default_width_px)) ? 0LL : ((B_int)N_default_width_px)->val);
     int64_t height_px = (($ISNONE0(N_default_height_px)) ? 0LL : ((B_int)N_default_height_px)->val);
     B_bool with_pty = (($ISNONE0(N_default_with_pty)) ? B_True : N_default_with_pty);
-    #line 252 "src/ssh.act"
+    #line 273 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, B_str, int64_t, int64_t, int64_t, int64_t, B_bool))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_request_shell)(((sshQ_Channel)(self))->client, self, term, cols, rows, width_px, height_px, with_pty);
     return $R_CONT(C_cont, B_None);
 }
-#line 254 "src/ssh.act"
+#line 275 "src/ssh.act"
 $R sshQ_ChannelD_request_subsystemG_local (sshQ_Channel self, $Cont C_cont, B_str name) {
-    #line 256 "src/ssh.act"
+    #line 277 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, B_str))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_request_subsystem)(((sshQ_Channel)(self))->client, self, name);
     return $R_CONT(C_cont, B_None);
 }
-#line 258 "src/ssh.act"
+#line 279 "src/ssh.act"
 $R sshQ_ChannelD_writeG_local (sshQ_Channel self, $Cont C_cont, B_bytes data) {
-    #line 260 "src/ssh.act"
+    #line 281 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel, B_bytes))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_write)(((sshQ_Channel)(self))->client, self, data);
     return $R_CONT(C_cont, B_None);
 }
-#line 262 "src/ssh.act"
+#line 283 "src/ssh.act"
 $R sshQ_ChannelD_send_eofG_local (sshQ_Channel self, $Cont C_cont) {
-    #line 264 "src/ssh.act"
+    #line 285 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_send_eof)(((sshQ_Channel)(self))->client, self);
     return $R_CONT(C_cont, B_None);
 }
-#line 266 "src/ssh.act"
+#line 287 "src/ssh.act"
 $R sshQ_ChannelD_closeG_local (sshQ_Channel self, $Cont C_cont) {
-    #line 268 "src/ssh.act"
+    #line 289 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_Channel))((sshQ_Client)(((sshQ_Channel)(self))->client))->$class->channel_close)(((sshQ_Channel)(self))->client, self);
     return $R_CONT(C_cont, B_None);
 }
 $R sshQ_ChannelD__cleanup_nativeG_local (sshQ_Channel self, $Cont C_cont);
 /*
-#line 270 "src/ssh.act"
+#line 291 "src/ssh.act"
 $R sshQ_ChannelD__cleanup_nativeG_local (sshQ_Channel self, $Cont C_cont) {
-    #line 271 "src/ssh.act"
+    #line 292 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 273 "src/ssh.act"
+#line 294 "src/ssh.act"
 $R sshQ_ChannelD___cleanup__G_local (sshQ_Channel self, $Cont C_cont) {
     if (((uint64_t)((sshQ_Channel)(self))->_channel_id) != 0UL) {
         return (($R (*) ($WORD, $Cont))((sshQ_Channel)(self))->$class->_cleanup_nativeG_local)(self, (($Cont)sshQ_L_21ContG_new(C_cont)));
@@ -5505,27 +5505,27 @@ $R sshQ_RunCommandD___init__ (sshQ_RunCommand self, $Cont C_cont, sshQ_Client cl
     ((sshQ_RunCommand)(self))->cmd = cmd;
     ((sshQ_RunCommand)(self))->on_exit = on_exit;
     ((sshQ_RunCommand)(self))->timeout = (($ISNONE0(N_default_timeout)) ? B_None : N_default_timeout);
-    #line 290 "src/ssh.act"
+    #line 311 "src/ssh.act"
     ((sshQ_RunCommand)(self))->out_buf = to$bytesD_len("", 0);
-    #line 291 "src/ssh.act"
+    #line 312 "src/ssh.act"
     ((sshQ_RunCommand)(self))->err_buf = to$bytesD_len("", 0);
-    #line 292 "src/ssh.act"
+    #line 313 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_out_done = B_False;
-    #line 293 "src/ssh.act"
+    #line 314 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_err_done = B_False;
-    #line 294 "src/ssh.act"
+    #line 315 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exited = B_False;
-    #line 295 "src/ssh.act"
+    #line 316 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exit_code = 0LL;
-    #line 296 "src/ssh.act"
+    #line 317 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_exit_signal = B_None;
-    #line 297 "src/ssh.act"
+    #line 318 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_error = B_None;
-    #line 298 "src/ssh.act"
+    #line 319 "src/ssh.act"
     ((sshQ_RunCommand)(self))->_done = B_False;
     return sshQ_ChannelG_newact((($Cont)sshQ_L_39ContG_new(self, C_cont)), client, (($action)sshQ_L_41actionG_new(self)), (($action)sshQ_L_43actionG_new(self)), (($action)sshQ_L_45actionG_new(self)), (($action)sshQ_L_47actionG_new(self)), (($action)sshQ_L_49actionG_new(self)));
 }
-#line 300 "src/ssh.act"
+#line 321 "src/ssh.act"
 $R sshQ_RunCommandD__finishG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -5534,7 +5534,7 @@ $R sshQ_RunCommandD__finishG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Cha
         return $R_CONT((($Cont)sshQ_L_51ContG_new(self, ch, C_cont)), B_None);
     }
 }
-#line 306 "src/ssh.act"
+#line 327 "src/ssh.act"
 $R sshQ_RunCommandD__on_openG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch, B_str err) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -5543,7 +5543,7 @@ $R sshQ_RunCommandD__on_openG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Ch
         return $R_CONT((($Cont)sshQ_L_57ContG_new(ch, self, C_cont, err)), B_None);
     }
 }
-#line 315 "src/ssh.act"
+#line 336 "src/ssh.act"
 $R sshQ_RunCommandD__on_stdoutG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch, B_bytes data) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -5552,7 +5552,7 @@ $R sshQ_RunCommandD__on_stdoutG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_
         return $R_CONT((($Cont)sshQ_L_62ContG_new(C_cont, data, self, ch)), B_None);
     }
 }
-#line 324 "src/ssh.act"
+#line 345 "src/ssh.act"
 $R sshQ_RunCommandD__on_stderrG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch, B_bytes data) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -5561,7 +5561,7 @@ $R sshQ_RunCommandD__on_stderrG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_
         return $R_CONT((($Cont)sshQ_L_67ContG_new(C_cont, data, self, ch)), B_None);
     }
 }
-#line 333 "src/ssh.act"
+#line 354 "src/ssh.act"
 $R sshQ_RunCommandD__on_exitG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch, int64_t code, B_str sig) {
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
         return $R_CONT(C_cont, B_None);
@@ -5570,7 +5570,7 @@ $R sshQ_RunCommandD__on_exitG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Ch
         return $R_CONT((($Cont)sshQ_L_71ContG_new(self, code, sig, C_cont, ch)), B_None);
     }
 }
-#line 341 "src/ssh.act"
+#line 362 "src/ssh.act"
 $R sshQ_RunCommandD__on_closeG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch, B_str reason) {
     B_Eq W_HostKeyInfo_980 = (B_Eq)B_OrdD_strG_witness;
     if (((B_bool)((sshQ_RunCommand)(self))->_done)->val) {
@@ -5580,7 +5580,7 @@ $R sshQ_RunCommandD__on_closeG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_C
         return $R_CONT((($Cont)sshQ_L_75ContG_new(self, W_HostKeyInfo_980, reason, C_cont, ch)), B_None);
     }
 }
-#line 348 "src/ssh.act"
+#line 369 "src/ssh.act"
 $R sshQ_RunCommandD__check_doneG_local (sshQ_RunCommand self, $Cont C_cont, sshQ_Channel ch) {
     if (((B_bool)$AND(B_bool, $AND(B_bool, $AND(B_bool, ((sshQ_RunCommand)(self))->_out_done, ((sshQ_RunCommand)(self))->_err_done), ((sshQ_RunCommand)(self))->_exited), toB_bool($ISNONE0(((sshQ_RunCommand)(self))->_error))))->val) {
         return (($R (*) ($WORD, $Cont, sshQ_Channel))((sshQ_RunCommand)(self))->$class->_finishG_local)(self, (($Cont)sshQ_L_77ContG_new(C_cont)), ch);
@@ -5698,81 +5698,81 @@ $R sshQ_ServerD___init__ (sshQ_Server self, $Cont C_cont, netQ_TCPListenCap cap,
     ((sshQ_Server)(self))->max_sessions = (($ISNONE0(((sshQ_Server)(self))->N_default_max_sessions)) ? 128LL : ((B_int)((sshQ_Server)(self))->N_default_max_sessions)->val);
     ((sshQ_Server)(self))->max_channels_per_session = (($ISNONE0(((sshQ_Server)(self))->N_default_max_channels_per_session)) ? 32LL : ((B_int)((sshQ_Server)(self))->N_default_max_channels_per_session)->val);
     ((sshQ_Server)(self))->max_write_buffer = (($ISNONE0(((sshQ_Server)(self))->N_default_max_write_buffer)) ? 8388608LL : ((B_int)((sshQ_Server)(self))->N_default_max_write_buffer)->val);
-    #line 398 "src/ssh.act"
+    #line 419 "src/ssh.act"
     ((sshQ_Server)(self))->_server = 0UL;
-    #line 399 "src/ssh.act"
+    #line 420 "src/ssh.act"
     ((sshQ_Server)(self))->_bound_port = 0;
-    #line 400 "src/ssh.act"
+    #line 421 "src/ssh.act"
     ((sshQ_Server)(self))->_host = ((sshQ_Server)(self))->host;
-    #line 401 "src/ssh.act"
+    #line 422 "src/ssh.act"
     ((sshQ_Server)(self))->_port = ((uint16_t)((sshQ_Server)(self))->port);
-    #line 402 "src/ssh.act"
+    #line 423 "src/ssh.act"
     ((sshQ_Server)(self))->_host_key_path = ((sshQ_Server)(self))->host_key_path;
-    #line 403 "src/ssh.act"
+    #line 424 "src/ssh.act"
     ((sshQ_Server)(self))->_host_key_type = ((sshQ_Server)(self))->host_key_type;
-    #line 404 "src/ssh.act"
+    #line 425 "src/ssh.act"
     ((sshQ_Server)(self))->_host_key_bits = ((int64_t)((sshQ_Server)(self))->host_key_bits);
-    #line 405 "src/ssh.act"
+    #line 426 "src/ssh.act"
     ((sshQ_Server)(self))->_auth_timeout = ((double)((sshQ_Server)(self))->auth_timeout);
-    #line 406 "src/ssh.act"
+    #line 427 "src/ssh.act"
     ((sshQ_Server)(self))->_keepalive_interval = ((double)((sshQ_Server)(self))->keepalive_interval);
-    #line 407 "src/ssh.act"
+    #line 428 "src/ssh.act"
     ((sshQ_Server)(self))->_keepalive_enabled = ((sshQ_Server)(self))->keepalive_enabled;
-    #line 408 "src/ssh.act"
+    #line 429 "src/ssh.act"
     ((sshQ_Server)(self))->_close_timeout = ((double)((sshQ_Server)(self))->close_timeout);
-    #line 409 "src/ssh.act"
+    #line 430 "src/ssh.act"
     ((sshQ_Server)(self))->_max_sessions = ((int64_t)((sshQ_Server)(self))->max_sessions);
-    #line 410 "src/ssh.act"
+    #line 431 "src/ssh.act"
     ((sshQ_Server)(self))->_max_channels_per_session = ((int64_t)((sshQ_Server)(self))->max_channels_per_session);
-    #line 411 "src/ssh.act"
+    #line 432 "src/ssh.act"
     ((sshQ_Server)(self))->_max_write_buffer = ((int64_t)((sshQ_Server)(self))->max_write_buffer);
-    #line 412 "src/ssh.act"
+    #line 433 "src/ssh.act"
     ((sshQ_Server)(self))->_on_listen = ((sshQ_Server)(self))->on_listen;
-    #line 413 "src/ssh.act"
+    #line 434 "src/ssh.act"
     ((sshQ_Server)(self))->_on_close = ((sshQ_Server)(self))->on_close;
     return (($R (*) ($WORD, $Cont))((sshQ_Server)(self))->$class->_pin_affinityG_local)(self, (($Cont)sshQ_L_87ContG_new(self, C_cont)));
 }
 $R sshQ_ServerD__pin_affinityG_local (sshQ_Server self, $Cont C_cont);
 /*
-#line 415 "src/ssh.act"
+#line 436 "src/ssh.act"
 $R sshQ_ServerD__pin_affinityG_local (sshQ_Server self, $Cont C_cont) {
-    #line 416 "src/ssh.act"
+    #line 437 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerD__initG_local (sshQ_Server self, $Cont C_cont);
 /*
-#line 419 "src/ssh.act"
+#line 440 "src/ssh.act"
 $R sshQ_ServerD__initG_local (sshQ_Server self, $Cont C_cont) {
-    #line 421 "src/ssh.act"
+    #line 442 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerD_closeG_local (sshQ_Server self, $Cont C_cont);
 /*
-#line 424 "src/ssh.act"
+#line 445 "src/ssh.act"
 $R sshQ_ServerD_closeG_local (sshQ_Server self, $Cont C_cont) {
-    #line 426 "src/ssh.act"
+    #line 447 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 428 "src/ssh.act"
+#line 449 "src/ssh.act"
 $R sshQ_ServerD_bound_portG_local (sshQ_Server self, $Cont C_cont) {
     return $R_CONT(C_cont, toB_u16(((uint16_t)((sshQ_Server)(self))->_bound_port)));
 }
 $R sshQ_ServerD__cleanup_nativeG_local (sshQ_Server self, $Cont C_cont);
 /*
-#line 432 "src/ssh.act"
+#line 453 "src/ssh.act"
 $R sshQ_ServerD__cleanup_nativeG_local (sshQ_Server self, $Cont C_cont) {
-    #line 433 "src/ssh.act"
+    #line 454 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 435 "src/ssh.act"
+#line 456 "src/ssh.act"
 $R sshQ_ServerD___cleanup__G_local (sshQ_Server self, $Cont C_cont) {
     if (((uint64_t)((sshQ_Server)(self))->_server) != 0UL) {
         return (($R (*) ($WORD, $Cont))((sshQ_Server)(self))->$class->_cleanup_nativeG_local)(self, (($Cont)sshQ_L_89ContG_new(C_cont)));
@@ -5781,13 +5781,13 @@ $R sshQ_ServerD___cleanup__G_local (sshQ_Server self, $Cont C_cont) {
         return $R_CONT((($Cont)sshQ_L_90ContG_new(C_cont)), B_None);
     }
 }
-#line 439 "src/ssh.act"
+#line 460 "src/ssh.act"
 $R sshQ_ServerD_on_session_pendingG_local (sshQ_Server self, $Cont C_cont, uint64_t session_id) {
     return sshQ_ServerSessionG_newact((($Cont)sshQ_L_92ContG_new(C_cont)), self, session_id, ((sshQ_Server)(self))->on_auth, ((sshQ_Server)(self))->on_channel_open, ((sshQ_Server)(self))->on_exec, ((sshQ_Server)(self))->on_subsystem, ((sshQ_Server)(self))->on_session_close);
 }
-#line 448 "src/ssh.act"
+#line 469 "src/ssh.act"
 $R sshQ_ServerD_on_session_readyG_local (sshQ_Server self, $Cont C_cont, sshQ_ServerSession session) {
-    #line 449 "src/ssh.act"
+    #line 470 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerSession))(($action)(((sshQ_Server)(self))->on_session))->$class->__asyn__)(((sshQ_Server)(self))->on_session, session);
     return $R_CONT(C_cont, B_None);
 }
@@ -5970,112 +5970,112 @@ $R sshQ_ServerSessionD___init__ (sshQ_ServerSession self, $Cont C_cont, sshQ_Ser
     ((sshQ_ServerSession)(self))->on_exec = (($ISNONE0(((sshQ_ServerSession)(self))->N_default_on_exec)) ? B_None : ((sshQ_ServerSession)(self))->N_default_on_exec);
     ((sshQ_ServerSession)(self))->on_subsystem = (($ISNONE0(((sshQ_ServerSession)(self))->N_default_on_subsystem)) ? B_None : ((sshQ_ServerSession)(self))->N_default_on_subsystem);
     ((sshQ_ServerSession)(self))->on_close = (($ISNONE0(((sshQ_ServerSession)(self))->N_default_on_close)) ? B_None : ((sshQ_ServerSession)(self))->N_default_on_close);
-    #line 466 "src/ssh.act"
+    #line 487 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_session_id = 0UL;
-    #line 467 "src/ssh.act"
+    #line 488 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_on_auth = ((sshQ_ServerSession)(self))->on_auth;
-    #line 468 "src/ssh.act"
+    #line 489 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_on_channel_open = ((sshQ_ServerSession)(self))->on_channel_open;
-    #line 469 "src/ssh.act"
+    #line 490 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_on_exec = ((sshQ_ServerSession)(self))->on_exec;
-    #line 470 "src/ssh.act"
+    #line 491 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_on_subsystem = ((sshQ_ServerSession)(self))->on_subsystem;
-    #line 471 "src/ssh.act"
+    #line 492 "src/ssh.act"
     ((sshQ_ServerSession)(self))->_on_close = ((sshQ_ServerSession)(self))->on_close;
     return (($R (*) ($WORD, $Cont))((sshQ_ServerSession)(self))->$class->_pin_affinityG_local)(self, (($Cont)sshQ_L_103ContG_new(self, C_cont)));
 }
 $R sshQ_ServerSessionD__pin_affinityG_local (sshQ_ServerSession self, $Cont C_cont);
 /*
-#line 473 "src/ssh.act"
+#line 494 "src/ssh.act"
 $R sshQ_ServerSessionD__pin_affinityG_local (sshQ_ServerSession self, $Cont C_cont) {
-    #line 474 "src/ssh.act"
+    #line 495 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD__attachG_local (sshQ_ServerSession self, $Cont C_cont, uint64_t session_id);
 /*
-#line 477 "src/ssh.act"
+#line 498 "src/ssh.act"
 $R sshQ_ServerSessionD__attachG_local (sshQ_ServerSession self, $Cont C_cont, uint64_t session_id) {
-    #line 478 "src/ssh.act"
+    #line 499 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD__drive_attachedG_local (sshQ_ServerSession self, $Cont C_cont);
 /*
-#line 480 "src/ssh.act"
+#line 501 "src/ssh.act"
 $R sshQ_ServerSessionD__drive_attachedG_local (sshQ_ServerSession self, $Cont C_cont) {
-    #line 481 "src/ssh.act"
+    #line 502 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 483 "src/ssh.act"
+#line 504 "src/ssh.act"
 $R sshQ_ServerSessionD__attach_readyG_local (sshQ_ServerSession self, $Cont C_cont) {
     return (($R (*) ($WORD, $Cont, uint64_t))((sshQ_ServerSession)(self))->$class->_attachG_local)(self, (($Cont)sshQ_L_108ContG_new(C_cont, self)), ((uint64_t)((sshQ_ServerSession)(self))->session_id));
 }
 $R sshQ_ServerSessionD_accept_authG_local (sshQ_ServerSession self, $Cont C_cont);
 /*
-#line 491 "src/ssh.act"
+#line 512 "src/ssh.act"
 $R sshQ_ServerSessionD_accept_authG_local (sshQ_ServerSession self, $Cont C_cont) {
-    #line 493 "src/ssh.act"
+    #line 514 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_reject_authG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason);
 /*
-#line 495 "src/ssh.act"
+#line 516 "src/ssh.act"
 $R sshQ_ServerSessionD_reject_authG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason) {
-    #line 497 "src/ssh.act"
-    // NotImplemented
-    return $R_CONT(C_cont, B_None);
-}
-*/
-#line 499 "src/ssh.act"
-$R sshQ_ServerSessionD_accept_channelG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel) {
-    #line 501 "src/ssh.act"
-    ((B_Msg (*) ($WORD))((sshQ_ServerChannel)(channel))->$class->accept_open)(channel);
-    return $R_CONT(C_cont, B_None);
-}
-$R sshQ_ServerSessionD_accept_channel_openG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, $action on_data, $action on_stderr, $action on_close);
-/*
-#line 503 "src/ssh.act"
-$R sshQ_ServerSessionD_accept_channel_openG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, $action on_data, $action on_stderr, $action on_close) {
-    #line 507 "src/ssh.act"
-    // NotImplemented
-    return $R_CONT(C_cont, B_None);
-}
-*/
-$R sshQ_ServerSessionD_reject_channelG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason);
-/*
-#line 509 "src/ssh.act"
-$R sshQ_ServerSessionD_reject_channelG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason) {
-    #line 511 "src/ssh.act"
-    // NotImplemented
-    return $R_CONT(C_cont, B_None);
-}
-*/
-$R sshQ_ServerSessionD_closeG_local (sshQ_ServerSession self, $Cont C_cont);
-/*
-#line 513 "src/ssh.act"
-$R sshQ_ServerSessionD_closeG_local (sshQ_ServerSession self, $Cont C_cont) {
-    #line 515 "src/ssh.act"
-    // NotImplemented
-    return $R_CONT(C_cont, B_None);
-}
-*/
-$R sshQ_ServerSessionD__cleanup_nativeG_local (sshQ_ServerSession self, $Cont C_cont);
-/*
-#line 517 "src/ssh.act"
-$R sshQ_ServerSessionD__cleanup_nativeG_local (sshQ_ServerSession self, $Cont C_cont) {
     #line 518 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 #line 520 "src/ssh.act"
+$R sshQ_ServerSessionD_accept_channelG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel) {
+    #line 522 "src/ssh.act"
+    ((B_Msg (*) ($WORD))((sshQ_ServerChannel)(channel))->$class->accept_open)(channel);
+    return $R_CONT(C_cont, B_None);
+}
+$R sshQ_ServerSessionD_accept_channel_openG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, $action on_data, $action on_stderr, $action on_close);
+/*
+#line 524 "src/ssh.act"
+$R sshQ_ServerSessionD_accept_channel_openG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, $action on_data, $action on_stderr, $action on_close) {
+    #line 528 "src/ssh.act"
+    // NotImplemented
+    return $R_CONT(C_cont, B_None);
+}
+*/
+$R sshQ_ServerSessionD_reject_channelG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason);
+/*
+#line 530 "src/ssh.act"
+$R sshQ_ServerSessionD_reject_channelG_local (sshQ_ServerSession self, $Cont C_cont, B_str reason) {
+    #line 532 "src/ssh.act"
+    // NotImplemented
+    return $R_CONT(C_cont, B_None);
+}
+*/
+$R sshQ_ServerSessionD_closeG_local (sshQ_ServerSession self, $Cont C_cont);
+/*
+#line 534 "src/ssh.act"
+$R sshQ_ServerSessionD_closeG_local (sshQ_ServerSession self, $Cont C_cont) {
+    #line 536 "src/ssh.act"
+    // NotImplemented
+    return $R_CONT(C_cont, B_None);
+}
+*/
+$R sshQ_ServerSessionD__cleanup_nativeG_local (sshQ_ServerSession self, $Cont C_cont);
+/*
+#line 538 "src/ssh.act"
+$R sshQ_ServerSessionD__cleanup_nativeG_local (sshQ_ServerSession self, $Cont C_cont) {
+    #line 539 "src/ssh.act"
+    // NotImplemented
+    return $R_CONT(C_cont, B_None);
+}
+*/
+#line 541 "src/ssh.act"
 $R sshQ_ServerSessionD___cleanup__G_local (sshQ_ServerSession self, $Cont C_cont) {
     if (((uint64_t)((sshQ_ServerSession)(self))->_session_id) != 0UL) {
         return (($R (*) ($WORD, $Cont))((sshQ_ServerSession)(self))->$class->_cleanup_nativeG_local)(self, (($Cont)sshQ_L_110ContG_new(C_cont)));
@@ -6086,63 +6086,63 @@ $R sshQ_ServerSessionD___cleanup__G_local (sshQ_ServerSession self, $Cont C_cont
 }
 $R sshQ_ServerSessionD_channel_accept_requestG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel);
 /*
-#line 525 "src/ssh.act"
+#line 546 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_accept_requestG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel) {
-    #line 526 "src/ssh.act"
+    #line 547 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_reject_requestG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_str reason);
 /*
-#line 528 "src/ssh.act"
+#line 549 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_reject_requestG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_str reason) {
-    #line 529 "src/ssh.act"
+    #line 550 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_writeG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_bytes data);
 /*
-#line 531 "src/ssh.act"
+#line 552 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_writeG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_bytes data) {
-    #line 532 "src/ssh.act"
+    #line 553 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_write_stderrG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_bytes data);
 /*
-#line 534 "src/ssh.act"
+#line 555 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_write_stderrG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, B_bytes data) {
-    #line 535 "src/ssh.act"
+    #line 556 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_send_eofG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel);
 /*
-#line 537 "src/ssh.act"
+#line 558 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_send_eofG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel) {
-    #line 538 "src/ssh.act"
+    #line 559 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_send_exit_statusG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, int64_t status);
 /*
-#line 540 "src/ssh.act"
+#line 561 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_send_exit_statusG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel, int64_t status) {
-    #line 541 "src/ssh.act"
+    #line 562 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
 $R sshQ_ServerSessionD_channel_closeG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel);
 /*
-#line 543 "src/ssh.act"
+#line 564 "src/ssh.act"
 $R sshQ_ServerSessionD_channel_closeG_local (sshQ_ServerSession self, $Cont C_cont, sshQ_ServerChannel channel) {
-    #line 544 "src/ssh.act"
+    #line 565 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
@@ -6269,74 +6269,74 @@ $R sshQ_ServerChannelD___init__ (sshQ_ServerChannel self, $Cont C_cont, sshQ_Ser
     ((sshQ_ServerChannel)(self))->on_data = on_data;
     ((sshQ_ServerChannel)(self))->on_stderr = on_stderr;
     ((sshQ_ServerChannel)(self))->on_close = on_close;
-    #line 558 "src/ssh.act"
+    #line 579 "src/ssh.act"
     ((sshQ_ServerChannel)(self))->_channel_id = 0UL;
-    #line 559 "src/ssh.act"
+    #line 580 "src/ssh.act"
     ((sshQ_ServerChannel)(self))->_on_data = ((sshQ_ServerChannel)(self))->on_data;
-    #line 560 "src/ssh.act"
+    #line 581 "src/ssh.act"
     ((sshQ_ServerChannel)(self))->_on_stderr = ((sshQ_ServerChannel)(self))->on_stderr;
-    #line 561 "src/ssh.act"
+    #line 582 "src/ssh.act"
     ((sshQ_ServerChannel)(self))->_on_close = ((sshQ_ServerChannel)(self))->on_close;
     return $R_CONT(C_cont, B_None);
 }
-#line 563 "src/ssh.act"
+#line 584 "src/ssh.act"
 $R sshQ_ServerChannelD_accept_requestG_local (sshQ_ServerChannel self, $Cont C_cont) {
-    #line 565 "src/ssh.act"
+    #line 586 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_accept_request)(((sshQ_ServerChannel)(self))->session, self);
     return $R_CONT(C_cont, B_None);
 }
-#line 567 "src/ssh.act"
+#line 588 "src/ssh.act"
 $R sshQ_ServerChannelD_accept_openG_local (sshQ_ServerChannel self, $Cont C_cont) {
-    #line 569 "src/ssh.act"
+    #line 590 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel, $action, $action, $action))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->accept_channel_open)(((sshQ_ServerChannel)(self))->session, self, ((sshQ_ServerChannel)(self))->_on_data, ((sshQ_ServerChannel)(self))->_on_stderr, ((sshQ_ServerChannel)(self))->_on_close);
     return $R_CONT(C_cont, B_None);
 }
-#line 571 "src/ssh.act"
+#line 592 "src/ssh.act"
 $R sshQ_ServerChannelD_reject_requestG_local (sshQ_ServerChannel self, $Cont C_cont, B_str reason) {
-    #line 573 "src/ssh.act"
+    #line 594 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel, B_str))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_reject_request)(((sshQ_ServerChannel)(self))->session, self, reason);
     return $R_CONT(C_cont, B_None);
 }
-#line 575 "src/ssh.act"
+#line 596 "src/ssh.act"
 $R sshQ_ServerChannelD_writeG_local (sshQ_ServerChannel self, $Cont C_cont, B_bytes data) {
-    #line 577 "src/ssh.act"
+    #line 598 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel, B_bytes))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_write)(((sshQ_ServerChannel)(self))->session, self, data);
     return $R_CONT(C_cont, B_None);
 }
-#line 579 "src/ssh.act"
+#line 600 "src/ssh.act"
 $R sshQ_ServerChannelD_write_stderrG_local (sshQ_ServerChannel self, $Cont C_cont, B_bytes data) {
-    #line 581 "src/ssh.act"
+    #line 602 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel, B_bytes))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_write_stderr)(((sshQ_ServerChannel)(self))->session, self, data);
     return $R_CONT(C_cont, B_None);
 }
-#line 583 "src/ssh.act"
+#line 604 "src/ssh.act"
 $R sshQ_ServerChannelD_send_eofG_local (sshQ_ServerChannel self, $Cont C_cont) {
-    #line 585 "src/ssh.act"
+    #line 606 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_send_eof)(((sshQ_ServerChannel)(self))->session, self);
     return $R_CONT(C_cont, B_None);
 }
-#line 587 "src/ssh.act"
+#line 608 "src/ssh.act"
 $R sshQ_ServerChannelD_send_exit_statusG_local (sshQ_ServerChannel self, $Cont C_cont, int64_t status) {
-    #line 589 "src/ssh.act"
+    #line 610 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel, int64_t))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_send_exit_status)(((sshQ_ServerChannel)(self))->session, self, status);
     return $R_CONT(C_cont, B_None);
 }
-#line 591 "src/ssh.act"
+#line 612 "src/ssh.act"
 $R sshQ_ServerChannelD_closeG_local (sshQ_ServerChannel self, $Cont C_cont) {
-    #line 593 "src/ssh.act"
+    #line 614 "src/ssh.act"
     ((B_Msg (*) ($WORD, sshQ_ServerChannel))((sshQ_ServerSession)(((sshQ_ServerChannel)(self))->session))->$class->channel_close)(((sshQ_ServerChannel)(self))->session, self);
     return $R_CONT(C_cont, B_None);
 }
 $R sshQ_ServerChannelD__cleanup_nativeG_local (sshQ_ServerChannel self, $Cont C_cont);
 /*
-#line 595 "src/ssh.act"
+#line 616 "src/ssh.act"
 $R sshQ_ServerChannelD__cleanup_nativeG_local (sshQ_ServerChannel self, $Cont C_cont) {
-    #line 596 "src/ssh.act"
+    #line 617 "src/ssh.act"
     // NotImplemented
     return $R_CONT(C_cont, B_None);
 }
 */
-#line 598 "src/ssh.act"
+#line 619 "src/ssh.act"
 $R sshQ_ServerChannelD___cleanup__G_local (sshQ_ServerChannel self, $Cont C_cont) {
     if (((uint64_t)((sshQ_ServerChannel)(self))->_channel_id) != 0UL) {
         return (($R (*) ($WORD, $Cont))((sshQ_ServerChannel)(self))->$class->_cleanup_nativeG_local)(self, (($Cont)sshQ_L_132ContG_new(C_cont)));

@@ -22,9 +22,17 @@ Usage sketch (client):
       else: c.reject_hostkey("...")
 
 Usage sketch (server):
-  def on_auth(sess, req): sess.accept_auth()
+  def on_auth(sess, req):
+      # req.method is "password" or "publickey"; see AuthRequest.
+      if authorized(req): sess.accept_auth()
+      else: sess.reject_auth("denied")
   def on_channel_open(sess): sess.accept_channel(ServerChannel(...))
   def on_subsystem(sess, ch, name): ch.accept_request(); ch.write(...)
+
+Server authentication:
+  - Both password and publickey methods are advertised to clients. For
+    publickey, libssh verifies the client's signature before on_auth fires,
+    so the handler only decides authorization of the (user, key) pair.
 
 Authentication (client):
   - If private_key_file is set, public key authentication is attempted first.
@@ -90,7 +98,20 @@ class HostKeyInfo():
 
 
 class AuthRequest():
-    """Authentication request details"""
+    """Authentication request details delivered to a server's on_auth handler.
+
+    method is "password" or "publickey".
+
+    For "password", password holds the supplied password and pubkey is None.
+
+    For "publickey", pubkey holds the client's public key as an OpenSSH
+    authorized_keys line ("<type> <base64>", e.g. b"ssh-ed25519 AAAA...")
+    and password is None. on_auth is only invoked for publickey once libssh
+    has cryptographically verified the client's signature for that key, so the
+    handler's sole job is to decide whether the (user, pubkey) pair is
+    authorized — typically by comparing pubkey against an authorized_keys set.
+    Respond with session.accept_auth() or session.reject_auth(reason).
+    """
     method: str
     user: str
     password: ?str

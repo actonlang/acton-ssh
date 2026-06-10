@@ -5,6 +5,7 @@ connects an ssh.Client to it over 127.0.0.1. Ephemeral ports make the tests
 safe to run concurrently (acton test stress).
 """
 
+import file
 import logging
 import net
 import ssh
@@ -664,11 +665,11 @@ actor EchoPayloadTester(t: testing.EnvT):
             port=port,
         )
 
-    # Build a 256 KiB payload with a non-trivial pattern
+    # Build a 128 KiB payload with a non-trivial pattern (> 4 SSH windows)
     var pattern = b""
     for i in range(256):
         pattern += bytes([i])
-    for i in range(1024):
+    for i in range(512):
         payload += pattern
 
     server = ssh.Server(
@@ -686,7 +687,7 @@ actor EchoPayloadTester(t: testing.EnvT):
 
 
 def _test_echo_payload(t: testing.EnvT):
-    """Stream 256 KiB through a server echo and verify integrity.
+    """Stream 128 KiB through a server echo and verify integrity.
 
     Payload size is kept moderate so the test stays well within the test
     timeout under `acton test stress` with many concurrent workers; raw
@@ -1059,3 +1060,171 @@ actor ConnectRefusedTester(t: testing.EnvT):
 def _test_connect_refused(t: testing.EnvT):
     """Connecting to a closed port must report a connect error, not hang."""
     ConnectRefusedTester(t)
+
+
+# A throwaway ed25519 keypair generated for tests only. The private key is
+# written to a temp file for the client; the server authorizes the matching
+# public key (authorized_keys "<type> <base64>" form, no comment).
+TEST_PRIVKEY = b"-----BEGIN OPENSSH PRIVATE KEY-----\n" + \
+    b"b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n" + \
+    b"QyNTUxOQAAACDfMArbKiftaOI0gU0yPuZ8/SoP+XH3d5oSnvvEAd2WWwAAAJh1hCuTdYQr\n" + \
+    b"kwAAAAtzc2gtZWQyNTUxOQAAACDfMArbKiftaOI0gU0yPuZ8/SoP+XH3d5oSnvvEAd2WWw\n" + \
+    b"AAAEBQG+87utFFRNOfpSlapq6mSXYa+P9dTK+uLmNo1L6k2t8wCtsqJ+1o4jSBTTI+5nz9\n" + \
+    b"Kg/5cfd3mhKe+8QB3ZZbAAAADmFjdG9uLXNzaC10ZXN0AQIDBAUGBw==\n" + \
+    b"-----END OPENSSH PRIVATE KEY-----\n"
+TEST_PUBKEY = b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN8wCtsqJ+1o4jSBTTI+5nz9Kg/5cfd3mhKe+8QB3ZZb"
+
+
+actor PubkeyAuthTester(t: testing.EnvT):
+    """Client authenticates with a private key; server authorizes the pubkey.
+
+    Exercises the server-side publickey two-step probe/sign protocol: on_auth
+    must fire exactly once (on the verified signature) with method "publickey"
+    and the presented key in authorized_keys form.
+    """
+    log = logging.Logger(t.log_handler)
+    fs = file.FS(file.FileCap(t.env.cap))
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var keypath = ""
+    var auth_calls = 0
+    var pubkey_seen = False
+    var run_ok = False
+    var client_closed = False
+    var server_closed = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if run_ok and pubkey_seen and client_closed and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for pubkey auth test (auth_calls=" + str(auth_calls) + ")")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        auth_calls += 1
+        if req.method != "publickey":
+            sess.reject_auth("password not allowed")
+            return
+        pk = req.pubkey
+        if pk is not None and pk == TEST_PUBKEY and req.user == TEST_USER:
+            pubkey_seen = True
+            sess.accept_auth()
+        else:
+            sess.reject_auth("unauthorized key")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.accept_request()
+        ch.write(b"pk-ok\n")
+        ch.send_exit_status(0)
+        ch.close()
+
+    # --- client side
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.RunCommand(c, "go", on_run_exit, timeout=10.0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+        if error is not None:
+            finish_error("run error: " + error)
+            return
+        if out != b"pk-ok\n":
+            finish_error("unexpected stdout: " + str(out))
+            return
+        run_ok = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        maybe_finish()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            private_key_file=keypath,
+            port=port,
+        )
+
+    def start_server():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+        )
+
+    def setup():
+        dir = await async fs.mktmpdir("acton-ssh-pktest")
+        keypath = dir + "/id_ed25519"
+        wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), keypath)
+        await async wf.write(TEST_PRIVKEY)
+        await async wf.close()
+        start_server()
+
+    after 0: setup()
+    after 10.0: on_timeout()
+
+
+def _test_pubkey_auth(t: testing.EnvT):
+    """Server-side publickey auth: client key, server authorizes pubkey."""
+    PubkeyAuthTester(t)

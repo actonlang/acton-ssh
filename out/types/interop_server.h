@@ -1,55 +1,53 @@
-/* Acton impl hash: 383db345f926f8ef0374d2c667f310b3f69b16d41d41b2242791a1fb5c90e842 */
+/* Acton impl hash: a28049b4d1563e8111e2797a60905ee834418d282872971b9d2971d36bfe4c22 */
 #pragma once
 #include "builtin/builtin.h"
 #include "rts/rts.h"
 #include "out/types/net.h"
 #include "out/types/ssh.h"
-struct interop_serverQ_L_2Cont;
-struct interop_serverQ_L_4action;
-struct interop_serverQ_L_6action;
-struct interop_serverQ_L_8action;
-struct interop_serverQ_L_10action;
-struct interop_serverQ_L_12action;
-struct interop_serverQ_L_14action;
-struct interop_serverQ_L_16action;
-struct interop_serverQ_L_18action;
-struct interop_serverQ_L_22Cont;
-struct interop_serverQ_L_25Cont;
-struct interop_serverQ_L_26Cont;
+struct interop_serverQ_L_3Cont;
+struct interop_serverQ_L_5action;
+struct interop_serverQ_L_7action;
+struct interop_serverQ_L_9action;
+struct interop_serverQ_L_11action;
+struct interop_serverQ_L_13action;
+struct interop_serverQ_L_15action;
+struct interop_serverQ_L_17action;
+struct interop_serverQ_L_19action;
+struct interop_serverQ_L_20Cont;
+struct interop_serverQ_L_24Cont;
 struct interop_serverQ_L_27Cont;
 struct interop_serverQ_L_28Cont;
 struct interop_serverQ_L_29Cont;
 struct interop_serverQ_L_30Cont;
-struct interop_serverQ_L_34Cont;
-struct interop_serverQ_L_37Cont;
-struct interop_serverQ_L_38Cont;
+struct interop_serverQ_L_31Cont;
+struct interop_serverQ_L_32Cont;
+struct interop_serverQ_L_36Cont;
 struct interop_serverQ_L_39Cont;
 struct interop_serverQ_L_40Cont;
 struct interop_serverQ_L_41Cont;
 struct interop_serverQ_L_42Cont;
-struct interop_serverQ_L_45Cont;
-struct interop_serverQ_L_46Cont;
+struct interop_serverQ_L_43Cont;
+struct interop_serverQ_L_44Cont;
+struct interop_serverQ_L_47Cont;
+struct interop_serverQ_L_48Cont;
 struct interop_serverQ_L_50Cont;
-struct interop_serverQ_L_53Cont;
 struct interop_serverQ_L_54Cont;
-struct interop_serverQ_L_55Cont;
-struct interop_serverQ_L_56Cont;
 struct interop_serverQ_L_57Cont;
 struct interop_serverQ_L_58Cont;
+struct interop_serverQ_L_59Cont;
 struct interop_serverQ_L_60Cont;
-struct interop_serverQ_L_62action;
-struct interop_serverQ_L_64action;
+struct interop_serverQ_L_61Cont;
+struct interop_serverQ_L_62Cont;
+struct interop_serverQ_L_64Cont;
 struct interop_serverQ_L_66action;
-struct interop_serverQ_L_68Cont;
+struct interop_serverQ_L_68action;
+struct interop_serverQ_L_70action;
 struct interop_serverQ_L_72Cont;
-struct interop_serverQ_L_73Cont;
-struct interop_serverQ_L_74Cont;
-struct interop_serverQ_L_75Cont;
 struct interop_serverQ_L_76Cont;
-struct interop_serverQ_L_77proc;
-struct interop_serverQ_L_78proc;
-struct interop_serverQ_L_79proc;
-struct interop_serverQ_L_80proc;
+struct interop_serverQ_L_77Cont;
+struct interop_serverQ_L_78Cont;
+struct interop_serverQ_L_79Cont;
+struct interop_serverQ_L_80Cont;
 struct interop_serverQ_L_81proc;
 struct interop_serverQ_L_82proc;
 struct interop_serverQ_L_83proc;
@@ -62,55 +60,57 @@ struct interop_serverQ_L_89proc;
 struct interop_serverQ_L_90proc;
 struct interop_serverQ_L_91proc;
 struct interop_serverQ_L_92proc;
-struct interop_serverQ_L_94Cont;
+struct interop_serverQ_L_93proc;
+struct interop_serverQ_L_94proc;
 struct interop_serverQ_L_95proc;
+struct interop_serverQ_L_96proc;
+struct interop_serverQ_L_98Cont;
+struct interop_serverQ_L_99proc;
 struct interop_serverQ_main;
-typedef struct interop_serverQ_L_2Cont *interop_serverQ_L_2Cont;
-typedef struct interop_serverQ_L_4action *interop_serverQ_L_4action;
-typedef struct interop_serverQ_L_6action *interop_serverQ_L_6action;
-typedef struct interop_serverQ_L_8action *interop_serverQ_L_8action;
-typedef struct interop_serverQ_L_10action *interop_serverQ_L_10action;
-typedef struct interop_serverQ_L_12action *interop_serverQ_L_12action;
-typedef struct interop_serverQ_L_14action *interop_serverQ_L_14action;
-typedef struct interop_serverQ_L_16action *interop_serverQ_L_16action;
-typedef struct interop_serverQ_L_18action *interop_serverQ_L_18action;
-typedef struct interop_serverQ_L_22Cont *interop_serverQ_L_22Cont;
-typedef struct interop_serverQ_L_25Cont *interop_serverQ_L_25Cont;
-typedef struct interop_serverQ_L_26Cont *interop_serverQ_L_26Cont;
+typedef struct interop_serverQ_L_3Cont *interop_serverQ_L_3Cont;
+typedef struct interop_serverQ_L_5action *interop_serverQ_L_5action;
+typedef struct interop_serverQ_L_7action *interop_serverQ_L_7action;
+typedef struct interop_serverQ_L_9action *interop_serverQ_L_9action;
+typedef struct interop_serverQ_L_11action *interop_serverQ_L_11action;
+typedef struct interop_serverQ_L_13action *interop_serverQ_L_13action;
+typedef struct interop_serverQ_L_15action *interop_serverQ_L_15action;
+typedef struct interop_serverQ_L_17action *interop_serverQ_L_17action;
+typedef struct interop_serverQ_L_19action *interop_serverQ_L_19action;
+typedef struct interop_serverQ_L_20Cont *interop_serverQ_L_20Cont;
+typedef struct interop_serverQ_L_24Cont *interop_serverQ_L_24Cont;
 typedef struct interop_serverQ_L_27Cont *interop_serverQ_L_27Cont;
 typedef struct interop_serverQ_L_28Cont *interop_serverQ_L_28Cont;
 typedef struct interop_serverQ_L_29Cont *interop_serverQ_L_29Cont;
 typedef struct interop_serverQ_L_30Cont *interop_serverQ_L_30Cont;
-typedef struct interop_serverQ_L_34Cont *interop_serverQ_L_34Cont;
-typedef struct interop_serverQ_L_37Cont *interop_serverQ_L_37Cont;
-typedef struct interop_serverQ_L_38Cont *interop_serverQ_L_38Cont;
+typedef struct interop_serverQ_L_31Cont *interop_serverQ_L_31Cont;
+typedef struct interop_serverQ_L_32Cont *interop_serverQ_L_32Cont;
+typedef struct interop_serverQ_L_36Cont *interop_serverQ_L_36Cont;
 typedef struct interop_serverQ_L_39Cont *interop_serverQ_L_39Cont;
 typedef struct interop_serverQ_L_40Cont *interop_serverQ_L_40Cont;
 typedef struct interop_serverQ_L_41Cont *interop_serverQ_L_41Cont;
 typedef struct interop_serverQ_L_42Cont *interop_serverQ_L_42Cont;
-typedef struct interop_serverQ_L_45Cont *interop_serverQ_L_45Cont;
-typedef struct interop_serverQ_L_46Cont *interop_serverQ_L_46Cont;
+typedef struct interop_serverQ_L_43Cont *interop_serverQ_L_43Cont;
+typedef struct interop_serverQ_L_44Cont *interop_serverQ_L_44Cont;
+typedef struct interop_serverQ_L_47Cont *interop_serverQ_L_47Cont;
+typedef struct interop_serverQ_L_48Cont *interop_serverQ_L_48Cont;
 typedef struct interop_serverQ_L_50Cont *interop_serverQ_L_50Cont;
-typedef struct interop_serverQ_L_53Cont *interop_serverQ_L_53Cont;
 typedef struct interop_serverQ_L_54Cont *interop_serverQ_L_54Cont;
-typedef struct interop_serverQ_L_55Cont *interop_serverQ_L_55Cont;
-typedef struct interop_serverQ_L_56Cont *interop_serverQ_L_56Cont;
 typedef struct interop_serverQ_L_57Cont *interop_serverQ_L_57Cont;
 typedef struct interop_serverQ_L_58Cont *interop_serverQ_L_58Cont;
+typedef struct interop_serverQ_L_59Cont *interop_serverQ_L_59Cont;
 typedef struct interop_serverQ_L_60Cont *interop_serverQ_L_60Cont;
-typedef struct interop_serverQ_L_62action *interop_serverQ_L_62action;
-typedef struct interop_serverQ_L_64action *interop_serverQ_L_64action;
+typedef struct interop_serverQ_L_61Cont *interop_serverQ_L_61Cont;
+typedef struct interop_serverQ_L_62Cont *interop_serverQ_L_62Cont;
+typedef struct interop_serverQ_L_64Cont *interop_serverQ_L_64Cont;
 typedef struct interop_serverQ_L_66action *interop_serverQ_L_66action;
-typedef struct interop_serverQ_L_68Cont *interop_serverQ_L_68Cont;
+typedef struct interop_serverQ_L_68action *interop_serverQ_L_68action;
+typedef struct interop_serverQ_L_70action *interop_serverQ_L_70action;
 typedef struct interop_serverQ_L_72Cont *interop_serverQ_L_72Cont;
-typedef struct interop_serverQ_L_73Cont *interop_serverQ_L_73Cont;
-typedef struct interop_serverQ_L_74Cont *interop_serverQ_L_74Cont;
-typedef struct interop_serverQ_L_75Cont *interop_serverQ_L_75Cont;
 typedef struct interop_serverQ_L_76Cont *interop_serverQ_L_76Cont;
-typedef struct interop_serverQ_L_77proc *interop_serverQ_L_77proc;
-typedef struct interop_serverQ_L_78proc *interop_serverQ_L_78proc;
-typedef struct interop_serverQ_L_79proc *interop_serverQ_L_79proc;
-typedef struct interop_serverQ_L_80proc *interop_serverQ_L_80proc;
+typedef struct interop_serverQ_L_77Cont *interop_serverQ_L_77Cont;
+typedef struct interop_serverQ_L_78Cont *interop_serverQ_L_78Cont;
+typedef struct interop_serverQ_L_79Cont *interop_serverQ_L_79Cont;
+typedef struct interop_serverQ_L_80Cont *interop_serverQ_L_80Cont;
 typedef struct interop_serverQ_L_81proc *interop_serverQ_L_81proc;
 typedef struct interop_serverQ_L_82proc *interop_serverQ_L_82proc;
 typedef struct interop_serverQ_L_83proc *interop_serverQ_L_83proc;
@@ -123,233 +123,216 @@ typedef struct interop_serverQ_L_89proc *interop_serverQ_L_89proc;
 typedef struct interop_serverQ_L_90proc *interop_serverQ_L_90proc;
 typedef struct interop_serverQ_L_91proc *interop_serverQ_L_91proc;
 typedef struct interop_serverQ_L_92proc *interop_serverQ_L_92proc;
-typedef struct interop_serverQ_L_94Cont *interop_serverQ_L_94Cont;
+typedef struct interop_serverQ_L_93proc *interop_serverQ_L_93proc;
+typedef struct interop_serverQ_L_94proc *interop_serverQ_L_94proc;
 typedef struct interop_serverQ_L_95proc *interop_serverQ_L_95proc;
+typedef struct interop_serverQ_L_96proc *interop_serverQ_L_96proc;
+typedef struct interop_serverQ_L_98Cont *interop_serverQ_L_98Cont;
+typedef struct interop_serverQ_L_99proc *interop_serverQ_L_99proc;
 typedef struct interop_serverQ_main *interop_serverQ_main;
-$R interop_serverQ_L_1C_5cont (interop_serverQ_main, $Cont, sshQ_Server);
-struct interop_serverQ_L_2ContG_class {
+$R interop_serverQ_L_2C_7cont (interop_serverQ_main, $Cont, sshQ_Server);
+struct interop_serverQ_L_3ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_2Cont, interop_serverQ_main, $Cont);
-    void (*__serialize__) (interop_serverQ_L_2Cont, $Serial$state);
-    interop_serverQ_L_2Cont (*__deserialize__) (interop_serverQ_L_2Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_2Cont);
-    B_str (*__str__) (interop_serverQ_L_2Cont);
-    B_str (*__repr__) (interop_serverQ_L_2Cont);
-    $R (*__call__) (interop_serverQ_L_2Cont, sshQ_Server);
+    B_NoneType (*__init__) (interop_serverQ_L_3Cont, interop_serverQ_main, $Cont);
+    void (*__serialize__) (interop_serverQ_L_3Cont, $Serial$state);
+    interop_serverQ_L_3Cont (*__deserialize__) (interop_serverQ_L_3Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_3Cont);
+    B_str (*__str__) (interop_serverQ_L_3Cont);
+    B_str (*__repr__) (interop_serverQ_L_3Cont);
+    $R (*__call__) (interop_serverQ_L_3Cont, sshQ_Server);
 };
-struct interop_serverQ_L_2Cont {
-    struct interop_serverQ_L_2ContG_class *$class;
+struct interop_serverQ_L_3Cont {
+    struct interop_serverQ_L_3ContG_class *$class;
     interop_serverQ_main self;
     $Cont C_cont;
 };
-struct interop_serverQ_L_4actionG_class {
+struct interop_serverQ_L_5actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_4action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_4action, $Serial$state);
-    interop_serverQ_L_4action (*__deserialize__) (interop_serverQ_L_4action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_4action);
-    B_str (*__str__) (interop_serverQ_L_4action);
-    B_str (*__repr__) (interop_serverQ_L_4action);
-    $R (*__call__) (interop_serverQ_L_4action, $Cont, sshQ_Server, B_str);
-    $R (*__exec__) (interop_serverQ_L_4action, $Cont, sshQ_Server, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_4action, sshQ_Server, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_5action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_5action, $Serial$state);
+    interop_serverQ_L_5action (*__deserialize__) (interop_serverQ_L_5action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_5action);
+    B_str (*__str__) (interop_serverQ_L_5action);
+    B_str (*__repr__) (interop_serverQ_L_5action);
+    $R (*__call__) (interop_serverQ_L_5action, $Cont, sshQ_Server, B_str);
+    $R (*__exec__) (interop_serverQ_L_5action, $Cont, sshQ_Server, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_5action, sshQ_Server, B_str);
 };
-struct interop_serverQ_L_4action {
-    struct interop_serverQ_L_4actionG_class *$class;
-    interop_serverQ_main L_3obj;
+struct interop_serverQ_L_5action {
+    struct interop_serverQ_L_5actionG_class *$class;
+    interop_serverQ_main L_4obj;
 };
-struct interop_serverQ_L_6actionG_class {
+struct interop_serverQ_L_7actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_6action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_6action, $Serial$state);
-    interop_serverQ_L_6action (*__deserialize__) (interop_serverQ_L_6action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_6action);
-    B_str (*__str__) (interop_serverQ_L_6action);
-    B_str (*__repr__) (interop_serverQ_L_6action);
-    $R (*__call__) (interop_serverQ_L_6action, $Cont, sshQ_Server, B_str);
-    $R (*__exec__) (interop_serverQ_L_6action, $Cont, sshQ_Server, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_6action, sshQ_Server, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_7action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_7action, $Serial$state);
+    interop_serverQ_L_7action (*__deserialize__) (interop_serverQ_L_7action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_7action);
+    B_str (*__str__) (interop_serverQ_L_7action);
+    B_str (*__repr__) (interop_serverQ_L_7action);
+    $R (*__call__) (interop_serverQ_L_7action, $Cont, sshQ_Server, B_str);
+    $R (*__exec__) (interop_serverQ_L_7action, $Cont, sshQ_Server, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_7action, sshQ_Server, B_str);
 };
-struct interop_serverQ_L_6action {
-    struct interop_serverQ_L_6actionG_class *$class;
-    interop_serverQ_main L_5obj;
+struct interop_serverQ_L_7action {
+    struct interop_serverQ_L_7actionG_class *$class;
+    interop_serverQ_main L_6obj;
 };
-struct interop_serverQ_L_8actionG_class {
+struct interop_serverQ_L_9actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_8action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_8action, $Serial$state);
-    interop_serverQ_L_8action (*__deserialize__) (interop_serverQ_L_8action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_8action);
-    B_str (*__str__) (interop_serverQ_L_8action);
-    B_str (*__repr__) (interop_serverQ_L_8action);
-    $R (*__call__) (interop_serverQ_L_8action, $Cont, sshQ_ServerSession);
-    $R (*__exec__) (interop_serverQ_L_8action, $Cont, sshQ_ServerSession);
-    B_Msg (*__asyn__) (interop_serverQ_L_8action, sshQ_ServerSession);
+    B_NoneType (*__init__) (interop_serverQ_L_9action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_9action, $Serial$state);
+    interop_serverQ_L_9action (*__deserialize__) (interop_serverQ_L_9action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_9action);
+    B_str (*__str__) (interop_serverQ_L_9action);
+    B_str (*__repr__) (interop_serverQ_L_9action);
+    $R (*__call__) (interop_serverQ_L_9action, $Cont, sshQ_ServerSession);
+    $R (*__exec__) (interop_serverQ_L_9action, $Cont, sshQ_ServerSession);
+    B_Msg (*__asyn__) (interop_serverQ_L_9action, sshQ_ServerSession);
 };
-struct interop_serverQ_L_8action {
-    struct interop_serverQ_L_8actionG_class *$class;
-    interop_serverQ_main L_7obj;
+struct interop_serverQ_L_9action {
+    struct interop_serverQ_L_9actionG_class *$class;
+    interop_serverQ_main L_8obj;
 };
-struct interop_serverQ_L_10actionG_class {
+struct interop_serverQ_L_11actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_10action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_10action, $Serial$state);
-    interop_serverQ_L_10action (*__deserialize__) (interop_serverQ_L_10action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_10action);
-    B_str (*__str__) (interop_serverQ_L_10action);
-    B_str (*__repr__) (interop_serverQ_L_10action);
-    $R (*__call__) (interop_serverQ_L_10action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
-    $R (*__exec__) (interop_serverQ_L_10action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
-    B_Msg (*__asyn__) (interop_serverQ_L_10action, sshQ_ServerSession, sshQ_AuthRequest);
+    B_NoneType (*__init__) (interop_serverQ_L_11action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_11action, $Serial$state);
+    interop_serverQ_L_11action (*__deserialize__) (interop_serverQ_L_11action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_11action);
+    B_str (*__str__) (interop_serverQ_L_11action);
+    B_str (*__repr__) (interop_serverQ_L_11action);
+    $R (*__call__) (interop_serverQ_L_11action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
+    $R (*__exec__) (interop_serverQ_L_11action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
+    B_Msg (*__asyn__) (interop_serverQ_L_11action, sshQ_ServerSession, sshQ_AuthRequest);
 };
-struct interop_serverQ_L_10action {
-    struct interop_serverQ_L_10actionG_class *$class;
-    interop_serverQ_main L_9obj;
+struct interop_serverQ_L_11action {
+    struct interop_serverQ_L_11actionG_class *$class;
+    interop_serverQ_main L_10obj;
 };
-struct interop_serverQ_L_12actionG_class {
+struct interop_serverQ_L_13actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_12action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_12action, $Serial$state);
-    interop_serverQ_L_12action (*__deserialize__) (interop_serverQ_L_12action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_12action);
-    B_str (*__str__) (interop_serverQ_L_12action);
-    B_str (*__repr__) (interop_serverQ_L_12action);
-    $R (*__call__) (interop_serverQ_L_12action, $Cont, sshQ_ServerSession);
-    $R (*__exec__) (interop_serverQ_L_12action, $Cont, sshQ_ServerSession);
-    B_Msg (*__asyn__) (interop_serverQ_L_12action, sshQ_ServerSession);
+    B_NoneType (*__init__) (interop_serverQ_L_13action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_13action, $Serial$state);
+    interop_serverQ_L_13action (*__deserialize__) (interop_serverQ_L_13action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_13action);
+    B_str (*__str__) (interop_serverQ_L_13action);
+    B_str (*__repr__) (interop_serverQ_L_13action);
+    $R (*__call__) (interop_serverQ_L_13action, $Cont, sshQ_ServerSession);
+    $R (*__exec__) (interop_serverQ_L_13action, $Cont, sshQ_ServerSession);
+    B_Msg (*__asyn__) (interop_serverQ_L_13action, sshQ_ServerSession);
 };
-struct interop_serverQ_L_12action {
-    struct interop_serverQ_L_12actionG_class *$class;
-    interop_serverQ_main L_11obj;
+struct interop_serverQ_L_13action {
+    struct interop_serverQ_L_13actionG_class *$class;
+    interop_serverQ_main L_12obj;
 };
-struct interop_serverQ_L_14actionG_class {
+struct interop_serverQ_L_15actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_14action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_14action, $Serial$state);
-    interop_serverQ_L_14action (*__deserialize__) (interop_serverQ_L_14action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_14action);
-    B_str (*__str__) (interop_serverQ_L_14action);
-    B_str (*__repr__) (interop_serverQ_L_14action);
-    $R (*__call__) (interop_serverQ_L_14action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
-    $R (*__exec__) (interop_serverQ_L_14action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_14action, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_15action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_15action, $Serial$state);
+    interop_serverQ_L_15action (*__deserialize__) (interop_serverQ_L_15action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_15action);
+    B_str (*__str__) (interop_serverQ_L_15action);
+    B_str (*__repr__) (interop_serverQ_L_15action);
+    $R (*__call__) (interop_serverQ_L_15action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    $R (*__exec__) (interop_serverQ_L_15action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_15action, sshQ_ServerSession, sshQ_ServerChannel, B_str);
 };
-struct interop_serverQ_L_14action {
-    struct interop_serverQ_L_14actionG_class *$class;
-    interop_serverQ_main L_13obj;
+struct interop_serverQ_L_15action {
+    struct interop_serverQ_L_15actionG_class *$class;
+    interop_serverQ_main L_14obj;
 };
-struct interop_serverQ_L_16actionG_class {
+struct interop_serverQ_L_17actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_16action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_16action, $Serial$state);
-    interop_serverQ_L_16action (*__deserialize__) (interop_serverQ_L_16action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_16action);
-    B_str (*__str__) (interop_serverQ_L_16action);
-    B_str (*__repr__) (interop_serverQ_L_16action);
-    $R (*__call__) (interop_serverQ_L_16action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
-    $R (*__exec__) (interop_serverQ_L_16action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_16action, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_17action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_17action, $Serial$state);
+    interop_serverQ_L_17action (*__deserialize__) (interop_serverQ_L_17action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_17action);
+    B_str (*__str__) (interop_serverQ_L_17action);
+    B_str (*__repr__) (interop_serverQ_L_17action);
+    $R (*__call__) (interop_serverQ_L_17action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    $R (*__exec__) (interop_serverQ_L_17action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_17action, sshQ_ServerSession, sshQ_ServerChannel, B_str);
 };
-struct interop_serverQ_L_16action {
-    struct interop_serverQ_L_16actionG_class *$class;
-    interop_serverQ_main L_15obj;
+struct interop_serverQ_L_17action {
+    struct interop_serverQ_L_17actionG_class *$class;
+    interop_serverQ_main L_16obj;
 };
-struct interop_serverQ_L_18actionG_class {
+struct interop_serverQ_L_19actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_18action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_18action, $Serial$state);
-    interop_serverQ_L_18action (*__deserialize__) (interop_serverQ_L_18action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_18action);
-    B_str (*__str__) (interop_serverQ_L_18action);
-    B_str (*__repr__) (interop_serverQ_L_18action);
-    $R (*__call__) (interop_serverQ_L_18action, $Cont, sshQ_ServerSession, B_str);
-    $R (*__exec__) (interop_serverQ_L_18action, $Cont, sshQ_ServerSession, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_18action, sshQ_ServerSession, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_19action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_19action, $Serial$state);
+    interop_serverQ_L_19action (*__deserialize__) (interop_serverQ_L_19action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_19action);
+    B_str (*__str__) (interop_serverQ_L_19action);
+    B_str (*__repr__) (interop_serverQ_L_19action);
+    $R (*__call__) (interop_serverQ_L_19action, $Cont, sshQ_ServerSession, B_str);
+    $R (*__exec__) (interop_serverQ_L_19action, $Cont, sshQ_ServerSession, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_19action, sshQ_ServerSession, B_str);
 };
-struct interop_serverQ_L_18action {
-    struct interop_serverQ_L_18actionG_class *$class;
-    interop_serverQ_main L_17obj;
+struct interop_serverQ_L_19action {
+    struct interop_serverQ_L_19actionG_class *$class;
+    interop_serverQ_main L_18obj;
 };
-$R interop_serverQ_L_19C_7cont ($Cont, B_NoneType);
-struct interop_serverQ_L_22ContG_class {
+$R interop_serverQ_L_1C_5cont (interop_serverQ_main, $Cont, B_str);
+struct interop_serverQ_L_20ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_22Cont, $Cont);
-    void (*__serialize__) (interop_serverQ_L_22Cont, $Serial$state);
-    interop_serverQ_L_22Cont (*__deserialize__) (interop_serverQ_L_22Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_22Cont);
-    B_str (*__str__) (interop_serverQ_L_22Cont);
-    B_str (*__repr__) (interop_serverQ_L_22Cont);
-    $R (*__call__) (interop_serverQ_L_22Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_20Cont, interop_serverQ_main, $Cont);
+    void (*__serialize__) (interop_serverQ_L_20Cont, $Serial$state);
+    interop_serverQ_L_20Cont (*__deserialize__) (interop_serverQ_L_20Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_20Cont);
+    B_str (*__str__) (interop_serverQ_L_20Cont);
+    B_str (*__repr__) (interop_serverQ_L_20Cont);
+    $R (*__call__) (interop_serverQ_L_20Cont, B_str);
 };
-struct interop_serverQ_L_22Cont {
-    struct interop_serverQ_L_22ContG_class *$class;
+struct interop_serverQ_L_20Cont {
+    struct interop_serverQ_L_20ContG_class *$class;
+    interop_serverQ_main self;
     $Cont C_cont;
 };
-$R interop_serverQ_L_21C_11cont ($Cont, B_NoneType);
-struct interop_serverQ_L_25ContG_class {
+$R interop_serverQ_L_21C_9cont ($Cont, B_NoneType);
+struct interop_serverQ_L_24ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_25Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_25Cont, $Serial$state);
-    interop_serverQ_L_25Cont (*__deserialize__) (interop_serverQ_L_25Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_25Cont);
-    B_str (*__str__) (interop_serverQ_L_25Cont);
-    B_str (*__repr__) (interop_serverQ_L_25Cont);
-    $R (*__call__) (interop_serverQ_L_25Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_24Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_24Cont, $Serial$state);
+    interop_serverQ_L_24Cont (*__deserialize__) (interop_serverQ_L_24Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_24Cont);
+    B_str (*__str__) (interop_serverQ_L_24Cont);
+    B_str (*__repr__) (interop_serverQ_L_24Cont);
+    $R (*__call__) (interop_serverQ_L_24Cont, B_NoneType);
 };
-struct interop_serverQ_L_25Cont {
-    struct interop_serverQ_L_25ContG_class *$class;
-    B_Iterator N_iter;
-    B_Identity W_main_69;
-    sshQ_ServerChannel ch;
+struct interop_serverQ_L_24Cont {
+    struct interop_serverQ_L_24ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_24C_15cont (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
-struct interop_serverQ_L_26ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_26Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_26Cont, $Serial$state);
-    interop_serverQ_L_26Cont (*__deserialize__) (interop_serverQ_L_26Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_26Cont);
-    B_str (*__str__) (interop_serverQ_L_26Cont);
-    B_str (*__repr__) (interop_serverQ_L_26Cont);
-    $R (*__call__) (interop_serverQ_L_26Cont, B_NoneType);
-};
-struct interop_serverQ_L_26Cont {
-    struct interop_serverQ_L_26ContG_class *$class;
-    B_Iterator N_iter;
-    B_Identity W_main_69;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
-};
+$R interop_serverQ_L_23C_13cont ($Cont, B_NoneType);
 struct interop_serverQ_L_27ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_27Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_27Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_27Cont, $Serial$state);
     interop_serverQ_L_27Cont (*__deserialize__) (interop_serverQ_L_27Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_27Cont);
@@ -359,13 +342,17 @@ struct interop_serverQ_L_27ContG_class {
 };
 struct interop_serverQ_L_27Cont {
     struct interop_serverQ_L_27ContG_class *$class;
+    B_Iterator N_iter;
+    B_Identity W_main_70;
+    sshQ_ServerChannel ch;
     $Cont C_cont;
 };
+$R interop_serverQ_L_26C_17cont (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_28ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_28Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_28Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_28Cont, $Serial$state);
     interop_serverQ_L_28Cont (*__deserialize__) (interop_serverQ_L_28Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_28Cont);
@@ -375,9 +362,11 @@ struct interop_serverQ_L_28ContG_class {
 };
 struct interop_serverQ_L_28Cont {
     struct interop_serverQ_L_28ContG_class *$class;
+    B_Iterator N_iter;
+    B_Identity W_main_70;
+    sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-$R interop_serverQ_L_23C_13loop (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_29ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -394,88 +383,82 @@ struct interop_serverQ_L_29Cont {
     struct interop_serverQ_L_29ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_20C_9try (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_bool);
 struct interop_serverQ_L_30ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_30Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_30Cont, $Cont);
     void (*__serialize__) (interop_serverQ_L_30Cont, $Serial$state);
     interop_serverQ_L_30Cont (*__deserialize__) (interop_serverQ_L_30Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_30Cont);
     B_str (*__str__) (interop_serverQ_L_30Cont);
     B_str (*__repr__) (interop_serverQ_L_30Cont);
-    $R (*__call__) (interop_serverQ_L_30Cont, B_bool);
+    $R (*__call__) (interop_serverQ_L_30Cont, B_NoneType);
 };
 struct interop_serverQ_L_30Cont {
     struct interop_serverQ_L_30ContG_class *$class;
+    $Cont C_cont;
+};
+$R interop_serverQ_L_25C_15loop (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
+struct interop_serverQ_L_31ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_31Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_31Cont, $Serial$state);
+    interop_serverQ_L_31Cont (*__deserialize__) (interop_serverQ_L_31Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_31Cont);
+    B_str (*__str__) (interop_serverQ_L_31Cont);
+    B_str (*__repr__) (interop_serverQ_L_31Cont);
+    $R (*__call__) (interop_serverQ_L_31Cont, B_NoneType);
+};
+struct interop_serverQ_L_31Cont {
+    struct interop_serverQ_L_31ContG_class *$class;
+    $Cont C_cont;
+};
+$R interop_serverQ_L_22C_11try (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_bool);
+struct interop_serverQ_L_32ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_32Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+    void (*__serialize__) (interop_serverQ_L_32Cont, $Serial$state);
+    interop_serverQ_L_32Cont (*__deserialize__) (interop_serverQ_L_32Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_32Cont);
+    B_str (*__str__) (interop_serverQ_L_32Cont);
+    B_str (*__repr__) (interop_serverQ_L_32Cont);
+    $R (*__call__) (interop_serverQ_L_32Cont, B_bool);
+};
+struct interop_serverQ_L_32Cont {
+    struct interop_serverQ_L_32ContG_class *$class;
     B_Iterator N_iter;
-    B_Identity W_main_69;
+    B_Identity W_main_70;
     sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-$R interop_serverQ_L_31C_17cont ($Cont, B_NoneType);
-struct interop_serverQ_L_34ContG_class {
+$R interop_serverQ_L_33C_19cont ($Cont, B_NoneType);
+struct interop_serverQ_L_36ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_34Cont, $Cont);
-    void (*__serialize__) (interop_serverQ_L_34Cont, $Serial$state);
-    interop_serverQ_L_34Cont (*__deserialize__) (interop_serverQ_L_34Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_34Cont);
-    B_str (*__str__) (interop_serverQ_L_34Cont);
-    B_str (*__repr__) (interop_serverQ_L_34Cont);
-    $R (*__call__) (interop_serverQ_L_34Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_36Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_36Cont, $Serial$state);
+    interop_serverQ_L_36Cont (*__deserialize__) (interop_serverQ_L_36Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_36Cont);
+    B_str (*__str__) (interop_serverQ_L_36Cont);
+    B_str (*__repr__) (interop_serverQ_L_36Cont);
+    $R (*__call__) (interop_serverQ_L_36Cont, B_NoneType);
 };
-struct interop_serverQ_L_34Cont {
-    struct interop_serverQ_L_34ContG_class *$class;
+struct interop_serverQ_L_36Cont {
+    struct interop_serverQ_L_36ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_33C_21cont ($Cont, B_NoneType);
-struct interop_serverQ_L_37ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_37Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_37Cont, $Serial$state);
-    interop_serverQ_L_37Cont (*__deserialize__) (interop_serverQ_L_37Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_37Cont);
-    B_str (*__str__) (interop_serverQ_L_37Cont);
-    B_str (*__repr__) (interop_serverQ_L_37Cont);
-    $R (*__call__) (interop_serverQ_L_37Cont, B_NoneType);
-};
-struct interop_serverQ_L_37Cont {
-    struct interop_serverQ_L_37ContG_class *$class;
-    B_Iterator N_4iter;
-    B_Identity W_main_103;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
-};
-$R interop_serverQ_L_36C_25cont (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
-struct interop_serverQ_L_38ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_38Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_38Cont, $Serial$state);
-    interop_serverQ_L_38Cont (*__deserialize__) (interop_serverQ_L_38Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_38Cont);
-    B_str (*__str__) (interop_serverQ_L_38Cont);
-    B_str (*__repr__) (interop_serverQ_L_38Cont);
-    $R (*__call__) (interop_serverQ_L_38Cont, B_NoneType);
-};
-struct interop_serverQ_L_38Cont {
-    struct interop_serverQ_L_38ContG_class *$class;
-    B_Iterator N_4iter;
-    B_Identity W_main_103;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
-};
+$R interop_serverQ_L_35C_23cont ($Cont, B_NoneType);
 struct interop_serverQ_L_39ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_39Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_39Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_39Cont, $Serial$state);
     interop_serverQ_L_39Cont (*__deserialize__) (interop_serverQ_L_39Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_39Cont);
@@ -485,13 +468,17 @@ struct interop_serverQ_L_39ContG_class {
 };
 struct interop_serverQ_L_39Cont {
     struct interop_serverQ_L_39ContG_class *$class;
+    B_Iterator N_4iter;
+    B_Identity W_main_104;
+    sshQ_ServerChannel ch;
     $Cont C_cont;
 };
+$R interop_serverQ_L_38C_27cont (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_40ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_40Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_40Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_40Cont, $Serial$state);
     interop_serverQ_L_40Cont (*__deserialize__) (interop_serverQ_L_40Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_40Cont);
@@ -501,9 +488,11 @@ struct interop_serverQ_L_40ContG_class {
 };
 struct interop_serverQ_L_40Cont {
     struct interop_serverQ_L_40ContG_class *$class;
+    B_Iterator N_4iter;
+    B_Identity W_main_104;
+    sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-$R interop_serverQ_L_35C_23loop (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_41ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -520,67 +509,100 @@ struct interop_serverQ_L_41Cont {
     struct interop_serverQ_L_41ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_32C_19try (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_bool);
 struct interop_serverQ_L_42ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_42Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_42Cont, $Cont);
     void (*__serialize__) (interop_serverQ_L_42Cont, $Serial$state);
     interop_serverQ_L_42Cont (*__deserialize__) (interop_serverQ_L_42Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_42Cont);
     B_str (*__str__) (interop_serverQ_L_42Cont);
     B_str (*__repr__) (interop_serverQ_L_42Cont);
-    $R (*__call__) (interop_serverQ_L_42Cont, B_bool);
+    $R (*__call__) (interop_serverQ_L_42Cont, B_NoneType);
 };
 struct interop_serverQ_L_42Cont {
     struct interop_serverQ_L_42ContG_class *$class;
+    $Cont C_cont;
+};
+$R interop_serverQ_L_37C_25loop (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_NoneType);
+struct interop_serverQ_L_43ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_43Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_43Cont, $Serial$state);
+    interop_serverQ_L_43Cont (*__deserialize__) (interop_serverQ_L_43Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_43Cont);
+    B_str (*__str__) (interop_serverQ_L_43Cont);
+    B_str (*__repr__) (interop_serverQ_L_43Cont);
+    $R (*__call__) (interop_serverQ_L_43Cont, B_NoneType);
+};
+struct interop_serverQ_L_43Cont {
+    struct interop_serverQ_L_43ContG_class *$class;
+    $Cont C_cont;
+};
+$R interop_serverQ_L_34C_21try (B_Iterator, B_Identity, sshQ_ServerChannel, $Cont, B_bool);
+struct interop_serverQ_L_44ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_44Cont, B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+    void (*__serialize__) (interop_serverQ_L_44Cont, $Serial$state);
+    interop_serverQ_L_44Cont (*__deserialize__) (interop_serverQ_L_44Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_44Cont);
+    B_str (*__str__) (interop_serverQ_L_44Cont);
+    B_str (*__repr__) (interop_serverQ_L_44Cont);
+    $R (*__call__) (interop_serverQ_L_44Cont, B_bool);
+};
+struct interop_serverQ_L_44Cont {
+    struct interop_serverQ_L_44ContG_class *$class;
     B_Iterator N_4iter;
-    B_Identity W_main_103;
+    B_Identity W_main_104;
     sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-$R interop_serverQ_L_44C_29cont ($Cont, uint16_t);
-struct interop_serverQ_L_45ContG_class {
+$R interop_serverQ_L_46C_31cont ($Cont, uint16_t);
+struct interop_serverQ_L_47ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_45Cont, $Cont);
-    void (*__serialize__) (interop_serverQ_L_45Cont, $Serial$state);
-    interop_serverQ_L_45Cont (*__deserialize__) (interop_serverQ_L_45Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_45Cont);
-    B_str (*__str__) (interop_serverQ_L_45Cont);
-    B_str (*__repr__) (interop_serverQ_L_45Cont);
-    $R (*__call__) (interop_serverQ_L_45Cont, B_u16);
+    B_NoneType (*__init__) (interop_serverQ_L_47Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_47Cont, $Serial$state);
+    interop_serverQ_L_47Cont (*__deserialize__) (interop_serverQ_L_47Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_47Cont);
+    B_str (*__str__) (interop_serverQ_L_47Cont);
+    B_str (*__repr__) (interop_serverQ_L_47Cont);
+    $R (*__call__) (interop_serverQ_L_47Cont, B_u16);
 };
-struct interop_serverQ_L_45Cont {
-    struct interop_serverQ_L_45ContG_class *$class;
+struct interop_serverQ_L_47Cont {
+    struct interop_serverQ_L_47ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_43C_27cont ($Cont, sshQ_Server, B_NoneType);
-struct interop_serverQ_L_46ContG_class {
+$R interop_serverQ_L_45C_29cont ($Cont, sshQ_Server, B_NoneType);
+struct interop_serverQ_L_48ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_46Cont, $Cont, sshQ_Server);
-    void (*__serialize__) (interop_serverQ_L_46Cont, $Serial$state);
-    interop_serverQ_L_46Cont (*__deserialize__) (interop_serverQ_L_46Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_46Cont);
-    B_str (*__str__) (interop_serverQ_L_46Cont);
-    B_str (*__repr__) (interop_serverQ_L_46Cont);
-    $R (*__call__) (interop_serverQ_L_46Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_48Cont, $Cont, sshQ_Server);
+    void (*__serialize__) (interop_serverQ_L_48Cont, $Serial$state);
+    interop_serverQ_L_48Cont (*__deserialize__) (interop_serverQ_L_48Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_48Cont);
+    B_str (*__str__) (interop_serverQ_L_48Cont);
+    B_str (*__repr__) (interop_serverQ_L_48Cont);
+    $R (*__call__) (interop_serverQ_L_48Cont, B_NoneType);
 };
-struct interop_serverQ_L_46Cont {
-    struct interop_serverQ_L_46ContG_class *$class;
+struct interop_serverQ_L_48Cont {
+    struct interop_serverQ_L_48ContG_class *$class;
     $Cont C_cont;
     sshQ_Server s;
 };
-$R interop_serverQ_L_49C_35cont ($Cont, B_NoneType);
+$R interop_serverQ_L_49C_33cont (sshQ_AuthRequest, interop_serverQ_main, B_Eq, sshQ_ServerSession, $Cont, B_NoneType);
 struct interop_serverQ_L_50ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_50Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_50Cont, sshQ_AuthRequest, interop_serverQ_main, B_Eq, sshQ_ServerSession, $Cont);
     void (*__serialize__) (interop_serverQ_L_50Cont, $Serial$state);
     interop_serverQ_L_50Cont (*__deserialize__) (interop_serverQ_L_50Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_50Cont);
@@ -590,24 +612,13 @@ struct interop_serverQ_L_50ContG_class {
 };
 struct interop_serverQ_L_50Cont {
     struct interop_serverQ_L_50ContG_class *$class;
+    sshQ_AuthRequest req;
+    interop_serverQ_main self;
+    B_Eq W_main_389;
+    sshQ_ServerSession sess;
     $Cont C_cont;
 };
-struct interop_serverQ_L_53ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_53Cont, $Cont);
-    void (*__serialize__) (interop_serverQ_L_53Cont, $Serial$state);
-    interop_serverQ_L_53Cont (*__deserialize__) (interop_serverQ_L_53Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_53Cont);
-    B_str (*__str__) (interop_serverQ_L_53Cont);
-    B_str (*__repr__) (interop_serverQ_L_53Cont);
-    $R (*__call__) (interop_serverQ_L_53Cont, B_NoneType);
-};
-struct interop_serverQ_L_53Cont {
-    struct interop_serverQ_L_53ContG_class *$class;
-    $Cont C_cont;
-};
+$R interop_serverQ_L_53C_39cont ($Cont, B_NoneType);
 struct interop_serverQ_L_54ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -624,50 +635,11 @@ struct interop_serverQ_L_54Cont {
     struct interop_serverQ_L_54ContG_class *$class;
     $Cont C_cont;
 };
-$R interop_serverQ_L_52C_39cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_str);
-struct interop_serverQ_L_55ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_55Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_55Cont, $Serial$state);
-    interop_serverQ_L_55Cont (*__deserialize__) (interop_serverQ_L_55Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_55Cont);
-    B_str (*__str__) (interop_serverQ_L_55Cont);
-    B_str (*__repr__) (interop_serverQ_L_55Cont);
-    $R (*__call__) (interop_serverQ_L_55Cont, B_str);
-};
-struct interop_serverQ_L_55Cont {
-    struct interop_serverQ_L_55ContG_class *$class;
-    interop_serverQ_main self;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
-};
-$R interop_serverQ_L_51C_37cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_NoneType);
-struct interop_serverQ_L_56ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_56Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_56Cont, $Serial$state);
-    interop_serverQ_L_56Cont (*__deserialize__) (interop_serverQ_L_56Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_56Cont);
-    B_str (*__str__) (interop_serverQ_L_56Cont);
-    B_str (*__repr__) (interop_serverQ_L_56Cont);
-    $R (*__call__) (interop_serverQ_L_56Cont, B_NoneType);
-};
-struct interop_serverQ_L_56Cont {
-    struct interop_serverQ_L_56ContG_class *$class;
-    interop_serverQ_main self;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
-};
-$R interop_serverQ_L_48C_33cont ($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main, B_NoneType);
 struct interop_serverQ_L_57ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_57Cont, $Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+    B_NoneType (*__init__) (interop_serverQ_L_57Cont, $Cont);
     void (*__serialize__) (interop_serverQ_L_57Cont, $Serial$state);
     interop_serverQ_L_57Cont (*__deserialize__) (interop_serverQ_L_57Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_57Cont);
@@ -678,83 +650,118 @@ struct interop_serverQ_L_57ContG_class {
 struct interop_serverQ_L_57Cont {
     struct interop_serverQ_L_57ContG_class *$class;
     $Cont C_cont;
-    B_bytes data;
-    sshQ_ServerChannel ch;
-    interop_serverQ_main self;
 };
-$R interop_serverQ_L_47C_31cont ($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main, B_str);
 struct interop_serverQ_L_58ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_58Cont, $Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+    B_NoneType (*__init__) (interop_serverQ_L_58Cont, $Cont);
     void (*__serialize__) (interop_serverQ_L_58Cont, $Serial$state);
     interop_serverQ_L_58Cont (*__deserialize__) (interop_serverQ_L_58Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_58Cont);
     B_str (*__str__) (interop_serverQ_L_58Cont);
     B_str (*__repr__) (interop_serverQ_L_58Cont);
-    $R (*__call__) (interop_serverQ_L_58Cont, B_str);
+    $R (*__call__) (interop_serverQ_L_58Cont, B_NoneType);
 };
 struct interop_serverQ_L_58Cont {
     struct interop_serverQ_L_58ContG_class *$class;
     $Cont C_cont;
-    B_bytes data;
-    sshQ_ServerChannel ch;
-    interop_serverQ_main self;
 };
-$R interop_serverQ_L_59C_41cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R interop_serverQ_L_56C_43cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_str);
+struct interop_serverQ_L_59ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_59Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
+    void (*__serialize__) (interop_serverQ_L_59Cont, $Serial$state);
+    interop_serverQ_L_59Cont (*__deserialize__) (interop_serverQ_L_59Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_59Cont);
+    B_str (*__str__) (interop_serverQ_L_59Cont);
+    B_str (*__repr__) (interop_serverQ_L_59Cont);
+    $R (*__call__) (interop_serverQ_L_59Cont, B_str);
+};
+struct interop_serverQ_L_59Cont {
+    struct interop_serverQ_L_59ContG_class *$class;
+    interop_serverQ_main self;
+    sshQ_ServerChannel ch;
+    $Cont C_cont;
+};
+$R interop_serverQ_L_55C_41cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_60ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_60Cont, sshQ_ServerSession, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_60Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_60Cont, $Serial$state);
     interop_serverQ_L_60Cont (*__deserialize__) (interop_serverQ_L_60Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_60Cont);
     B_str (*__str__) (interop_serverQ_L_60Cont);
     B_str (*__repr__) (interop_serverQ_L_60Cont);
-    $R (*__call__) (interop_serverQ_L_60Cont, sshQ_ServerChannel);
+    $R (*__call__) (interop_serverQ_L_60Cont, B_NoneType);
 };
 struct interop_serverQ_L_60Cont {
     struct interop_serverQ_L_60ContG_class *$class;
-    sshQ_ServerSession sess;
+    interop_serverQ_main self;
+    sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-struct interop_serverQ_L_62actionG_class {
+$R interop_serverQ_L_52C_37cont ($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main, B_NoneType);
+struct interop_serverQ_L_61ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_62action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_62action, $Serial$state);
-    interop_serverQ_L_62action (*__deserialize__) (interop_serverQ_L_62action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_62action);
-    B_str (*__str__) (interop_serverQ_L_62action);
-    B_str (*__repr__) (interop_serverQ_L_62action);
-    $R (*__call__) (interop_serverQ_L_62action, $Cont, sshQ_ServerChannel, B_bytes);
-    $R (*__exec__) (interop_serverQ_L_62action, $Cont, sshQ_ServerChannel, B_bytes);
-    B_Msg (*__asyn__) (interop_serverQ_L_62action, sshQ_ServerChannel, B_bytes);
+    B_NoneType (*__init__) (interop_serverQ_L_61Cont, $Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_61Cont, $Serial$state);
+    interop_serverQ_L_61Cont (*__deserialize__) (interop_serverQ_L_61Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_61Cont);
+    B_str (*__str__) (interop_serverQ_L_61Cont);
+    B_str (*__repr__) (interop_serverQ_L_61Cont);
+    $R (*__call__) (interop_serverQ_L_61Cont, B_NoneType);
 };
-struct interop_serverQ_L_62action {
-    struct interop_serverQ_L_62actionG_class *$class;
-    interop_serverQ_main L_61obj;
+struct interop_serverQ_L_61Cont {
+    struct interop_serverQ_L_61ContG_class *$class;
+    $Cont C_cont;
+    B_bytes data;
+    sshQ_ServerChannel ch;
+    interop_serverQ_main self;
 };
-struct interop_serverQ_L_64actionG_class {
+$R interop_serverQ_L_51C_35cont ($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main, B_str);
+struct interop_serverQ_L_62ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_64action, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_64action, $Serial$state);
-    interop_serverQ_L_64action (*__deserialize__) (interop_serverQ_L_64action, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_64action);
-    B_str (*__str__) (interop_serverQ_L_64action);
-    B_str (*__repr__) (interop_serverQ_L_64action);
-    $R (*__call__) (interop_serverQ_L_64action, $Cont, sshQ_ServerChannel, B_bytes);
-    $R (*__exec__) (interop_serverQ_L_64action, $Cont, sshQ_ServerChannel, B_bytes);
-    B_Msg (*__asyn__) (interop_serverQ_L_64action, sshQ_ServerChannel, B_bytes);
+    B_NoneType (*__init__) (interop_serverQ_L_62Cont, $Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_62Cont, $Serial$state);
+    interop_serverQ_L_62Cont (*__deserialize__) (interop_serverQ_L_62Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_62Cont);
+    B_str (*__str__) (interop_serverQ_L_62Cont);
+    B_str (*__repr__) (interop_serverQ_L_62Cont);
+    $R (*__call__) (interop_serverQ_L_62Cont, B_str);
 };
-struct interop_serverQ_L_64action {
-    struct interop_serverQ_L_64actionG_class *$class;
-    interop_serverQ_main L_63obj;
+struct interop_serverQ_L_62Cont {
+    struct interop_serverQ_L_62ContG_class *$class;
+    $Cont C_cont;
+    B_bytes data;
+    sshQ_ServerChannel ch;
+    interop_serverQ_main self;
+};
+$R interop_serverQ_L_63C_45cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+struct interop_serverQ_L_64ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_64Cont, sshQ_ServerSession, $Cont);
+    void (*__serialize__) (interop_serverQ_L_64Cont, $Serial$state);
+    interop_serverQ_L_64Cont (*__deserialize__) (interop_serverQ_L_64Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_64Cont);
+    B_str (*__str__) (interop_serverQ_L_64Cont);
+    B_str (*__repr__) (interop_serverQ_L_64Cont);
+    $R (*__call__) (interop_serverQ_L_64Cont, sshQ_ServerChannel);
+};
+struct interop_serverQ_L_64Cont {
+    struct interop_serverQ_L_64ContG_class *$class;
+    sshQ_ServerSession sess;
+    $Cont C_cont;
 };
 struct interop_serverQ_L_66actionG_class {
     char *$GCINFO;
@@ -766,39 +773,56 @@ struct interop_serverQ_L_66actionG_class {
     B_bool (*__bool__) (interop_serverQ_L_66action);
     B_str (*__str__) (interop_serverQ_L_66action);
     B_str (*__repr__) (interop_serverQ_L_66action);
-    $R (*__call__) (interop_serverQ_L_66action, $Cont, sshQ_ServerChannel, B_str);
-    $R (*__exec__) (interop_serverQ_L_66action, $Cont, sshQ_ServerChannel, B_str);
-    B_Msg (*__asyn__) (interop_serverQ_L_66action, sshQ_ServerChannel, B_str);
+    $R (*__call__) (interop_serverQ_L_66action, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*__exec__) (interop_serverQ_L_66action, $Cont, sshQ_ServerChannel, B_bytes);
+    B_Msg (*__asyn__) (interop_serverQ_L_66action, sshQ_ServerChannel, B_bytes);
 };
 struct interop_serverQ_L_66action {
     struct interop_serverQ_L_66actionG_class *$class;
     interop_serverQ_main L_65obj;
 };
-$R interop_serverQ_L_67C_43cont (B_str, sshQ_ServerChannel, $Cont, B_NoneType);
-struct interop_serverQ_L_68ContG_class {
+struct interop_serverQ_L_68actionG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_68Cont, B_str, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_68Cont, $Serial$state);
-    interop_serverQ_L_68Cont (*__deserialize__) (interop_serverQ_L_68Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_68Cont);
-    B_str (*__str__) (interop_serverQ_L_68Cont);
-    B_str (*__repr__) (interop_serverQ_L_68Cont);
-    $R (*__call__) (interop_serverQ_L_68Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_68action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_68action, $Serial$state);
+    interop_serverQ_L_68action (*__deserialize__) (interop_serverQ_L_68action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_68action);
+    B_str (*__str__) (interop_serverQ_L_68action);
+    B_str (*__repr__) (interop_serverQ_L_68action);
+    $R (*__call__) (interop_serverQ_L_68action, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*__exec__) (interop_serverQ_L_68action, $Cont, sshQ_ServerChannel, B_bytes);
+    B_Msg (*__asyn__) (interop_serverQ_L_68action, sshQ_ServerChannel, B_bytes);
 };
-struct interop_serverQ_L_68Cont {
-    struct interop_serverQ_L_68ContG_class *$class;
-    B_str cmd;
-    sshQ_ServerChannel ch;
-    $Cont C_cont;
+struct interop_serverQ_L_68action {
+    struct interop_serverQ_L_68actionG_class *$class;
+    interop_serverQ_main L_67obj;
 };
-$R interop_serverQ_L_69C_45cont ($Cont, B_NoneType);
+struct interop_serverQ_L_70actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_70action, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_70action, $Serial$state);
+    interop_serverQ_L_70action (*__deserialize__) (interop_serverQ_L_70action, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_70action);
+    B_str (*__str__) (interop_serverQ_L_70action);
+    B_str (*__repr__) (interop_serverQ_L_70action);
+    $R (*__call__) (interop_serverQ_L_70action, $Cont, sshQ_ServerChannel, B_str);
+    $R (*__exec__) (interop_serverQ_L_70action, $Cont, sshQ_ServerChannel, B_str);
+    B_Msg (*__asyn__) (interop_serverQ_L_70action, sshQ_ServerChannel, B_str);
+};
+struct interop_serverQ_L_70action {
+    struct interop_serverQ_L_70actionG_class *$class;
+    interop_serverQ_main L_69obj;
+};
+$R interop_serverQ_L_71C_47cont (B_str, sshQ_ServerChannel, $Cont, B_NoneType);
 struct interop_serverQ_L_72ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_72Cont, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_72Cont, B_str, sshQ_ServerChannel, $Cont);
     void (*__serialize__) (interop_serverQ_L_72Cont, $Serial$state);
     interop_serverQ_L_72Cont (*__deserialize__) (interop_serverQ_L_72Cont, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_72Cont);
@@ -808,62 +832,11 @@ struct interop_serverQ_L_72ContG_class {
 };
 struct interop_serverQ_L_72Cont {
     struct interop_serverQ_L_72ContG_class *$class;
-    $Cont C_cont;
-};
-struct interop_serverQ_L_73ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_73Cont, $Cont);
-    void (*__serialize__) (interop_serverQ_L_73Cont, $Serial$state);
-    interop_serverQ_L_73Cont (*__deserialize__) (interop_serverQ_L_73Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_73Cont);
-    B_str (*__str__) (interop_serverQ_L_73Cont);
-    B_str (*__repr__) (interop_serverQ_L_73Cont);
-    $R (*__call__) (interop_serverQ_L_73Cont, B_NoneType);
-};
-struct interop_serverQ_L_73Cont {
-    struct interop_serverQ_L_73ContG_class *$class;
-    $Cont C_cont;
-};
-$R interop_serverQ_L_71C_49cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_bool);
-struct interop_serverQ_L_74ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_74Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
-    void (*__serialize__) (interop_serverQ_L_74Cont, $Serial$state);
-    interop_serverQ_L_74Cont (*__deserialize__) (interop_serverQ_L_74Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_74Cont);
-    B_str (*__str__) (interop_serverQ_L_74Cont);
-    B_str (*__repr__) (interop_serverQ_L_74Cont);
-    $R (*__call__) (interop_serverQ_L_74Cont, B_bool);
-};
-struct interop_serverQ_L_74Cont {
-    struct interop_serverQ_L_74ContG_class *$class;
-    interop_serverQ_main self;
+    B_str cmd;
     sshQ_ServerChannel ch;
     $Cont C_cont;
 };
-$R interop_serverQ_L_70C_47cont (sshQ_ServerChannel, interop_serverQ_main, $Cont, B_NoneType);
-struct interop_serverQ_L_75ContG_class {
-    char *$GCINFO;
-    int $class_id;
-    $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_75Cont, sshQ_ServerChannel, interop_serverQ_main, $Cont);
-    void (*__serialize__) (interop_serverQ_L_75Cont, $Serial$state);
-    interop_serverQ_L_75Cont (*__deserialize__) (interop_serverQ_L_75Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_75Cont);
-    B_str (*__str__) (interop_serverQ_L_75Cont);
-    B_str (*__repr__) (interop_serverQ_L_75Cont);
-    $R (*__call__) (interop_serverQ_L_75Cont, B_NoneType);
-};
-struct interop_serverQ_L_75Cont {
-    struct interop_serverQ_L_75ContG_class *$class;
-    sshQ_ServerChannel ch;
-    interop_serverQ_main self;
-    $Cont C_cont;
-};
+$R interop_serverQ_L_73C_49cont ($Cont, B_NoneType);
 struct interop_serverQ_L_76ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -880,84 +853,81 @@ struct interop_serverQ_L_76Cont {
     struct interop_serverQ_L_76ContG_class *$class;
     $Cont C_cont;
 };
-struct interop_serverQ_L_77procG_class {
+struct interop_serverQ_L_77ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_77proc, interop_serverQ_main, sshQ_ServerChannel, B_str);
-    void (*__serialize__) (interop_serverQ_L_77proc, $Serial$state);
-    interop_serverQ_L_77proc (*__deserialize__) (interop_serverQ_L_77proc, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_77proc);
-    B_str (*__str__) (interop_serverQ_L_77proc);
-    B_str (*__repr__) (interop_serverQ_L_77proc);
-    $R (*__call__) (interop_serverQ_L_77proc, $Cont);
-    $R (*__exec__) (interop_serverQ_L_77proc, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_77Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_77Cont, $Serial$state);
+    interop_serverQ_L_77Cont (*__deserialize__) (interop_serverQ_L_77Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_77Cont);
+    B_str (*__str__) (interop_serverQ_L_77Cont);
+    B_str (*__repr__) (interop_serverQ_L_77Cont);
+    $R (*__call__) (interop_serverQ_L_77Cont, B_NoneType);
 };
-struct interop_serverQ_L_77proc {
-    struct interop_serverQ_L_77procG_class *$class;
-    interop_serverQ_main self;
-    sshQ_ServerChannel ch;
-    B_str mode;
+struct interop_serverQ_L_77Cont {
+    struct interop_serverQ_L_77ContG_class *$class;
+    $Cont C_cont;
 };
-struct interop_serverQ_L_78procG_class {
+$R interop_serverQ_L_75C_53cont (interop_serverQ_main, sshQ_ServerChannel, $Cont, B_bool);
+struct interop_serverQ_L_78ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_78proc, interop_serverQ_main, sshQ_ServerChannel);
-    void (*__serialize__) (interop_serverQ_L_78proc, $Serial$state);
-    interop_serverQ_L_78proc (*__deserialize__) (interop_serverQ_L_78proc, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_78proc);
-    B_str (*__str__) (interop_serverQ_L_78proc);
-    B_str (*__repr__) (interop_serverQ_L_78proc);
-    $R (*__call__) (interop_serverQ_L_78proc, $Cont);
-    $R (*__exec__) (interop_serverQ_L_78proc, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_78Cont, interop_serverQ_main, sshQ_ServerChannel, $Cont);
+    void (*__serialize__) (interop_serverQ_L_78Cont, $Serial$state);
+    interop_serverQ_L_78Cont (*__deserialize__) (interop_serverQ_L_78Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_78Cont);
+    B_str (*__str__) (interop_serverQ_L_78Cont);
+    B_str (*__repr__) (interop_serverQ_L_78Cont);
+    $R (*__call__) (interop_serverQ_L_78Cont, B_bool);
 };
-struct interop_serverQ_L_78proc {
-    struct interop_serverQ_L_78procG_class *$class;
+struct interop_serverQ_L_78Cont {
+    struct interop_serverQ_L_78ContG_class *$class;
     interop_serverQ_main self;
     sshQ_ServerChannel ch;
+    $Cont C_cont;
 };
-struct interop_serverQ_L_79procG_class {
+$R interop_serverQ_L_74C_51cont (sshQ_ServerChannel, interop_serverQ_main, $Cont, B_NoneType);
+struct interop_serverQ_L_79ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_79proc, interop_serverQ_main, sshQ_ServerChannel);
-    void (*__serialize__) (interop_serverQ_L_79proc, $Serial$state);
-    interop_serverQ_L_79proc (*__deserialize__) (interop_serverQ_L_79proc, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_79proc);
-    B_str (*__str__) (interop_serverQ_L_79proc);
-    B_str (*__repr__) (interop_serverQ_L_79proc);
-    $R (*__call__) (interop_serverQ_L_79proc, $Cont);
-    $R (*__exec__) (interop_serverQ_L_79proc, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_79Cont, sshQ_ServerChannel, interop_serverQ_main, $Cont);
+    void (*__serialize__) (interop_serverQ_L_79Cont, $Serial$state);
+    interop_serverQ_L_79Cont (*__deserialize__) (interop_serverQ_L_79Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_79Cont);
+    B_str (*__str__) (interop_serverQ_L_79Cont);
+    B_str (*__repr__) (interop_serverQ_L_79Cont);
+    $R (*__call__) (interop_serverQ_L_79Cont, B_NoneType);
 };
-struct interop_serverQ_L_79proc {
-    struct interop_serverQ_L_79procG_class *$class;
-    interop_serverQ_main self;
+struct interop_serverQ_L_79Cont {
+    struct interop_serverQ_L_79ContG_class *$class;
     sshQ_ServerChannel ch;
+    interop_serverQ_main self;
+    $Cont C_cont;
 };
-struct interop_serverQ_L_80procG_class {
+struct interop_serverQ_L_80ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_80proc, interop_serverQ_main, sshQ_ServerChannel);
-    void (*__serialize__) (interop_serverQ_L_80proc, $Serial$state);
-    interop_serverQ_L_80proc (*__deserialize__) (interop_serverQ_L_80proc, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_80proc);
-    B_str (*__str__) (interop_serverQ_L_80proc);
-    B_str (*__repr__) (interop_serverQ_L_80proc);
-    $R (*__call__) (interop_serverQ_L_80proc, $Cont);
-    $R (*__exec__) (interop_serverQ_L_80proc, $Cont);
+    B_NoneType (*__init__) (interop_serverQ_L_80Cont, $Cont);
+    void (*__serialize__) (interop_serverQ_L_80Cont, $Serial$state);
+    interop_serverQ_L_80Cont (*__deserialize__) (interop_serverQ_L_80Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_80Cont);
+    B_str (*__str__) (interop_serverQ_L_80Cont);
+    B_str (*__repr__) (interop_serverQ_L_80Cont);
+    $R (*__call__) (interop_serverQ_L_80Cont, B_NoneType);
 };
-struct interop_serverQ_L_80proc {
-    struct interop_serverQ_L_80procG_class *$class;
-    interop_serverQ_main self;
-    sshQ_ServerChannel ch;
+struct interop_serverQ_L_80Cont {
+    struct interop_serverQ_L_80ContG_class *$class;
+    $Cont C_cont;
 };
 struct interop_serverQ_L_81procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_81proc, interop_serverQ_main, sshQ_ServerChannel);
+    B_NoneType (*__init__) (interop_serverQ_L_81proc, interop_serverQ_main, sshQ_ServerChannel, B_str);
     void (*__serialize__) (interop_serverQ_L_81proc, $Serial$state);
     interop_serverQ_L_81proc (*__deserialize__) (interop_serverQ_L_81proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_81proc);
@@ -970,12 +940,13 @@ struct interop_serverQ_L_81proc {
     struct interop_serverQ_L_81procG_class *$class;
     interop_serverQ_main self;
     sshQ_ServerChannel ch;
+    B_str mode;
 };
 struct interop_serverQ_L_82procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_82proc, interop_serverQ_main, sshQ_Server, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_82proc, interop_serverQ_main, sshQ_ServerChannel);
     void (*__serialize__) (interop_serverQ_L_82proc, $Serial$state);
     interop_serverQ_L_82proc (*__deserialize__) (interop_serverQ_L_82proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_82proc);
@@ -987,14 +958,13 @@ struct interop_serverQ_L_82procG_class {
 struct interop_serverQ_L_82proc {
     struct interop_serverQ_L_82procG_class *$class;
     interop_serverQ_main self;
-    sshQ_Server s;
-    B_str err;
+    sshQ_ServerChannel ch;
 };
 struct interop_serverQ_L_83procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_83proc, interop_serverQ_main, sshQ_Server, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_83proc, interop_serverQ_main, sshQ_ServerChannel);
     void (*__serialize__) (interop_serverQ_L_83proc, $Serial$state);
     interop_serverQ_L_83proc (*__deserialize__) (interop_serverQ_L_83proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_83proc);
@@ -1006,14 +976,13 @@ struct interop_serverQ_L_83procG_class {
 struct interop_serverQ_L_83proc {
     struct interop_serverQ_L_83procG_class *$class;
     interop_serverQ_main self;
-    sshQ_Server s;
-    B_str reason;
+    sshQ_ServerChannel ch;
 };
 struct interop_serverQ_L_84procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_84proc, interop_serverQ_main, sshQ_ServerSession);
+    B_NoneType (*__init__) (interop_serverQ_L_84proc, interop_serverQ_main, sshQ_ServerChannel);
     void (*__serialize__) (interop_serverQ_L_84proc, $Serial$state);
     interop_serverQ_L_84proc (*__deserialize__) (interop_serverQ_L_84proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_84proc);
@@ -1025,13 +994,13 @@ struct interop_serverQ_L_84procG_class {
 struct interop_serverQ_L_84proc {
     struct interop_serverQ_L_84procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerSession sess;
+    sshQ_ServerChannel ch;
 };
 struct interop_serverQ_L_85procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_85proc, interop_serverQ_main, sshQ_ServerSession, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_85proc, interop_serverQ_main, sshQ_ServerChannel);
     void (*__serialize__) (interop_serverQ_L_85proc, $Serial$state);
     interop_serverQ_L_85proc (*__deserialize__) (interop_serverQ_L_85proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_85proc);
@@ -1043,14 +1012,13 @@ struct interop_serverQ_L_85procG_class {
 struct interop_serverQ_L_85proc {
     struct interop_serverQ_L_85procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerSession sess;
-    B_str reason;
+    sshQ_ServerChannel ch;
 };
 struct interop_serverQ_L_86procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_86proc, interop_serverQ_main, sshQ_ServerSession, sshQ_AuthRequest);
+    B_NoneType (*__init__) (interop_serverQ_L_86proc, interop_serverQ_main, sshQ_Server, B_str);
     void (*__serialize__) (interop_serverQ_L_86proc, $Serial$state);
     interop_serverQ_L_86proc (*__deserialize__) (interop_serverQ_L_86proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_86proc);
@@ -1062,14 +1030,14 @@ struct interop_serverQ_L_86procG_class {
 struct interop_serverQ_L_86proc {
     struct interop_serverQ_L_86procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerSession sess;
-    sshQ_AuthRequest req;
+    sshQ_Server s;
+    B_str err;
 };
 struct interop_serverQ_L_87procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_87proc, interop_serverQ_main, sshQ_ServerChannel, B_bytes);
+    B_NoneType (*__init__) (interop_serverQ_L_87proc, interop_serverQ_main, sshQ_Server, B_str);
     void (*__serialize__) (interop_serverQ_L_87proc, $Serial$state);
     interop_serverQ_L_87proc (*__deserialize__) (interop_serverQ_L_87proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_87proc);
@@ -1081,14 +1049,14 @@ struct interop_serverQ_L_87procG_class {
 struct interop_serverQ_L_87proc {
     struct interop_serverQ_L_87procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerChannel ch;
-    B_bytes data;
+    sshQ_Server s;
+    B_str reason;
 };
 struct interop_serverQ_L_88procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_88proc, interop_serverQ_main, sshQ_ServerChannel, B_bytes);
+    B_NoneType (*__init__) (interop_serverQ_L_88proc, interop_serverQ_main, sshQ_ServerSession);
     void (*__serialize__) (interop_serverQ_L_88proc, $Serial$state);
     interop_serverQ_L_88proc (*__deserialize__) (interop_serverQ_L_88proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_88proc);
@@ -1100,14 +1068,13 @@ struct interop_serverQ_L_88procG_class {
 struct interop_serverQ_L_88proc {
     struct interop_serverQ_L_88procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerChannel ch;
-    B_bytes data;
+    sshQ_ServerSession sess;
 };
 struct interop_serverQ_L_89procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_89proc, interop_serverQ_main, sshQ_ServerChannel, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_89proc, interop_serverQ_main, sshQ_ServerSession, B_str);
     void (*__serialize__) (interop_serverQ_L_89proc, $Serial$state);
     interop_serverQ_L_89proc (*__deserialize__) (interop_serverQ_L_89proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_89proc);
@@ -1119,14 +1086,14 @@ struct interop_serverQ_L_89procG_class {
 struct interop_serverQ_L_89proc {
     struct interop_serverQ_L_89procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerChannel ch;
+    sshQ_ServerSession sess;
     B_str reason;
 };
 struct interop_serverQ_L_90procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_90proc, interop_serverQ_main, sshQ_ServerSession);
+    B_NoneType (*__init__) (interop_serverQ_L_90proc, interop_serverQ_main, sshQ_ServerSession, sshQ_AuthRequest);
     void (*__serialize__) (interop_serverQ_L_90proc, $Serial$state);
     interop_serverQ_L_90proc (*__deserialize__) (interop_serverQ_L_90proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_90proc);
@@ -1139,12 +1106,13 @@ struct interop_serverQ_L_90proc {
     struct interop_serverQ_L_90procG_class *$class;
     interop_serverQ_main self;
     sshQ_ServerSession sess;
+    sshQ_AuthRequest req;
 };
 struct interop_serverQ_L_91procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_91proc, interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_91proc, interop_serverQ_main, sshQ_ServerChannel, B_bytes);
     void (*__serialize__) (interop_serverQ_L_91proc, $Serial$state);
     interop_serverQ_L_91proc (*__deserialize__) (interop_serverQ_L_91proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_91proc);
@@ -1156,15 +1124,14 @@ struct interop_serverQ_L_91procG_class {
 struct interop_serverQ_L_91proc {
     struct interop_serverQ_L_91procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerSession sess;
     sshQ_ServerChannel ch;
-    B_str cmd;
+    B_bytes data;
 };
 struct interop_serverQ_L_92procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_92proc, interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_NoneType (*__init__) (interop_serverQ_L_92proc, interop_serverQ_main, sshQ_ServerChannel, B_bytes);
     void (*__serialize__) (interop_serverQ_L_92proc, $Serial$state);
     interop_serverQ_L_92proc (*__deserialize__) (interop_serverQ_L_92proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_92proc);
@@ -1176,33 +1143,51 @@ struct interop_serverQ_L_92procG_class {
 struct interop_serverQ_L_92proc {
     struct interop_serverQ_L_92procG_class *$class;
     interop_serverQ_main self;
-    sshQ_ServerSession sess;
     sshQ_ServerChannel ch;
-    B_str name;
+    B_bytes data;
 };
-$R interop_serverQ_L_93C_51cont ($Cont, interop_serverQ_main, B_NoneType);
-struct interop_serverQ_L_94ContG_class {
+struct interop_serverQ_L_93procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_94Cont, $Cont, interop_serverQ_main);
-    void (*__serialize__) (interop_serverQ_L_94Cont, $Serial$state);
-    interop_serverQ_L_94Cont (*__deserialize__) (interop_serverQ_L_94Cont, $Serial$state);
-    B_bool (*__bool__) (interop_serverQ_L_94Cont);
-    B_str (*__str__) (interop_serverQ_L_94Cont);
-    B_str (*__repr__) (interop_serverQ_L_94Cont);
-    $R (*__call__) (interop_serverQ_L_94Cont, B_NoneType);
+    B_NoneType (*__init__) (interop_serverQ_L_93proc, interop_serverQ_main, sshQ_ServerChannel, B_str);
+    void (*__serialize__) (interop_serverQ_L_93proc, $Serial$state);
+    interop_serverQ_L_93proc (*__deserialize__) (interop_serverQ_L_93proc, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_93proc);
+    B_str (*__str__) (interop_serverQ_L_93proc);
+    B_str (*__repr__) (interop_serverQ_L_93proc);
+    $R (*__call__) (interop_serverQ_L_93proc, $Cont);
+    $R (*__exec__) (interop_serverQ_L_93proc, $Cont);
 };
-struct interop_serverQ_L_94Cont {
-    struct interop_serverQ_L_94ContG_class *$class;
-    $Cont C_cont;
-    interop_serverQ_main G_act;
+struct interop_serverQ_L_93proc {
+    struct interop_serverQ_L_93procG_class *$class;
+    interop_serverQ_main self;
+    sshQ_ServerChannel ch;
+    B_str reason;
+};
+struct interop_serverQ_L_94procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_94proc, interop_serverQ_main, sshQ_ServerSession);
+    void (*__serialize__) (interop_serverQ_L_94proc, $Serial$state);
+    interop_serverQ_L_94proc (*__deserialize__) (interop_serverQ_L_94proc, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_94proc);
+    B_str (*__str__) (interop_serverQ_L_94proc);
+    B_str (*__repr__) (interop_serverQ_L_94proc);
+    $R (*__call__) (interop_serverQ_L_94proc, $Cont);
+    $R (*__exec__) (interop_serverQ_L_94proc, $Cont);
+};
+struct interop_serverQ_L_94proc {
+    struct interop_serverQ_L_94procG_class *$class;
+    interop_serverQ_main self;
+    sshQ_ServerSession sess;
 };
 struct interop_serverQ_L_95procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (interop_serverQ_L_95proc, interop_serverQ_main, B_Env);
+    B_NoneType (*__init__) (interop_serverQ_L_95proc, interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
     void (*__serialize__) (interop_serverQ_L_95proc, $Serial$state);
     interop_serverQ_L_95proc (*__deserialize__) (interop_serverQ_L_95proc, $Serial$state);
     B_bool (*__bool__) (interop_serverQ_L_95proc);
@@ -1213,6 +1198,64 @@ struct interop_serverQ_L_95procG_class {
 };
 struct interop_serverQ_L_95proc {
     struct interop_serverQ_L_95procG_class *$class;
+    interop_serverQ_main self;
+    sshQ_ServerSession sess;
+    sshQ_ServerChannel ch;
+    B_str cmd;
+};
+struct interop_serverQ_L_96procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_96proc, interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    void (*__serialize__) (interop_serverQ_L_96proc, $Serial$state);
+    interop_serverQ_L_96proc (*__deserialize__) (interop_serverQ_L_96proc, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_96proc);
+    B_str (*__str__) (interop_serverQ_L_96proc);
+    B_str (*__repr__) (interop_serverQ_L_96proc);
+    $R (*__call__) (interop_serverQ_L_96proc, $Cont);
+    $R (*__exec__) (interop_serverQ_L_96proc, $Cont);
+};
+struct interop_serverQ_L_96proc {
+    struct interop_serverQ_L_96procG_class *$class;
+    interop_serverQ_main self;
+    sshQ_ServerSession sess;
+    sshQ_ServerChannel ch;
+    B_str name;
+};
+$R interop_serverQ_L_97C_55cont ($Cont, interop_serverQ_main, B_NoneType);
+struct interop_serverQ_L_98ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_98Cont, $Cont, interop_serverQ_main);
+    void (*__serialize__) (interop_serverQ_L_98Cont, $Serial$state);
+    interop_serverQ_L_98Cont (*__deserialize__) (interop_serverQ_L_98Cont, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_98Cont);
+    B_str (*__str__) (interop_serverQ_L_98Cont);
+    B_str (*__repr__) (interop_serverQ_L_98Cont);
+    $R (*__call__) (interop_serverQ_L_98Cont, B_NoneType);
+};
+struct interop_serverQ_L_98Cont {
+    struct interop_serverQ_L_98ContG_class *$class;
+    $Cont C_cont;
+    interop_serverQ_main G_act;
+};
+struct interop_serverQ_L_99procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (interop_serverQ_L_99proc, interop_serverQ_main, B_Env);
+    void (*__serialize__) (interop_serverQ_L_99proc, $Serial$state);
+    interop_serverQ_L_99proc (*__deserialize__) (interop_serverQ_L_99proc, $Serial$state);
+    B_bool (*__bool__) (interop_serverQ_L_99proc);
+    B_str (*__str__) (interop_serverQ_L_99proc);
+    B_str (*__repr__) (interop_serverQ_L_99proc);
+    $R (*__call__) (interop_serverQ_L_99proc, $Cont);
+    $R (*__exec__) (interop_serverQ_L_99proc, $Cont);
+};
+struct interop_serverQ_L_99proc {
+    struct interop_serverQ_L_99procG_class *$class;
     interop_serverQ_main G_act;
     B_Env env;
 };
@@ -1279,131 +1322,137 @@ struct interop_serverQ_main {
     sshQ_Server server;
     B_list modes;
     B_list eofed;
+    B_str auth_key;
 };
 $R interop_serverQ_mainG_newact ($Cont, B_Env);
-extern struct interop_serverQ_L_2ContG_class interop_serverQ_L_2ContG_methods;
-interop_serverQ_L_2Cont interop_serverQ_L_2ContG_new(interop_serverQ_main, $Cont);
-extern struct interop_serverQ_L_4actionG_class interop_serverQ_L_4actionG_methods;
-interop_serverQ_L_4action interop_serverQ_L_4actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_6actionG_class interop_serverQ_L_6actionG_methods;
-interop_serverQ_L_6action interop_serverQ_L_6actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_8actionG_class interop_serverQ_L_8actionG_methods;
-interop_serverQ_L_8action interop_serverQ_L_8actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_10actionG_class interop_serverQ_L_10actionG_methods;
-interop_serverQ_L_10action interop_serverQ_L_10actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_12actionG_class interop_serverQ_L_12actionG_methods;
-interop_serverQ_L_12action interop_serverQ_L_12actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_14actionG_class interop_serverQ_L_14actionG_methods;
-interop_serverQ_L_14action interop_serverQ_L_14actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_16actionG_class interop_serverQ_L_16actionG_methods;
-interop_serverQ_L_16action interop_serverQ_L_16actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_18actionG_class interop_serverQ_L_18actionG_methods;
-interop_serverQ_L_18action interop_serverQ_L_18actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_22ContG_class interop_serverQ_L_22ContG_methods;
-interop_serverQ_L_22Cont interop_serverQ_L_22ContG_new($Cont);
-extern struct interop_serverQ_L_25ContG_class interop_serverQ_L_25ContG_methods;
-interop_serverQ_L_25Cont interop_serverQ_L_25ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_26ContG_class interop_serverQ_L_26ContG_methods;
-interop_serverQ_L_26Cont interop_serverQ_L_26ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_3ContG_class interop_serverQ_L_3ContG_methods;
+interop_serverQ_L_3Cont interop_serverQ_L_3ContG_new(interop_serverQ_main, $Cont);
+extern struct interop_serverQ_L_5actionG_class interop_serverQ_L_5actionG_methods;
+interop_serverQ_L_5action interop_serverQ_L_5actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_7actionG_class interop_serverQ_L_7actionG_methods;
+interop_serverQ_L_7action interop_serverQ_L_7actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_9actionG_class interop_serverQ_L_9actionG_methods;
+interop_serverQ_L_9action interop_serverQ_L_9actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_11actionG_class interop_serverQ_L_11actionG_methods;
+interop_serverQ_L_11action interop_serverQ_L_11actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_13actionG_class interop_serverQ_L_13actionG_methods;
+interop_serverQ_L_13action interop_serverQ_L_13actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_15actionG_class interop_serverQ_L_15actionG_methods;
+interop_serverQ_L_15action interop_serverQ_L_15actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_17actionG_class interop_serverQ_L_17actionG_methods;
+interop_serverQ_L_17action interop_serverQ_L_17actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_19actionG_class interop_serverQ_L_19actionG_methods;
+interop_serverQ_L_19action interop_serverQ_L_19actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_20ContG_class interop_serverQ_L_20ContG_methods;
+interop_serverQ_L_20Cont interop_serverQ_L_20ContG_new(interop_serverQ_main, $Cont);
+extern struct interop_serverQ_L_24ContG_class interop_serverQ_L_24ContG_methods;
+interop_serverQ_L_24Cont interop_serverQ_L_24ContG_new($Cont);
 extern struct interop_serverQ_L_27ContG_class interop_serverQ_L_27ContG_methods;
-interop_serverQ_L_27Cont interop_serverQ_L_27ContG_new($Cont);
+interop_serverQ_L_27Cont interop_serverQ_L_27ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_28ContG_class interop_serverQ_L_28ContG_methods;
-interop_serverQ_L_28Cont interop_serverQ_L_28ContG_new($Cont);
+interop_serverQ_L_28Cont interop_serverQ_L_28ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_29ContG_class interop_serverQ_L_29ContG_methods;
 interop_serverQ_L_29Cont interop_serverQ_L_29ContG_new($Cont);
 extern struct interop_serverQ_L_30ContG_class interop_serverQ_L_30ContG_methods;
-interop_serverQ_L_30Cont interop_serverQ_L_30ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_34ContG_class interop_serverQ_L_34ContG_methods;
-interop_serverQ_L_34Cont interop_serverQ_L_34ContG_new($Cont);
-extern struct interop_serverQ_L_37ContG_class interop_serverQ_L_37ContG_methods;
-interop_serverQ_L_37Cont interop_serverQ_L_37ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_38ContG_class interop_serverQ_L_38ContG_methods;
-interop_serverQ_L_38Cont interop_serverQ_L_38ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+interop_serverQ_L_30Cont interop_serverQ_L_30ContG_new($Cont);
+extern struct interop_serverQ_L_31ContG_class interop_serverQ_L_31ContG_methods;
+interop_serverQ_L_31Cont interop_serverQ_L_31ContG_new($Cont);
+extern struct interop_serverQ_L_32ContG_class interop_serverQ_L_32ContG_methods;
+interop_serverQ_L_32Cont interop_serverQ_L_32ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_36ContG_class interop_serverQ_L_36ContG_methods;
+interop_serverQ_L_36Cont interop_serverQ_L_36ContG_new($Cont);
 extern struct interop_serverQ_L_39ContG_class interop_serverQ_L_39ContG_methods;
-interop_serverQ_L_39Cont interop_serverQ_L_39ContG_new($Cont);
+interop_serverQ_L_39Cont interop_serverQ_L_39ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_40ContG_class interop_serverQ_L_40ContG_methods;
-interop_serverQ_L_40Cont interop_serverQ_L_40ContG_new($Cont);
+interop_serverQ_L_40Cont interop_serverQ_L_40ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_41ContG_class interop_serverQ_L_41ContG_methods;
 interop_serverQ_L_41Cont interop_serverQ_L_41ContG_new($Cont);
 extern struct interop_serverQ_L_42ContG_class interop_serverQ_L_42ContG_methods;
-interop_serverQ_L_42Cont interop_serverQ_L_42ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_45ContG_class interop_serverQ_L_45ContG_methods;
-interop_serverQ_L_45Cont interop_serverQ_L_45ContG_new($Cont);
-extern struct interop_serverQ_L_46ContG_class interop_serverQ_L_46ContG_methods;
-interop_serverQ_L_46Cont interop_serverQ_L_46ContG_new($Cont, sshQ_Server);
+interop_serverQ_L_42Cont interop_serverQ_L_42ContG_new($Cont);
+extern struct interop_serverQ_L_43ContG_class interop_serverQ_L_43ContG_methods;
+interop_serverQ_L_43Cont interop_serverQ_L_43ContG_new($Cont);
+extern struct interop_serverQ_L_44ContG_class interop_serverQ_L_44ContG_methods;
+interop_serverQ_L_44Cont interop_serverQ_L_44ContG_new(B_Iterator, B_Identity, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_47ContG_class interop_serverQ_L_47ContG_methods;
+interop_serverQ_L_47Cont interop_serverQ_L_47ContG_new($Cont);
+extern struct interop_serverQ_L_48ContG_class interop_serverQ_L_48ContG_methods;
+interop_serverQ_L_48Cont interop_serverQ_L_48ContG_new($Cont, sshQ_Server);
 extern struct interop_serverQ_L_50ContG_class interop_serverQ_L_50ContG_methods;
-interop_serverQ_L_50Cont interop_serverQ_L_50ContG_new($Cont);
-extern struct interop_serverQ_L_53ContG_class interop_serverQ_L_53ContG_methods;
-interop_serverQ_L_53Cont interop_serverQ_L_53ContG_new($Cont);
+interop_serverQ_L_50Cont interop_serverQ_L_50ContG_new(sshQ_AuthRequest, interop_serverQ_main, B_Eq, sshQ_ServerSession, $Cont);
 extern struct interop_serverQ_L_54ContG_class interop_serverQ_L_54ContG_methods;
 interop_serverQ_L_54Cont interop_serverQ_L_54ContG_new($Cont);
-extern struct interop_serverQ_L_55ContG_class interop_serverQ_L_55ContG_methods;
-interop_serverQ_L_55Cont interop_serverQ_L_55ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_56ContG_class interop_serverQ_L_56ContG_methods;
-interop_serverQ_L_56Cont interop_serverQ_L_56ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_57ContG_class interop_serverQ_L_57ContG_methods;
-interop_serverQ_L_57Cont interop_serverQ_L_57ContG_new($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+interop_serverQ_L_57Cont interop_serverQ_L_57ContG_new($Cont);
 extern struct interop_serverQ_L_58ContG_class interop_serverQ_L_58ContG_methods;
-interop_serverQ_L_58Cont interop_serverQ_L_58ContG_new($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+interop_serverQ_L_58Cont interop_serverQ_L_58ContG_new($Cont);
+extern struct interop_serverQ_L_59ContG_class interop_serverQ_L_59ContG_methods;
+interop_serverQ_L_59Cont interop_serverQ_L_59ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_60ContG_class interop_serverQ_L_60ContG_methods;
-interop_serverQ_L_60Cont interop_serverQ_L_60ContG_new(sshQ_ServerSession, $Cont);
-extern struct interop_serverQ_L_62actionG_class interop_serverQ_L_62actionG_methods;
-interop_serverQ_L_62action interop_serverQ_L_62actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_64actionG_class interop_serverQ_L_64actionG_methods;
-interop_serverQ_L_64action interop_serverQ_L_64actionG_new(interop_serverQ_main);
+interop_serverQ_L_60Cont interop_serverQ_L_60ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_61ContG_class interop_serverQ_L_61ContG_methods;
+interop_serverQ_L_61Cont interop_serverQ_L_61ContG_new($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+extern struct interop_serverQ_L_62ContG_class interop_serverQ_L_62ContG_methods;
+interop_serverQ_L_62Cont interop_serverQ_L_62ContG_new($Cont, B_bytes, sshQ_ServerChannel, interop_serverQ_main);
+extern struct interop_serverQ_L_64ContG_class interop_serverQ_L_64ContG_methods;
+interop_serverQ_L_64Cont interop_serverQ_L_64ContG_new(sshQ_ServerSession, $Cont);
 extern struct interop_serverQ_L_66actionG_class interop_serverQ_L_66actionG_methods;
 interop_serverQ_L_66action interop_serverQ_L_66actionG_new(interop_serverQ_main);
-extern struct interop_serverQ_L_68ContG_class interop_serverQ_L_68ContG_methods;
-interop_serverQ_L_68Cont interop_serverQ_L_68ContG_new(B_str, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_68actionG_class interop_serverQ_L_68actionG_methods;
+interop_serverQ_L_68action interop_serverQ_L_68actionG_new(interop_serverQ_main);
+extern struct interop_serverQ_L_70actionG_class interop_serverQ_L_70actionG_methods;
+interop_serverQ_L_70action interop_serverQ_L_70actionG_new(interop_serverQ_main);
 extern struct interop_serverQ_L_72ContG_class interop_serverQ_L_72ContG_methods;
-interop_serverQ_L_72Cont interop_serverQ_L_72ContG_new($Cont);
-extern struct interop_serverQ_L_73ContG_class interop_serverQ_L_73ContG_methods;
-interop_serverQ_L_73Cont interop_serverQ_L_73ContG_new($Cont);
-extern struct interop_serverQ_L_74ContG_class interop_serverQ_L_74ContG_methods;
-interop_serverQ_L_74Cont interop_serverQ_L_74ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
-extern struct interop_serverQ_L_75ContG_class interop_serverQ_L_75ContG_methods;
-interop_serverQ_L_75Cont interop_serverQ_L_75ContG_new(sshQ_ServerChannel, interop_serverQ_main, $Cont);
+interop_serverQ_L_72Cont interop_serverQ_L_72ContG_new(B_str, sshQ_ServerChannel, $Cont);
 extern struct interop_serverQ_L_76ContG_class interop_serverQ_L_76ContG_methods;
 interop_serverQ_L_76Cont interop_serverQ_L_76ContG_new($Cont);
-extern struct interop_serverQ_L_77procG_class interop_serverQ_L_77procG_methods;
-interop_serverQ_L_77proc interop_serverQ_L_77procG_new(interop_serverQ_main, sshQ_ServerChannel, B_str);
-extern struct interop_serverQ_L_78procG_class interop_serverQ_L_78procG_methods;
-interop_serverQ_L_78proc interop_serverQ_L_78procG_new(interop_serverQ_main, sshQ_ServerChannel);
-extern struct interop_serverQ_L_79procG_class interop_serverQ_L_79procG_methods;
-interop_serverQ_L_79proc interop_serverQ_L_79procG_new(interop_serverQ_main, sshQ_ServerChannel);
-extern struct interop_serverQ_L_80procG_class interop_serverQ_L_80procG_methods;
-interop_serverQ_L_80proc interop_serverQ_L_80procG_new(interop_serverQ_main, sshQ_ServerChannel);
+extern struct interop_serverQ_L_77ContG_class interop_serverQ_L_77ContG_methods;
+interop_serverQ_L_77Cont interop_serverQ_L_77ContG_new($Cont);
+extern struct interop_serverQ_L_78ContG_class interop_serverQ_L_78ContG_methods;
+interop_serverQ_L_78Cont interop_serverQ_L_78ContG_new(interop_serverQ_main, sshQ_ServerChannel, $Cont);
+extern struct interop_serverQ_L_79ContG_class interop_serverQ_L_79ContG_methods;
+interop_serverQ_L_79Cont interop_serverQ_L_79ContG_new(sshQ_ServerChannel, interop_serverQ_main, $Cont);
+extern struct interop_serverQ_L_80ContG_class interop_serverQ_L_80ContG_methods;
+interop_serverQ_L_80Cont interop_serverQ_L_80ContG_new($Cont);
 extern struct interop_serverQ_L_81procG_class interop_serverQ_L_81procG_methods;
-interop_serverQ_L_81proc interop_serverQ_L_81procG_new(interop_serverQ_main, sshQ_ServerChannel);
+interop_serverQ_L_81proc interop_serverQ_L_81procG_new(interop_serverQ_main, sshQ_ServerChannel, B_str);
 extern struct interop_serverQ_L_82procG_class interop_serverQ_L_82procG_methods;
-interop_serverQ_L_82proc interop_serverQ_L_82procG_new(interop_serverQ_main, sshQ_Server, B_str);
+interop_serverQ_L_82proc interop_serverQ_L_82procG_new(interop_serverQ_main, sshQ_ServerChannel);
 extern struct interop_serverQ_L_83procG_class interop_serverQ_L_83procG_methods;
-interop_serverQ_L_83proc interop_serverQ_L_83procG_new(interop_serverQ_main, sshQ_Server, B_str);
+interop_serverQ_L_83proc interop_serverQ_L_83procG_new(interop_serverQ_main, sshQ_ServerChannel);
 extern struct interop_serverQ_L_84procG_class interop_serverQ_L_84procG_methods;
-interop_serverQ_L_84proc interop_serverQ_L_84procG_new(interop_serverQ_main, sshQ_ServerSession);
+interop_serverQ_L_84proc interop_serverQ_L_84procG_new(interop_serverQ_main, sshQ_ServerChannel);
 extern struct interop_serverQ_L_85procG_class interop_serverQ_L_85procG_methods;
-interop_serverQ_L_85proc interop_serverQ_L_85procG_new(interop_serverQ_main, sshQ_ServerSession, B_str);
+interop_serverQ_L_85proc interop_serverQ_L_85procG_new(interop_serverQ_main, sshQ_ServerChannel);
 extern struct interop_serverQ_L_86procG_class interop_serverQ_L_86procG_methods;
-interop_serverQ_L_86proc interop_serverQ_L_86procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_AuthRequest);
+interop_serverQ_L_86proc interop_serverQ_L_86procG_new(interop_serverQ_main, sshQ_Server, B_str);
 extern struct interop_serverQ_L_87procG_class interop_serverQ_L_87procG_methods;
-interop_serverQ_L_87proc interop_serverQ_L_87procG_new(interop_serverQ_main, sshQ_ServerChannel, B_bytes);
+interop_serverQ_L_87proc interop_serverQ_L_87procG_new(interop_serverQ_main, sshQ_Server, B_str);
 extern struct interop_serverQ_L_88procG_class interop_serverQ_L_88procG_methods;
-interop_serverQ_L_88proc interop_serverQ_L_88procG_new(interop_serverQ_main, sshQ_ServerChannel, B_bytes);
+interop_serverQ_L_88proc interop_serverQ_L_88procG_new(interop_serverQ_main, sshQ_ServerSession);
 extern struct interop_serverQ_L_89procG_class interop_serverQ_L_89procG_methods;
-interop_serverQ_L_89proc interop_serverQ_L_89procG_new(interop_serverQ_main, sshQ_ServerChannel, B_str);
+interop_serverQ_L_89proc interop_serverQ_L_89procG_new(interop_serverQ_main, sshQ_ServerSession, B_str);
 extern struct interop_serverQ_L_90procG_class interop_serverQ_L_90procG_methods;
-interop_serverQ_L_90proc interop_serverQ_L_90procG_new(interop_serverQ_main, sshQ_ServerSession);
+interop_serverQ_L_90proc interop_serverQ_L_90procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_AuthRequest);
 extern struct interop_serverQ_L_91procG_class interop_serverQ_L_91procG_methods;
-interop_serverQ_L_91proc interop_serverQ_L_91procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+interop_serverQ_L_91proc interop_serverQ_L_91procG_new(interop_serverQ_main, sshQ_ServerChannel, B_bytes);
 extern struct interop_serverQ_L_92procG_class interop_serverQ_L_92procG_methods;
-interop_serverQ_L_92proc interop_serverQ_L_92procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
-extern struct interop_serverQ_L_94ContG_class interop_serverQ_L_94ContG_methods;
-interop_serverQ_L_94Cont interop_serverQ_L_94ContG_new($Cont, interop_serverQ_main);
+interop_serverQ_L_92proc interop_serverQ_L_92procG_new(interop_serverQ_main, sshQ_ServerChannel, B_bytes);
+extern struct interop_serverQ_L_93procG_class interop_serverQ_L_93procG_methods;
+interop_serverQ_L_93proc interop_serverQ_L_93procG_new(interop_serverQ_main, sshQ_ServerChannel, B_str);
+extern struct interop_serverQ_L_94procG_class interop_serverQ_L_94procG_methods;
+interop_serverQ_L_94proc interop_serverQ_L_94procG_new(interop_serverQ_main, sshQ_ServerSession);
 extern struct interop_serverQ_L_95procG_class interop_serverQ_L_95procG_methods;
-interop_serverQ_L_95proc interop_serverQ_L_95procG_new(interop_serverQ_main, B_Env);
+interop_serverQ_L_95proc interop_serverQ_L_95procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+extern struct interop_serverQ_L_96procG_class interop_serverQ_L_96procG_methods;
+interop_serverQ_L_96proc interop_serverQ_L_96procG_new(interop_serverQ_main, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+extern struct interop_serverQ_L_98ContG_class interop_serverQ_L_98ContG_methods;
+interop_serverQ_L_98Cont interop_serverQ_L_98ContG_new($Cont, interop_serverQ_main);
+extern struct interop_serverQ_L_99procG_class interop_serverQ_L_99procG_methods;
+interop_serverQ_L_99proc interop_serverQ_L_99procG_new(interop_serverQ_main, B_Env);
 extern struct interop_serverQ_mainG_class interop_serverQ_mainG_methods;
 $R interop_serverQ_mainG_new($Cont, B_Env);
-extern B_Eq interop_serverQ_W_main_1090;
-extern B_Eq interop_serverQ_W_main_336;
-extern B_Eq interop_serverQ_W_main_294;
+extern B_Eq interop_serverQ_W_main_341;
+extern B_Eq interop_serverQ_W_main_1194;
+extern B_Eq interop_serverQ_W_main_424;
+extern B_Eq interop_serverQ_W_main_322;
 void interop_serverQ___init__ ();

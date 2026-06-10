@@ -764,7 +764,7 @@
 </div>
 
 <h2 class="type-context"><code>_test_echo_payload</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
-<div class="docstring">Stream 256 KiB through a server echo and verify integrity.<br><br>    Payload size is kept moderate so the test stays well within the test<br>    timeout under `acton test stress` with many concurrent workers; raw<br>    throughput is covered by the bench_echo program.<br>    </div>
+<div class="docstring">Stream 128 KiB through a server echo and verify integrity.<br><br>    Payload size is kept moderate so the test stays well within the test<br>    timeout under `acton test stress` with many concurrent workers; raw<br>    throughput is covered by the bench_echo program.<br>    </div>
 
 <div class="declaration-block">
 <h2 class="type-context"><span class="keyword">actor</span> <code>ConcurrentChannelsTester</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
@@ -988,6 +988,92 @@
 
 <h2 class="type-context"><code>_test_connect_refused</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
 <div class="docstring">Connecting to a closed port must report a connect error, not hang.</div>
+
+<div class="declaration-block">
+<h2 class="type-context"><span class="keyword">actor</span> <code>PubkeyAuthTester</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
+<div class="docstring">Client authenticates with a private key; server authorizes the pubkey.<br><br>    Exercises the server-side publickey two-step probe/sign protocol: on_auth<br>    must fire exactly once (on the verified signature) with method &quot;publickey&quot;<br>    and the presented key in authorized_keys form.<br>    </div>
+
+<h3>Public Constants</h3>
+<div class="attributes">
+<div class="attribute-item"><code>log</code></div>
+<div class="attribute-item"><code>fs</code></div>
+</div>
+<h3>Internal Attributes</h3>
+<div class="attributes">
+<div class="attribute-item"><code>done</code></div>
+<div class="attribute-item"><code>server</code>: <span class="type">?<a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span></div>
+<div class="attribute-item"><code>client</code>: <span class="type">?<a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span></div>
+<div class="attribute-item"><code>keypath</code></div>
+<div class="attribute-item"><code>auth_calls</code></div>
+<div class="attribute-item"><code>pubkey_seen</code></div>
+<div class="attribute-item"><code>run_ok</code></div>
+<div class="attribute-item"><code>client_closed</code></div>
+<div class="attribute-item"><code>server_closed</code></div>
+</div>
+<h3>Methods</h3>
+<div class="methods">
+<div class="method-item">
+<div class="method-signature"><code>finish_error</code>(<span class="param-name">msg</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>maybe_finish</code>()</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_timeout</code>()</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_listen</code>(<span class="param-name">s</span>: <span class="type"><a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span>, <span class="param-name">err</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_server_close</code>(<span class="param-name">s</span>: <span class="type"><a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_session</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_auth</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>, <span class="param-name">req</span>: <span class="type"><a href="ssh.html#class-AuthRequest" class="type-link">ssh.AuthRequest</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_data</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_stderr</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_close</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_channel_open</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_exec</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>, <span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">cmd</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_hostkey</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">state</span>: <span class="type">str</span>, <span class="param-name">info</span>: <span class="type"><a href="ssh.html#class-HostKeyInfo" class="type-link">ssh.HostKeyInfo</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_connect</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">err</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_client_close</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_run_exit</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">code</span>: <span class="type">int</span>, <span class="param-name">sig</span>: <span class="type">?str</span>, <span class="param-name">out</span>: <span class="type">bytes</span>, <span class="param-name">err_out</span>: <span class="type">bytes</span>, <span class="param-name">error</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>start_client</code>(<span class="param-name">port</span>: <span class="type">u16</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>start_server</code>()</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>setup</code>()</div>
+</div>
+</div>
+</div>
+
+<h2 class="type-context"><code>_test_pubkey_auth</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
+<div class="docstring">Server-side publickey auth: client key, server authorizes pubkey.</div>
   </div>
 </body>
 </html>

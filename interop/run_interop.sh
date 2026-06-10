@@ -63,7 +63,13 @@ ssh_to_acton() {
 #
 note "Direction A: OpenSSH ssh client -> Acton ssh.Server"
 
-"$BIN/interop_server" > "$TMP/server.out" 2>"$TMP/server.err" &
+# A client key the Acton server will authorize for publickey auth. The server
+# reads the authorized_keys "<type> <base64>" line from ACTON_SSH_AUTH_KEY.
+ssh-keygen -q -t ed25519 -N "" -f "$TMP/clientA" -C ""
+AUTH_KEY=$(cut -d' ' -f1,2 "$TMP/clientA.pub")
+ssh-keygen -q -t ed25519 -N "" -f "$TMP/clientA_wrong" -C ""
+
+ACTON_SSH_AUTH_KEY="$AUTH_KEY" "$BIN/interop_server" > "$TMP/server.out" 2>"$TMP/server.err" &
 SERVER_PID=$!
 
 PORT=""
@@ -105,6 +111,42 @@ else
         ok "wrong password rejected (rc=$rc)"
     else
         bad "wrong password unexpectedly accepted"
+    fi
+
+    # publickey auth: the authorized key must succeed
+    out=$(ssh -p "$PORT" -F /dev/null \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile="$TMP/known_hosts" \
+        -o GlobalKnownHostsFile=/dev/null \
+        -o PreferredAuthentications=publickey \
+        -o PasswordAuthentication=no \
+        -o IdentitiesOnly=yes \
+        -i "$TMP/clientA" \
+        interop@127.0.0.1 ping 2>"$TMP/sshApk.err")
+    rc=$?
+    if [ $rc -eq 0 ] && [ "$out" = "pong" ]; then
+        ok "publickey auth (authorized key) -> pong, exit 0"
+    else
+        bad "publickey auth (rc=$rc out=$out)"
+        sed -n 1,12p "$TMP/sshApk.err"
+    fi
+
+    # publickey auth: an unauthorized key must be rejected
+    out=$(ssh -p "$PORT" -F /dev/null \
+        -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile="$TMP/known_hosts" \
+        -o GlobalKnownHostsFile=/dev/null \
+        -o PreferredAuthentications=publickey \
+        -o PasswordAuthentication=no \
+        -o IdentitiesOnly=yes \
+        -o NumberOfPasswordPrompts=0 \
+        -i "$TMP/clientA_wrong" \
+        interop@127.0.0.1 ping 2>"$TMP/sshApkw.err")
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        ok "publickey auth (wrong key) rejected (rc=$rc)"
+    else
+        bad "publickey auth wrong key unexpectedly accepted"
     fi
 
     # subsystem echo round-trip

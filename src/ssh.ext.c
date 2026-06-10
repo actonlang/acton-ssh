@@ -2861,6 +2861,37 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
     return -1;
 }
 
+/* Render a presented public key as an OpenSSH authorized_keys line
+ * ("<type> <base64>"), returned as B_bytes for AuthRequest.pubkey so the
+ * application can compare it directly against authorized_keys entries.
+ * Returns B_None on failure. The key is owned by the libssh message; we only
+ * read from it. */
+static B_bytes session_pubkey_authkeys_bytes(ssh_key key) {
+    if (key == NULL)
+        return (B_bytes)B_None;
+    const char *type_str = ssh_key_type_to_char(ssh_key_type(key));
+    char *b64 = NULL;
+    if (ssh_pki_export_pubkey_base64(key, &b64) != SSH_OK || b64 == NULL)
+        return (B_bytes)B_None;
+    if (type_str == NULL)
+        type_str = "";
+    size_t tlen = strlen(type_str);
+    size_t blen = strlen(b64);
+    size_t total = tlen + 1 + blen;
+    B_bytes out = (B_bytes)B_None;
+    char *line = malloc(total + 1);
+    if (line != NULL) {
+        memcpy(line, type_str, tlen);
+        line[tlen] = ' ';
+        memcpy(line + tlen + 1, b64, blen);
+        line[total] = '\0';
+        out = to$bytesD_len(line, (int)total);
+        free(line);
+    }
+    ssh_string_free_char(b64);
+    return out;
+}
+
 static void session_restart_auth_timer(ssh_server_session_ctx *s, double timeout_sec) {
     if (s == NULL)
         return;
@@ -3119,7 +3150,8 @@ static void session_drive(ssh_server_session_ctx *s) {
                 s->state = SESSION_STATE_AUTH;
                 stop_timer(&s->attach_timer, session_timer_close_cb);
                 session_start_auth_timer(s);
-                ssh_set_auth_methods(s->session, SSH_AUTH_METHOD_PASSWORD);
+                ssh_set_auth_methods(s->session,
+                                     SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
                 spin = 0;
                 continue;
             } else if (rc == SSH_AGAIN) {
@@ -3166,7 +3198,8 @@ static void session_drive(ssh_server_session_ctx *s) {
             if (type == SSH_REQUEST_AUTH && ssh_message_subtype(msg) == SSH_AUTH_METHOD_PASSWORD) {
                 if (s->on_auth == NULL) {
                     int rc;
-                    ssh_message_auth_set_methods(msg, SSH_AUTH_METHOD_PASSWORD);
+                    ssh_message_auth_set_methods(msg,
+                                                 SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
                     rc = ssh_message_reply_default(msg);
                     ssh_message_free(msg);
                     if (session_check_reply_rc(s, rc, "SSH auth reject failed") != 0)
@@ -3188,6 +3221,61 @@ static void session_drive(ssh_server_session_ctx *s) {
                     to$str((char *)(user ? user : "")),
                     pass ? to$str((char *)(pass)) : B_None,
                     B_None);
+                $action2 f = ($action2)s->on_auth;
+                f->$class->__asyn__(f, session_actor_ref(s), req);
+                session_update_poll(s);
+                return;
+            }
+            if (type == SSH_REQUEST_AUTH && ssh_message_subtype(msg) == SSH_AUTH_METHOD_PUBLICKEY) {
+                /* SSH publickey auth is a two-step protocol. First the client
+                 * sends an unsigned "probe" (PUBLICKEY_STATE_NONE) asking
+                 * whether the key would be accepted; we answer pk_ok so the
+                 * client will sign. That grants nothing. The client then
+                 * resends the request WITH a signature, which libssh verifies
+                 * (PUBLICKEY_STATE_VALID = good signature). Only then do we ask
+                 * the application to authorize the (user, key) pair, so on_auth
+                 * fires once per key, always on a cryptographically verified
+                 * signature. */
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+                enum ssh_publickey_state_e pkstate = ssh_message_auth_publickey_state(msg);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+                if (pkstate == SSH_PUBLICKEY_STATE_NONE) {
+                    int rc = ssh_message_auth_reply_pk_ok_simple(msg);
+                    ssh_message_free(msg);
+                    if (session_check_reply_rc(s, rc, "SSH pubkey probe reply failed") != 0)
+                        return;
+                    continue;
+                }
+                if (pkstate != SSH_PUBLICKEY_STATE_VALID || s->on_auth == NULL) {
+                    ssh_message_auth_set_methods(msg,
+                                                 SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
+                    int rc = ssh_message_reply_default(msg);
+                    ssh_message_free(msg);
+                    if (session_check_reply_rc(s, rc, "SSH pubkey reject failed") != 0)
+                        return;
+                    continue;
+                }
+                const char *pkuser = ssh_message_auth_user(msg);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+                ssh_key pubkey = ssh_message_auth_pubkey(msg);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+                B_bytes pkbytes = session_pubkey_authkeys_bytes(pubkey);
+                s->pending_auth = msg;
+                sshQ_AuthRequest req = sshQ_AuthRequestG_new(
+                    to$str((char *)"publickey"),
+                    to$str((char *)(pkuser ? pkuser : "")),
+                    B_None,
+                    pkbytes);
                 $action2 f = ($action2)s->on_auth;
                 f->$class->__asyn__(f, session_actor_ref(s), req);
                 session_update_poll(s);
@@ -3898,7 +3986,8 @@ $R sshQ_ServerSessionD_reject_authG_local(sshQ_ServerSession self, $Cont c$cont,
     if (s == NULL || s->pending_auth == NULL)
         return $R_CONT(c$cont, B_None);
 
-    ssh_message_auth_set_methods(s->pending_auth, SSH_AUTH_METHOD_PASSWORD);
+    ssh_message_auth_set_methods(s->pending_auth,
+                                 SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
     int rc = ssh_message_reply_default(s->pending_auth);
     ssh_message_free(s->pending_auth);
     s->pending_auth = NULL;
