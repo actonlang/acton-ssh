@@ -1,0 +1,76 @@
+"""Interop test client: connects to a (real) SSH server and runs a command.
+
+Usage: interop_client HOST PORT USER CMD [KEYFILE [PASSWORD]]
+
+Authenticates with the private key in KEYFILE if given (with optional
+fallback PASSWORD), runs CMD, prints its stdout between OUT-BEGIN/OUT-END
+markers and exits with the remote exit status.
+"""
+
+import net
+import ssh
+
+
+actor main(env):
+    if len(env.argv) < 5:
+        print("usage: interop_client HOST PORT USER CMD [KEYFILE [PASSWORD]]")
+        env.exit(2)
+
+    host = env.argv[1]
+    port = u16(int(env.argv[2]))
+    user = env.argv[3]
+    cmd = env.argv[4]
+    var keyfile: ?str = None
+    var password: ?str = None
+    if len(env.argv) > 5:
+        keyfile = env.argv[5]
+    if len(env.argv) > 6:
+        password = env.argv[6]
+
+    var client: ?ssh.Client = None
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        print("HOSTKEY", state, info.key_type, info.fingerprint)
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            print("CONNECT-ERROR", err)
+            env.exit(1)
+            return
+        print("CONNECTED")
+        ssh.RunCommand(c, cmd, on_run_exit, timeout=15.0)
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+        if error is not None:
+            print("RUN-ERROR", error)
+            env.exit(1)
+            return
+        print("OUT-BEGIN")
+        print(out.decode())
+        print("OUT-END")
+        if len(err_out) > 0:
+            print("ERR-BEGIN")
+            print(err_out.decode())
+            print("ERR-END")
+        print("EXIT", code)
+        if client is not None:
+            client.close()
+        env.exit(code)
+
+    client = ssh.Client(
+        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+        host,
+        user,
+        on_connect,
+        on_close,
+        on_hostkey,
+        password=password,
+        private_key_file=keyfile,
+        port=port,
+        connect_timeout=10.0,
+        auth_timeout=10.0,
+    )

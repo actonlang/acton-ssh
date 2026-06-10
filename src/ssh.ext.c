@@ -85,6 +85,7 @@
 #include <strings.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -396,6 +397,9 @@ static sshQ_ServerChannel server_channel_actor_ref(const ssh_server_channel_ctx 
 static void ssh_debug_log(const char *fmt, ...) {
     if (!ssh_debug_enabled)
         return;
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    fprintf(stderr, "[%6lld.%03ld] ", (long long)ts.tv_sec, ts.tv_nsec / 1000000);
     va_list ap;
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
@@ -1933,7 +1937,7 @@ B_str sshQ_version() {
 
 B_NoneType sshQ__debug(B_str msg) {
     if (ssh_debug_enabled) {
-        log_info("%s", fromB_str(msg));
+        ssh_debug_log("%s", fromB_str(msg));
     }
     return B_None;
 }
@@ -2450,6 +2454,8 @@ static int server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
 }
 
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
+    if (ssh_debug_enabled)
+        ssh_debug_log("server channel finalize ch=%p state=%d remote_close=%d", (void *)ch, (int)ch->state, ch->remote_close_seen);
     sshQ_ServerChannel actor = server_channel_actor_ref(ch);
     while (ch->write_head != NULL) {
         server_write_chunk_t *chunk = ch->write_head;
@@ -2711,6 +2717,8 @@ static void session_drive_channels(ssh_server_session_ctx *s) {
 static void session_fail(ssh_server_session_ctx *s, const char *msg) {
     if (s == NULL || s->state == SESSION_STATE_CLOSED || s->state == SESSION_STATE_ERROR)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("server session fail: %s (state=%d)", msg, (int)s->state);
     s->state = SESSION_STATE_ERROR;
     session_close_internal(s, msg, 1);
 }
@@ -3450,6 +3458,8 @@ static void server_close_internal(ssh_server_ctx *s, const char *reason) {
 static void session_close_internal(ssh_server_session_ctx *s, const char *reason, int force_close) {
     if (s == NULL || s->state == SESSION_STATE_CLOSED)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("server session close: reason=%s force=%d state=%d", reason ? reason : "?", force_close, (int)s->state);
     if (!force_close && s->state != SESSION_STATE_READY)
         force_close = 1;
     if (reason != NULL && s->close_reason == NULL)
@@ -3648,6 +3658,8 @@ $R sshQ_ServerD_closeG_local(sshQ_Server self, $Cont c$cont) {
 
 $R sshQ_ServerD__cleanup_nativeG_local(sshQ_Server self, $Cont c$cont) {
     ssh_server_ctx *s = server_from_actor(self);
+    if (ssh_debug_enabled)
+        ssh_debug_log("server GC cleanup: ctx=%p", (void *)s);
     if (s != NULL)
         server_close_internal(s, "collected");
     return $R_CONT(c$cont, B_None);
@@ -3837,6 +3849,8 @@ $R sshQ_ServerSessionD_closeG_local(sshQ_ServerSession self, $Cont c$cont) {
 
 $R sshQ_ServerSessionD__cleanup_nativeG_local(sshQ_ServerSession self, $Cont c$cont) {
     ssh_server_session_ctx *s = session_from_actor(self);
+    if (ssh_debug_enabled)
+        ssh_debug_log("server session GC cleanup: ctx=%p", (void *)s);
     if (s != NULL)
         session_close_internal(s, "collected", 1);
     return $R_CONT(c$cont, B_None);
@@ -3956,6 +3970,8 @@ $R sshQ_ServerSessionD_channel_closeG_local(sshQ_ServerSession self, $Cont c$con
 
 $R sshQ_ServerChannelD__cleanup_nativeG_local(sshQ_ServerChannel self, $Cont c$cont) {
     ssh_server_channel_ctx *ch = server_channel_from_actor(self);
+    if (ssh_debug_enabled)
+        ssh_debug_log("server channel GC cleanup: ctx=%p", (void *)ch);
     if (ch == NULL || ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR)
         return $R_CONT(c$cont, B_None);
     ssh_server_session_ctx *s = ch->session;

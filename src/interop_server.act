@@ -1,0 +1,137 @@
+"""Interop test server: serves exec and subsystem requests for an OpenSSH client.
+
+Prints "PORT <n>" once listening. Serves until killed.
+
+  exec "ping"        -> writes "pong\n", exit status 0
+  exec anything else -> writes error to stderr, exit status 127
+  subsystem "echo"   -> echoes all received data back, closes on client EOF
+
+Each channel owns its own lifecycle. exec channels are fully driven by the
+on_exec handler and ignore stdin EOF (the command does not read stdin). The
+echo subsystem closes only when the client signals EOF, so a piped
+`ssh -s ... echo` terminates cleanly.
+"""
+
+import net
+import ssh
+
+
+actor main(env):
+    USER = "interop"
+    PASS = "interop-pass"
+
+    var server: ?ssh.Server = None
+    # Per-channel mode, looked up by actor identity. A channel is "exec" or
+    # "echo" once its request handler runs; until then it is "pending".
+    var modes: list[(ssh.ServerChannel, str)] = []
+    # Channels that have seen inbound EOF. libssh delivers channel data/EOF
+    # callbacks before the subsystem request is dequeued, so an echo channel's
+    # EOF can arrive while its mode is still "pending"; we record it and close
+    # once the subsystem handler runs.
+    var eofed: list[ssh.ServerChannel] = []
+
+    def set_mode(ch: ssh.ServerChannel, mode: str):
+        modes.append((ch, mode))
+
+    def mode_of(ch: ssh.ServerChannel) -> str:
+        for (k, v) in modes:
+            if k is ch:
+                return v
+        return "pending"
+
+    def mark_eof(ch: ssh.ServerChannel):
+        eofed.append(ch)
+
+    def saw_eof(ch: ssh.ServerChannel) -> bool:
+        for k in eofed:
+            if k is ch:
+                return True
+        return False
+
+    def close_echo(ch: ssh.ServerChannel):
+        ch.send_exit_status(0)
+        ch.close()
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            print("LISTEN-ERROR", err)
+            env.exit(1)
+            return
+        port = await async s.bound_port()
+        print("PORT", port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        print("SERVER-CLOSED", reason)
+        env.exit(0)
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == USER and req.password == PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        # An exec channel ("ping") produces its output from on_exec and never
+        # reads stdin, so its data/EOF is ignored here. The echo subsystem
+        # mirrors stdin to stdout and closes on client EOF. Data is echoed
+        # unconditionally (only echo channels ever receive data); the close is
+        # deferred via mark_eof if the subsystem handler has not run yet.
+        if mode_of(ch) == "exec":
+            return
+        if data is not None:
+            ch.write(data)
+        else:
+            mark_eof(ch)
+            if mode_of(ch) == "echo":
+                close_echo(ch)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        set_mode(ch, "exec")
+        if cmd == "ping":
+            ch.accept_request()
+            ch.write(b"pong\n")
+            ch.send_exit_status(0)
+            ch.close()
+        else:
+            ch.accept_request()
+            ch.write_stderr(b"unknown command\n")
+            ch.send_exit_status(127)
+            ch.close()
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            set_mode(ch, "echo")
+            ch.accept_request()
+            if saw_eof(ch):
+                close_echo(ch)
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
