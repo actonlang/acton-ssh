@@ -9,7 +9,7 @@
     .dependencies = .{
         // Dependencies from Build.act
         .std = .{
-            .path = "../../../../../../../Users/kll/dt/acton/dist/std",
+            .path = "../../../../../../../Users/kll/dt/acton-tls/dist/std",
         },
         .acton_zig_libssh = .{
             .path = "../../../../../../../Users/kll/dt/acton-deps/libssh",
@@ -17,10 +17,10 @@
 
         // base dependencies
         .actondb = .{
-            .path = "../../../../../../../Users/kll/dt/acton/dist/backend/",
+            .path = "../../../../../../../Users/kll/dt/acton-tls/dist/backend/",
         },
         .base = .{
-            .path = "../../../../../../../Users/kll/dt/acton/dist/base/",
+            .path = "../../../../../../../Users/kll/dt/acton-tls/dist/base/",
         },
     },
     .paths = .{""},

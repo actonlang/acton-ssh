@@ -1,4 +1,4 @@
-/* Acton impl hash: b434a7bba56efc3f0b9d377135dab25f565f7c93c517ce74bb6dcc57dd5f92dc */
+/* Acton impl hash: 1e388d8f3fc24312cd53484511fb6cb40c1d3d536b079bba84c108af72206f74 */
 #pragma once
 #include "builtin/builtin.h"
 #include "rts/rts.h"
@@ -1185,7 +1185,7 @@ struct sshQ_L_75ContG_class {
 struct sshQ_L_75Cont {
     struct sshQ_L_75ContG_class *$class;
     sshQ_RunCommand self;
-    B_Eq W_HostKeyInfo_974;
+    B_Eq W_HostKeyInfo_980;
     B_str reason;
     $Cont C_cont;
     sshQ_Channel ch;
@@ -2251,7 +2251,7 @@ struct sshQ_L_146procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (sshQ_L_146proc, sshQ_Client, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_int);
+    B_NoneType (*__init__) (sshQ_L_146proc, sshQ_Client, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_float, B_int);
     void (*__serialize__) (sshQ_L_146proc, $Serial$state);
     sshQ_L_146proc (*__deserialize__) (sshQ_L_146proc, $Serial$state);
     B_bool (*__bool__) (sshQ_L_146proc);
@@ -2278,6 +2278,7 @@ struct sshQ_L_146proc {
     B_float N_default_auth_timeout;
     B_float N_default_keepalive_interval;
     B_bool N_default_keepalive_enabled;
+    B_float N_default_close_timeout;
     B_int N_default_max_write_buffer;
 };
 $R sshQ_L_147C_57cont ($Cont, sshQ_Channel, B_NoneType);
@@ -2382,7 +2383,7 @@ struct sshQ_L_155procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (sshQ_L_155proc, sshQ_Server, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_int, B_int, B_int);
+    B_NoneType (*__init__) (sshQ_L_155proc, sshQ_Server, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_float, B_int, B_int, B_int);
     void (*__serialize__) (sshQ_L_155proc, $Serial$state);
     sshQ_L_155proc (*__deserialize__) (sshQ_L_155proc, $Serial$state);
     B_bool (*__bool__) (sshQ_L_155proc);
@@ -2411,6 +2412,7 @@ struct sshQ_L_155proc {
     B_float N_default_auth_timeout;
     B_float N_default_keepalive_interval;
     B_bool N_default_keepalive_enabled;
+    B_float N_default_close_timeout;
     B_int N_default_max_sessions;
     B_int N_default_max_channels_per_session;
     B_int N_default_max_write_buffer;
@@ -2536,7 +2538,7 @@ struct sshQ_ClientG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    $R (*__init__) (sshQ_Client, $Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_int);
+    $R (*__init__) (sshQ_Client, $Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_float, B_int);
     void (*__serialize__) (sshQ_Client, $Serial$state);
     sshQ_Client (*__deserialize__) (sshQ_Client, $Serial$state);
     B_bool (*__bool__) (sshQ_Client);
@@ -2599,6 +2601,7 @@ struct sshQ_Client {
     B_float N_default_auth_timeout;
     B_float N_default_keepalive_interval;
     B_bool N_default_keepalive_enabled;
+    B_float N_default_close_timeout;
     B_int N_default_max_write_buffer;
     $action on_hostkey;
     B_str password;
@@ -2610,6 +2613,7 @@ struct sshQ_Client {
     double auth_timeout;
     double keepalive_interval;
     B_bool keepalive_enabled;
+    double close_timeout;
     int64_t max_write_buffer;
     uint64_t _client;
     B_str _host;
@@ -2622,6 +2626,7 @@ struct sshQ_Client {
     double _auth_timeout;
     double _keepalive_interval;
     B_bool _keepalive_enabled;
+    double _close_timeout;
     int64_t _max_write_buffer;
     $action _on_connect;
     $action _on_close;
@@ -2739,7 +2744,7 @@ struct sshQ_ServerG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    $R (*__init__) (sshQ_Server, $Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_int, B_int, B_int);
+    $R (*__init__) (sshQ_Server, $Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_float, B_int, B_int, B_int);
     void (*__serialize__) (sshQ_Server, $Serial$state);
     sshQ_Server (*__deserialize__) (sshQ_Server, $Serial$state);
     B_bool (*__bool__) (sshQ_Server);
@@ -2792,6 +2797,7 @@ struct sshQ_Server {
     B_float N_default_auth_timeout;
     B_float N_default_keepalive_interval;
     B_bool N_default_keepalive_enabled;
+    B_float N_default_close_timeout;
     B_int N_default_max_sessions;
     B_int N_default_max_channels_per_session;
     B_int N_default_max_write_buffer;
@@ -2804,6 +2810,7 @@ struct sshQ_Server {
     double auth_timeout;
     double keepalive_interval;
     B_bool keepalive_enabled;
+    double close_timeout;
     int64_t max_sessions;
     int64_t max_channels_per_session;
     int64_t max_write_buffer;
@@ -2817,6 +2824,7 @@ struct sshQ_Server {
     double _auth_timeout;
     double _keepalive_interval;
     B_bool _keepalive_enabled;
+    double _close_timeout;
     int64_t _max_sessions;
     int64_t _max_channels_per_session;
     int64_t _max_write_buffer;
@@ -2955,10 +2963,10 @@ struct sshQ_ServerChannel {
     $action _on_stderr;
     $action _on_close;
 };
-$R sshQ_ClientG_newact ($Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_int);
+$R sshQ_ClientG_newact ($Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_float, B_int);
 $R sshQ_ChannelG_newact ($Cont, sshQ_Client, $action, $action, $action, $action, $action);
 $R sshQ_RunCommandG_newact ($Cont, sshQ_Client, B_str, $action, B_float);
-$R sshQ_ServerG_newact ($Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_int, B_int, B_int);
+$R sshQ_ServerG_newact ($Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_float, B_int, B_int, B_int);
 $R sshQ_ServerSessionG_newact ($Cont, sshQ_Server, uint64_t, $action, $action, $action, $action, $action);
 $R sshQ_ServerChannelG_newact ($Cont, sshQ_ServerSession, $action, $action, $action);
 extern struct sshQ_L_2ContG_class sshQ_L_2ContG_methods;
@@ -3184,7 +3192,7 @@ sshQ_L_143proc sshQ_L_143procG_new(sshQ_ServerChannel);
 extern struct sshQ_L_145ContG_class sshQ_L_145ContG_methods;
 sshQ_L_145Cont sshQ_L_145ContG_new($Cont, sshQ_Client);
 extern struct sshQ_L_146procG_class sshQ_L_146procG_methods;
-sshQ_L_146proc sshQ_L_146procG_new(sshQ_Client, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_int);
+sshQ_L_146proc sshQ_L_146procG_new(sshQ_Client, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_float, B_int);
 extern struct sshQ_L_148ContG_class sshQ_L_148ContG_methods;
 sshQ_L_148Cont sshQ_L_148ContG_new($Cont, sshQ_Channel);
 extern struct sshQ_L_149procG_class sshQ_L_149procG_methods;
@@ -3196,7 +3204,7 @@ sshQ_L_152proc sshQ_L_152procG_new(sshQ_RunCommand, sshQ_Client, B_str, $action,
 extern struct sshQ_L_154ContG_class sshQ_L_154ContG_methods;
 sshQ_L_154Cont sshQ_L_154ContG_new($Cont, sshQ_Server);
 extern struct sshQ_L_155procG_class sshQ_L_155procG_methods;
-sshQ_L_155proc sshQ_L_155procG_new(sshQ_Server, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_int, B_int, B_int);
+sshQ_L_155proc sshQ_L_155procG_new(sshQ_Server, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_float, B_int, B_int, B_int);
 extern struct sshQ_L_157ContG_class sshQ_L_157ContG_methods;
 sshQ_L_157Cont sshQ_L_157ContG_new($Cont, sshQ_ServerSession);
 extern struct sshQ_L_158procG_class sshQ_L_158procG_methods;
@@ -3210,13 +3218,13 @@ sshQ_HostKeyInfo sshQ_HostKeyInfoG_new(B_str, B_str);
 extern struct sshQ_AuthRequestG_class sshQ_AuthRequestG_methods;
 sshQ_AuthRequest sshQ_AuthRequestG_new(B_str, B_str, B_str, B_bytes);
 extern struct sshQ_ClientG_class sshQ_ClientG_methods;
-$R sshQ_ClientG_new($Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_int);
+$R sshQ_ClientG_new($Cont, netQ_TCPConnectCap, B_str, B_str, $action, $action, $action, B_str, B_str, B_str, B_u16, B_str, B_float, B_float, B_float, B_bool, B_float, B_int);
 extern struct sshQ_ChannelG_class sshQ_ChannelG_methods;
 $R sshQ_ChannelG_new($Cont, sshQ_Client, $action, $action, $action, $action, $action);
 extern struct sshQ_RunCommandG_class sshQ_RunCommandG_methods;
 $R sshQ_RunCommandG_new($Cont, sshQ_Client, B_str, $action, B_float);
 extern struct sshQ_ServerG_class sshQ_ServerG_methods;
-$R sshQ_ServerG_new($Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_int, B_int, B_int);
+$R sshQ_ServerG_new($Cont, netQ_TCPListenCap, B_str, uint16_t, $action, $action, $action, $action, $action, $action, $action, $action, B_str, B_str, B_int, B_float, B_float, B_bool, B_float, B_int, B_int, B_int);
 extern struct sshQ_ServerSessionG_class sshQ_ServerSessionG_methods;
 $R sshQ_ServerSessionG_new($Cont, sshQ_Server, uint64_t, $action, $action, $action, $action, $action);
 extern struct sshQ_ServerChannelG_class sshQ_ServerChannelG_methods;
@@ -3227,5 +3235,5 @@ extern B_str sshQ_HOSTKEY_NOT_FOUND;
 extern B_str sshQ_HOSTKEY_CHANGED;
 extern B_str sshQ_HOSTKEY_OTHER;
 extern B_str sshQ_HOSTKEY_ERROR;
-extern B_Plus sshQ_W_HostKeyInfo_918;
+extern B_Plus sshQ_W_HostKeyInfo_924;
 void sshQ___init__ ();

@@ -49,6 +49,9 @@ Flow control:
     A value of 0 disables the limit.
 
 Notes:
+  - Teardown is bounded: a graceful close that the peer stalls (unanswered
+    channel close, half-open connection) escalates to a forced close after
+    close_timeout seconds.
   - Timeouts and keepalive are configurable; server host keys are generated
     in-memory unless host_key_path is set.
   - Server admission limits are configurable; values <= 0 disable a limit.
@@ -115,6 +118,7 @@ actor Client(cap: net.TCPConnectCap,
              auth_timeout: float=10.0,
              keepalive_interval: float=30.0,
              keepalive_enabled: bool=True,
+             close_timeout: float=5.0,
              max_write_buffer: int=8388608,
              ):
     """SSH Client
@@ -139,6 +143,7 @@ actor Client(cap: net.TCPConnectCap,
     var _auth_timeout: float = auth_timeout
     var _keepalive_interval: float = keepalive_interval
     var _keepalive_enabled: bool = keepalive_enabled
+    var _close_timeout: float = close_timeout
     var _max_write_buffer: int = max_write_buffer
     var _on_connect: action(Client, ?str) -> None = on_connect
     var _on_close: action(Client, str) -> None = on_close
@@ -373,6 +378,7 @@ actor Server(cap: net.TCPListenCap,
              auth_timeout: float=10.0,
              keepalive_interval: float=30.0,
              keepalive_enabled: bool=True,
+             close_timeout: float=5.0,
              max_sessions: int=128,
              max_channels_per_session: int=32,
              max_write_buffer: int=8388608,
@@ -399,6 +405,7 @@ actor Server(cap: net.TCPListenCap,
     var _auth_timeout: float = auth_timeout
     var _keepalive_interval: float = keepalive_interval
     var _keepalive_enabled: bool = keepalive_enabled
+    var _close_timeout: float = close_timeout
     var _max_sessions: int = max_sessions
     var _max_channels_per_session: int = max_channels_per_session
     var _max_write_buffer: int = max_write_buffer

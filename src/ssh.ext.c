@@ -163,6 +163,7 @@ typedef struct ssh_channel_ctx {
     sshQ_Channel actor;
     channel_state_t state;
     channel_request_t pending_req;
+    int req_submitted;
     int pty_pending;
     int pty_done;
     B_str exec_cmd;
@@ -202,9 +203,11 @@ typedef struct ssh_client_ctx {
     uv_timer_t *connect_timer;
     uv_timer_t *auth_timer;
     uv_timer_t *keepalive_timer;
+    uv_timer_t *close_timer;
     double connect_timeout;
     double auth_timeout;
     double keepalive_interval;
+    double close_timeout;
     int keepalive_enabled;
     int64_t max_write_buffer;
     client_state_t state;
@@ -303,8 +306,10 @@ typedef struct ssh_server_session_ctx {
     uv_timer_t *attach_timer;
     uv_timer_t *auth_timer;
     uv_timer_t *keepalive_timer;
+    uv_timer_t *close_timer;
     double auth_timeout;
     double keepalive_interval;
+    double close_timeout;
     int keepalive_enabled;
     session_state_t state;
     int attached;
@@ -406,18 +411,34 @@ static sshQ_ServerChannel server_channel_actor_ref(const ssh_server_channel_ctx 
     return ch ? ch->actor : NULL;
 }
 
+static FILE *ssh_debug_stream(void) {
+    static FILE *f = NULL;
+    if (f == NULL) {
+        const char *path = getenv("ACTON_SSH_DEBUG_FILE");
+        if (path != NULL && path[0] != '\0') {
+            char buf[512];
+            snprintf(buf, sizeof(buf), "%s.%d", path, (int)getpid());
+            f = fopen(buf, "a");
+        }
+        if (f == NULL)
+            f = stderr;
+    }
+    return f;
+}
+
 static void ssh_debug_log(const char *fmt, ...) {
     if (!ssh_debug_enabled)
         return;
+    FILE *out = ssh_debug_stream();
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    fprintf(stderr, "[%6lld.%03ld] ", (long long)ts.tv_sec, ts.tv_nsec / 1000000);
+    fprintf(out, "[%6lld.%03ld] ", (long long)ts.tv_sec, ts.tv_nsec / 1000000);
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
+    vfprintf(out, fmt, ap);
     va_end(ap);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    fprintf(out, "\n");
+    fflush(out);
 }
 
 static int parse_libssh_log_level(const char *value) {
@@ -727,6 +748,8 @@ static void client_timer_close_cb(uv_handle_t *handle) {
         c->auth_timer = NULL;
     if ((uv_timer_t *)handle == c->keepalive_timer)
         c->keepalive_timer = NULL;
+    if ((uv_timer_t *)handle == c->close_timer)
+        c->close_timer = NULL;
     client_maybe_release(c);
     acton_free(handle);
 }
@@ -773,6 +796,8 @@ static void session_timer_close_cb(uv_handle_t *handle) {
         s->auth_timer = NULL;
     if ((uv_timer_t *)handle == s->keepalive_timer)
         s->keepalive_timer = NULL;
+    if ((uv_timer_t *)handle == s->close_timer)
+        s->close_timer = NULL;
     session_maybe_release(s);
     acton_free(handle);
 }
@@ -781,7 +806,8 @@ static void client_maybe_release(ssh_client_ctx *c) {
     if (c == NULL || !c->close_finalized)
         return;
     if (c->poll != NULL || c->connect_timer != NULL ||
-        c->auth_timer != NULL || c->keepalive_timer != NULL)
+        c->auth_timer != NULL || c->keepalive_timer != NULL ||
+        c->close_timer != NULL)
         return;
     if (c->close_reason != NULL) {
         acton_free(c->close_reason);
@@ -806,7 +832,8 @@ static void session_maybe_release(ssh_server_session_ctx *s) {
     if (s == NULL || !s->close_finalized)
         return;
     if (s->poll != NULL || s->attach_timer != NULL ||
-        s->auth_timer != NULL || s->keepalive_timer != NULL)
+        s->auth_timer != NULL || s->keepalive_timer != NULL ||
+        s->close_timer != NULL)
         return;
     if (s->close_reason != NULL) {
         acton_free(s->close_reason);
@@ -884,6 +911,8 @@ static void client_notify_close(ssh_client_ctx *c, const char *reason) {
 static void client_fail(ssh_client_ctx *c, const char *msg) {
     if (c == NULL || c->state == CLIENT_STATE_CLOSED || c->state == CLIENT_STATE_ERROR)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client fail: session=%p state=%d msg=%s", (void *)c->session, (int)c->state, msg);
     c->state = CLIENT_STATE_ERROR;
     if (!c->connected_ok)
         client_notify_connect(c, msg);
@@ -967,6 +996,8 @@ static void client_channel_eof_cb(ssh_session session, ssh_channel channel, void
     (void)channel;
     if (ch == NULL)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client channel eof_cb: session=%p ch=%p", (void *)session, (void *)ch);
     sshQ_Channel actor = channel_actor_ref(ch);
     if (!ch->stdout_eof && ch->on_stdout) {
         $action2 f = ($action2)ch->on_stdout;
@@ -986,6 +1017,9 @@ static void client_channel_close_cb(ssh_session session, ssh_channel channel, vo
     (void)channel;
     if (ch == NULL)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client channel close_cb: session=%p ch=%p is_closed=%d", (void *)session, (void *)ch,
+                      ch->channel ? ssh_channel_is_closed(ch->channel) : -1);
     ch->remote_close_seen = 1;
 }
 
@@ -1042,6 +1076,8 @@ static void channel_notify_eof(ssh_channel_ctx *ch) {
 }
 
 static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
+    if (ssh_debug_enabled)
+        ssh_debug_log("client channel finalize: session=%p ch=%p state=%d remote_close=%d", c ? (void *)c->session : NULL, (void *)ch, (int)ch->state, ch->remote_close_seen);
     int exit_status = -1;
     B_str exit_signal = B_None;
     sshQ_Channel actor = channel_actor_ref(ch);
@@ -1102,9 +1138,16 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     (void)c;
 }
 
+static int channel_remote_closed(ssh_channel_ctx *ch) {
+    return ch->channel != NULL && ch->remote_close_seen &&
+           ssh_channel_is_closed(ch->channel);
+}
+
 static void channel_fail(ssh_client_ctx *c, ssh_channel_ctx *ch, const char *msg) {
     if (ch->state == CHAN_STATE_ERROR || ch->state == CHAN_STATE_CLOSED)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client channel fail: session=%p ch=%p state=%d msg=%s", c ? (void *)c->session : NULL, (void *)ch, (int)ch->state, msg);
     ch->state = CHAN_STATE_ERROR;
     channel_notify_error(ch, msg);
     if (ch->channel) {
@@ -1216,6 +1259,24 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR)
         return;
 
+    /* Fast path: the peer fully closed the channel and we have no request
+     * in flight - finalize now (delivers exit status / EOFs / close in
+     * order). When a request IS in flight we must fall through into the
+     * state machine first: its reply may already sit processed in libssh
+     * (request_state ACCEPTED/DENIED, everything up to the peer's close can
+     * arrive in one packet batch) and the request call below collects it.
+     * Only if the request comes back SSH_AGAIN on a remotely-closed channel
+     * is the reply provably never coming (the peer sends nothing after
+     * CHANNEL_CLOSE) - that case is failed in the AGAIN branches below,
+     * which also breaks the otherwise-deadly cycle where a forever-pending
+     * request early-returns out of every drive, the finalize check at the
+     * bottom is never reached, and both sides wait on each other forever. */
+    if (channel_remote_closed(ch) &&
+        ch->pending_req == CHAN_REQ_NONE && !(ch->pty_pending && !ch->pty_done)) {
+        channel_finalize(c, ch);
+        return;
+    }
+
     if (ch->state == CHAN_STATE_INIT) {
         ch->channel = ssh_channel_new(c->session);
         if (ch->channel == NULL) {
@@ -1231,6 +1292,8 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
 
     if (ch->state == CHAN_STATE_OPENING) {
         int rc = ssh_channel_open_session(ch->channel);
+        if (ssh_debug_enabled && rc != SSH_AGAIN)
+            ssh_debug_log("client channel open rc=%d session=%p ch=%p", rc, (void *)c->session, (void *)ch);
         if (rc == SSH_OK) {
             ch->state = CHAN_STATE_OPEN;
             channel_notify_open(ch, NULL);
@@ -1253,6 +1316,8 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                 ch->pty_done = 1;
             } else if (rc == SSH_AGAIN) {
                 c->write_ready = 0;
+                if (channel_remote_closed(ch))
+                    channel_fail(c, ch, "SSH channel closed by peer");
                 return;
             } else {
                 char errmsg[256] = {0};
@@ -1265,6 +1330,8 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         if (ch->pending_req != CHAN_REQ_NONE) {
             int rc = SSH_ERROR;
             if (ch->pending_req == CHAN_REQ_SHELL) {
+                if (ssh_debug_enabled)
+                    ssh_debug_log("shell req: session=%p blocking=%d", (void *)c->session, ssh_is_blocking(c->session));
                 rc = ssh_channel_request_shell(ch->channel);
             } else if (ch->pending_req == CHAN_REQ_EXEC) {
                 rc = ssh_channel_request_exec(ch->channel, (const char *)fromB_str(ch->exec_cmd));
@@ -1274,9 +1341,22 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
 
             if (rc == SSH_OK) {
                 ch->pending_req = CHAN_REQ_NONE;
+                ch->req_submitted = 0;
                 ch->state = CHAN_STATE_RUNNING;
             } else if (rc == SSH_AGAIN) {
+                /* The request is packed into libssh's out buffer on the first
+                 * call (flushing is covered by SSH_WRITE_PENDING); from here
+                 * on we are waiting for the peer's reply, which arrives via
+                 * readable events. It must NOT count as a write need or the
+                 * always-writable socket turns the poll loop into a hot spin
+                 * (and the spin starves the very actor that would reply). */
+                ch->req_submitted = 1;
                 c->write_ready = 0;
+                /* The request call processes inbound packets internally; the
+                 * peer may have closed the channel during it, in which case
+                 * the reply will never come. */
+                if (channel_remote_closed(ch))
+                    channel_fail(c, ch, "SSH channel closed by peer");
                 return;
             } else {
                 char errmsg[256] = {0};
@@ -1537,6 +1617,26 @@ static void keepalive_cb(uv_timer_t *timer) {
     client_update_poll(c);
 }
 
+static void client_close_timeout_cb(uv_timer_t *timer) {
+    ssh_client_ctx *c = (ssh_client_ctx *)timer->data;
+    if (c == NULL)
+        return;
+    if (c->state == CLIENT_STATE_CLOSING && !c->close_force) {
+        if (ssh_debug_enabled)
+            ssh_debug_log("client close deadline: session=%p forcing", (void *)c->session);
+        client_close_internal(c, "close timeout", 1);
+    }
+}
+
+static void client_start_close_timer(ssh_client_ctx *c) {
+    if (c->close_timeout <= 0.0 || c->close_timer != NULL)
+        return;
+    c->close_timer = acton_calloc(1, sizeof(uv_timer_t));
+    c->close_timer->data = c;
+    uv_timer_init(get_uv_loop(), c->close_timer);
+    uv_timer_start(c->close_timer, client_close_timeout_cb, (uint64_t)(c->close_timeout * 1000), 0);
+}
+
 static void client_start_connect_timer(ssh_client_ctx *c) {
     if (c->connect_timeout <= 0.0 || c->connect_timer != NULL)
         return;
@@ -1570,7 +1670,8 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
     if (c == NULL)
         return;
     if (ssh_debug_enabled) {
-        ssh_debug_log("client poll: status=%d events=0x%x state=%d", status, events, c->state);
+        ssh_debug_log("client poll: session=%p status=%d events=0x%x state=%d sshst=0x%x", (void *)c->session, status, events, c->state,
+                      c->session ? ssh_get_status(c->session) : -1);
     }
     if (status < 0) {
         char errmsg[256] = {0};
@@ -1688,7 +1789,9 @@ static int client_needs_write(ssh_client_ctx *c) {
         return 0;
     ssh_channel_ctx *ch = c->channels;
     while (ch != NULL) {
-        if (ch->pending_req != CHAN_REQ_NONE || ch->write_head != NULL)
+        if (ch->pending_req != CHAN_REQ_NONE && !ch->req_submitted)
+            return 1;
+        if (ch->write_head != NULL)
             return 1;
         if (ch->send_eof && !ch->eof_sent)
             return 1;
@@ -1804,7 +1907,10 @@ static void client_drive(ssh_client_ctx *c) {
 static void client_finalize(ssh_client_ctx *c) {
     if (c == NULL || c->close_finalized)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client finalize: session=%p state=%d", (void *)c->session, (int)c->state);
     c->close_finalized = 1;
+    stop_timer(&c->close_timer, client_timer_close_cb);
 
     if (c->auth_key != NULL) {
         ssh_key_free(c->auth_key);
@@ -1854,6 +1960,10 @@ static void client_request_channel_close(ssh_client_ctx *c) {
 static void client_finish_close(ssh_client_ctx *c) {
     if (c == NULL || c->state != CLIENT_STATE_CLOSING)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client finish_close: session=%p force=%d channels=%d pending_write=%d poll=%d",
+                      (void *)c->session, c->close_force, c->channels != NULL,
+                      c->session ? session_has_pending_write(c->session) : -1, c->poll != NULL);
     if (c->close_force) {
         if (c->poll != NULL) {
             close_poll(&c->poll, client_poll_close_cb);
@@ -1882,6 +1992,8 @@ static void client_finish_close(ssh_client_ctx *c) {
 static void client_close_internal(ssh_client_ctx *c, const char *reason, int force_close) {
     if (c == NULL || c->state == CLIENT_STATE_CLOSED)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("client close: session=%p state=%d force=%d reason=%s", (void *)c->session, (int)c->state, force_close, reason ? reason : "?");
     if (!force_close && c->state != CLIENT_STATE_READY)
         force_close = 1;
 
@@ -1912,6 +2024,9 @@ static void client_close_internal(ssh_client_ctx *c, const char *reason, int for
         return;
     }
 
+    /* Graceful teardown must be bounded: if the peer stalls (never answers a
+     * channel close, half-open connection, ...) escalate to a forced close. */
+    client_start_close_timer(c);
     client_request_channel_close(c);
     client_drive(c);
 }
@@ -1964,6 +2079,7 @@ $R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     c->auth_timeout = self->_auth_timeout;
     c->keepalive_interval = self->_keepalive_interval;
     c->keepalive_enabled = fromB_bool(self->_keepalive_enabled) ? 1 : 0;
+    c->close_timeout = self->_close_timeout;
     c->max_write_buffer = self->_max_write_buffer;
 
     self->_client = (uint64_t)(uintptr_t)c;
@@ -2020,6 +2136,8 @@ $R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     }
 
     ssh_set_blocking(c->session, 0);
+    if (ssh_debug_enabled)
+        ssh_debug_log("client init: session=%p blocking=%d", (void *)c->session, ssh_is_blocking(c->session));
 
     c->state = CLIENT_STATE_CONNECTING;
     rc = ssh_connect(c->session);
@@ -2649,6 +2767,8 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
         !ch->exit_status_pending &&
         !session_has_pending_write(s->session)) {
         int rc = ssh_channel_send_eof(ch->channel);
+        if (ssh_debug_enabled)
+            ssh_debug_log("server channel send_eof rc=%d session=%p ch=%p", rc, (void *)s->session, (void *)ch);
         if (rc == SSH_OK) {
             ch->eof_sent = 1;
         } else if (rc == SSH_AGAIN) {
@@ -2667,6 +2787,8 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
         (!ch->send_eof || ch->eof_sent) &&
         !session_has_pending_write(s->session)) {
         int rc = ssh_channel_close(ch->channel);
+        if (ssh_debug_enabled)
+            ssh_debug_log("server channel close rc=%d session=%p ch=%p", rc, (void *)s->session, (void *)ch);
         if (rc == SSH_OK) {
             ch->close_sent = 1;
             ch->state = SCHAN_STATE_CLOSING;
@@ -2724,7 +2846,7 @@ static void session_fail(ssh_server_session_ctx *s, const char *msg) {
     if (s == NULL || s->state == SESSION_STATE_CLOSED || s->state == SESSION_STATE_ERROR)
         return;
     if (ssh_debug_enabled)
-        ssh_debug_log("server session fail: %s (state=%d)", msg, (int)s->state);
+        ssh_debug_log("server session fail: session=%p %s (state=%d)", (void *)s->session, msg, (int)s->state);
     s->state = SESSION_STATE_ERROR;
     session_close_internal(s, msg, 1);
 }
@@ -2777,6 +2899,26 @@ static void session_start_keyex_timer(ssh_server_session_ctx *s) {
 
 static void session_start_auth_timer(ssh_server_session_ctx *s) {
     session_restart_auth_timer(s, s != NULL ? s->auth_timeout : 0.0);
+}
+
+static void session_close_timeout_cb(uv_timer_t *timer) {
+    ssh_server_session_ctx *s = (ssh_server_session_ctx *)timer->data;
+    if (s == NULL)
+        return;
+    if (s->state == SESSION_STATE_CLOSING && !s->close_force) {
+        if (ssh_debug_enabled)
+            ssh_debug_log("server close deadline: session=%p forcing", (void *)s->session);
+        session_close_internal(s, "close timeout", 1);
+    }
+}
+
+static void session_start_close_timer(ssh_server_session_ctx *s) {
+    if (s->close_timeout <= 0.0 || s->close_timer != NULL)
+        return;
+    s->close_timer = acton_calloc(1, sizeof(uv_timer_t));
+    s->close_timer->data = s;
+    uv_timer_init(get_uv_loop(), s->close_timer);
+    uv_timer_start(s->close_timer, session_close_timeout_cb, (uint64_t)(s->close_timeout * 1000), 0);
 }
 
 static void session_start_keepalive(ssh_server_session_ctx *s) {
@@ -2943,7 +3085,7 @@ static int session_needs_write(ssh_server_session_ctx *s) {
         return 0;
     ssh_server_channel_ctx *ch = s->channels;
     while (ch != NULL) {
-        if (ch->pending_req != NULL || ch->write_head != NULL)
+        if (ch->write_head != NULL)
             return 1;
         if (ch->exit_status_pending && !ch->exit_status_sent)
             return 1;
@@ -3171,7 +3313,7 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
     if (s == NULL)
         return;
     if (ssh_debug_enabled) {
-        ssh_debug_log("server session poll: status=%d events=0x%x state=%d", status, events, s->state);
+        ssh_debug_log("server session poll: session=%p status=%d events=0x%x state=%d", (void *)s->session, status, events, s->state);
     }
     if (status < 0) {
         char errmsg[256] = {0};
@@ -3341,7 +3483,10 @@ static void server_finalize(ssh_server_ctx *s) {
 static void session_finalize(ssh_server_session_ctx *s) {
     if (s == NULL || s->close_finalized)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("server session finalize: session=%p state=%d", (void *)s->session, (int)s->state);
     s->close_finalized = 1;
+    stop_timer(&s->close_timer, session_timer_close_cb);
 
     if (s->session != NULL) {
         ssh_disconnect(s->session);
@@ -3406,6 +3551,10 @@ static void session_request_channel_close(ssh_server_session_ctx *s) {
 static void session_finish_close(ssh_server_session_ctx *s) {
     if (s == NULL || s->state != SESSION_STATE_CLOSING)
         return;
+    if (ssh_debug_enabled)
+        ssh_debug_log("server finish_close: session=%p force=%d channels=%d pending_write=%d poll=%d",
+                      (void *)s->session, s->close_force, s->channels != NULL,
+                      s->session ? session_has_pending_write(s->session) : -1, s->poll != NULL);
     if (s->close_force) {
         if (s->poll != NULL) {
             close_poll(&s->poll, session_poll_close_cb);
@@ -3465,7 +3614,7 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
     if (s == NULL || s->state == SESSION_STATE_CLOSED)
         return;
     if (ssh_debug_enabled)
-        ssh_debug_log("server session close: reason=%s force=%d state=%d", reason ? reason : "?", force_close, (int)s->state);
+        ssh_debug_log("server session close: session=%p reason=%s force=%d state=%d", (void *)s->session, reason ? reason : "?", force_close, (int)s->state);
     if (!force_close && s->state != SESSION_STATE_READY)
         force_close = 1;
     if (reason != NULL && s->close_reason == NULL)
@@ -3493,6 +3642,8 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
         return;
     }
 
+    /* Bounded graceful teardown; see client_close_internal. */
+    session_start_close_timer(s);
     session_request_channel_close(s);
     session_drive(s);
 }
@@ -3708,6 +3859,7 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, uin
     s->auth_timeout = self->server->_auth_timeout;
     s->keepalive_interval = self->server->_keepalive_interval;
     s->keepalive_enabled = fromB_bool(self->server->_keepalive_enabled) ? 1 : 0;
+    s->close_timeout = self->server->_close_timeout;
     if (s->state == SESSION_STATE_KEYEX) {
         stop_timer(&s->attach_timer, session_timer_close_cb);
         session_start_keyex_timer(s);

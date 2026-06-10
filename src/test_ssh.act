@@ -153,7 +153,7 @@ actor ExecTester(t: testing.EnvT):
         on_channel_open,
         on_exec,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_exec(t: testing.EnvT):
@@ -315,7 +315,7 @@ actor SubsystemTester(t: testing.EnvT):
         on_subsystem,
         on_session_close,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_subsystem(t: testing.EnvT):
@@ -412,7 +412,7 @@ actor AuthRejectTester(t: testing.EnvT):
         on_auth,
         on_channel_open,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_auth_reject(t: testing.EnvT):
@@ -510,7 +510,7 @@ actor HostkeyRejectTester(t: testing.EnvT):
         on_auth,
         on_channel_open,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_hostkey_reject(t: testing.EnvT):
@@ -682,7 +682,7 @@ actor EchoPayloadTester(t: testing.EnvT):
         on_channel_open,
         on_exec,
     )
-    after 30.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_echo_payload(t: testing.EnvT):
@@ -824,7 +824,7 @@ actor ConcurrentChannelsTester(t: testing.EnvT):
         on_channel_open,
         on_exec,
     )
-    after 30.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_concurrent_channels(t: testing.EnvT):
@@ -966,7 +966,7 @@ actor ServerCloseTester(t: testing.EnvT):
         on_auth,
         on_channel_open,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_server_close(t: testing.EnvT):
@@ -1053,7 +1053,7 @@ actor ConnectRefusedTester(t: testing.EnvT):
         on_auth,
         on_channel_open,
     )
-    after 20.0: on_timeout()
+    after 10.0: on_timeout()
 
 
 def _test_connect_refused(t: testing.EnvT):
