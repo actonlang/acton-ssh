@@ -1,0 +1,827 @@
+"""Loopback tests for the ssh module.
+
+Each test starts an in-process ssh.Server on an ephemeral port (port=0) and
+connects an ssh.Client to it over 127.0.0.1. Ephemeral ports make the tests
+safe to run concurrently (acton test stress).
+"""
+
+import logging
+import net
+import ssh
+import testing
+
+
+def _test_version():
+    testing.assertEqual("0.11.0/mbedtls", ssh.version())
+
+
+TEST_USER = "testuser"
+TEST_PASS = "testpass"
+
+
+actor ExecTester(t: testing.EnvT):
+    """Client runs a command via RunCommand; server serves it via on_exec."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var client_closed = False
+    var server_closed = False
+    var run_ok = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if run_ok and client_closed and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for exec test")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == TEST_USER and req.password == TEST_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        if cmd == "greet":
+            ch.accept_request()
+            ch.write(b"hello world\n")
+            ch.write_stderr(b"some diagnostics\n")
+            ch.send_exit_status(0)
+            ch.close()
+        else:
+            ch.accept_request()
+            ch.write_stderr(b"unknown command\n")
+            ch.send_exit_status(127)
+            ch.close()
+
+    # --- client side
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.RunCommand(c, "greet", on_run_exit, timeout=10.0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+        if error is not None:
+            finish_error("run error: " + error)
+            return
+        if code != 0:
+            finish_error("unexpected exit code: " + str(code))
+            return
+        if out != b"hello world\n":
+            finish_error("unexpected stdout: " + str(out))
+            return
+        if err_out != b"some diagnostics\n":
+            finish_error("unexpected stderr: " + str(err_out))
+            return
+        run_ok = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        maybe_finish()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_exec(t: testing.EnvT):
+    """Run a command over a loopback SSH connection and check its output."""
+    ExecTester(t)
+
+
+actor SubsystemTester(t: testing.EnvT):
+    """Client opens a subsystem channel, exchanges framed messages."""
+    log = logging.Logger(t.log_handler)
+    END = b"]]>]]>"
+    CLIENT_HELLO = b"<hello>client</hello>]]>]]>"
+    SERVER_HELLO = b"<hello>server</hello>]]>]]>"
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var server_buf = b""
+    var client_buf = b""
+    var client_closed = False
+    var server_closed = False
+    var session_closed = False
+    var exchange_ok = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if exchange_ok and client_closed and server_closed and session_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for subsystem test")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        session_closed = True
+        maybe_finish()
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == TEST_USER and req.password == TEST_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server_buf += data
+            if server_buf.find(END) >= 0:
+                ch.write(SERVER_HELLO)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "netconf":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    # --- client side
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("channel open error: " + err)
+            return
+        ch.request_subsystem("netconf")
+        ch.write(CLIENT_HELLO)
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            client_buf += data
+            if client_buf.find(END) >= 0 and not exchange_ok:
+                if client_buf != SERVER_HELLO:
+                    finish_error("unexpected server reply: " + str(client_buf))
+                    return
+                exchange_ok = True
+                ch.close()
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        pass
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        pass
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_subsystem(t: testing.EnvT):
+    """Exchange framed messages over a subsystem channel."""
+    SubsystemTester(t)
+
+
+actor AuthRejectTester(t: testing.EnvT):
+    """Client with a wrong password must fail to connect."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var got_auth_error = False
+    var server_closed = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if got_auth_error and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for auth reject test")
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        # Always reject
+        sess.reject_auth("invalid credentials")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.reject_channel("no channels")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is None:
+            finish_error("connect unexpectedly succeeded")
+            return
+        got_auth_error = True
+        if server is not None:
+            server.close()
+        maybe_finish()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password="wrongpass",
+            port=port,
+            auth_timeout=5.0,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_auth_reject(t: testing.EnvT):
+    """Wrong credentials must surface as a connect error."""
+    AuthRejectTester(t)
+
+
+actor HostkeyRejectTester(t: testing.EnvT):
+    """Client rejecting the host key must fail to connect."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var got_reject_error = False
+    var server_closed = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if got_reject_error and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for hostkey reject test")
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.reject_channel("no channels")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        if info.fingerprint == "":
+            finish_error("empty host key fingerprint")
+            return
+        c.reject_hostkey("untrusted")
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is None:
+            finish_error("connect unexpectedly succeeded")
+            return
+        got_reject_error = True
+        if server is not None:
+            server.close()
+        maybe_finish()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_hostkey_reject(t: testing.EnvT):
+    """Rejecting the host key must surface as a connect error."""
+    HostkeyRejectTester(t)
+
+
+actor EchoPayloadTester(t: testing.EnvT):
+    """Client streams a large payload through a server-side echo."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var payload = b""
+    var echoed = b""
+    var sent_eof = False
+    var client_closed = False
+    var server_closed = False
+    var echo_ok = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if echo_ok and client_closed and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for echo payload test, echoed " + str(len(echoed)) + " of " + str(len(payload)))
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == TEST_USER and req.password == TEST_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            # Echo straight back
+            ch.write(data)
+        else:
+            # Client sent EOF; finish the response
+            ch.send_exit_status(0)
+            ch.close()
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        if cmd == "echo-stream":
+            ch.accept_request()
+        else:
+            ch.reject_request("unknown command")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            finish_error("channel open error: " + err)
+            return
+        ch.request_exec("echo-stream")
+        # Stream the payload in chunks
+        chunk_size = 32768
+        offset = 0
+        while offset < len(payload):
+            end = offset + chunk_size
+            if end > len(payload):
+                end = len(payload)
+            ch.write(payload[offset:end])
+            offset = end
+        ch.send_eof()
+        sent_eof = True
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        if done:
+            return
+        if data is not None:
+            echoed += data
+            if len(echoed) == len(payload):
+                if echoed != payload:
+                    finish_error("payload corrupted in transit")
+                    return
+                echo_ok = True
+                ch.close()
+            elif len(echoed) > len(payload):
+                finish_error("received more data than sent: " + str(len(echoed)))
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        pass
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        pass
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    # Build a 1 MiB payload with a non-trivial pattern
+    var pattern = b""
+    for i in range(256):
+        pattern += bytes([i])
+    for i in range(4096):
+        payload += pattern
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )
+    after 30.0: on_timeout()
+
+
+def _test_echo_payload(t: testing.EnvT):
+    """Stream 1 MiB through a server echo and verify integrity."""
+    EchoPayloadTester(t)
+
+
+actor ConcurrentChannelsTester(t: testing.EnvT):
+    """Multiple concurrent exec channels on one client connection."""
+    log = logging.Logger(t.log_handler)
+    NUM_CHANNELS = 4
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var completed = 0
+    var client_closed = False
+    var server_closed = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if completed == NUM_CHANNELS and client_closed and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout, completed " + str(completed) + " of " + str(NUM_CHANNELS))
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == TEST_USER and req.password == TEST_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.accept_request()
+        ch.write(("response to " + cmd).encode())
+        ch.send_exit_status(0)
+        ch.close()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        for i in range(NUM_CHANNELS):
+            start_run(c, i)
+
+    def start_run(c: ssh.Client, i: int):
+        cmd = "cmd-" + str(i)
+        def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+            if error is not None:
+                finish_error("run " + cmd + " error: " + error)
+                return
+            if code != 0:
+                finish_error("run " + cmd + " exit code: " + str(code))
+                return
+            expected = ("response to " + cmd).encode()
+            if out != expected:
+                finish_error("run " + cmd + " unexpected output: " + str(out))
+                return
+            completed += 1
+            if completed == NUM_CHANNELS:
+                if client is not None:
+                    client.close()
+                if server is not None:
+                    server.close()
+            maybe_finish()
+        ssh.RunCommand(c, cmd, on_run_exit, timeout=15.0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )
+    after 30.0: on_timeout()
+
+
+def _test_concurrent_channels(t: testing.EnvT):
+    """Run several exec channels concurrently over one connection."""
+    ConcurrentChannelsTester(t)
