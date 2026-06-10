@@ -830,3 +830,232 @@ actor ConcurrentChannelsTester(t: testing.EnvT):
 def _test_concurrent_channels(t: testing.EnvT):
     """Run several exec channels concurrently over one connection."""
     ConcurrentChannelsTester(t)
+
+
+actor ServerCloseTester(t: testing.EnvT):
+    """Server closes while the client has an open, idle channel.
+
+    Exercises server-initiated teardown with live channels: the client must
+    see its channel close and then the connection close, without crashing.
+    """
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var channel_open = False
+    var client_channel_closed = False
+    var client_closed = False
+    var server_closed = False
+    var closed_server = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def maybe_finish():
+        if done:
+            return
+        if client_channel_closed and client_closed and server_closed:
+            done = True
+            t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for server close test")
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        server_closed = True
+        maybe_finish()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        # Accept a shell-like channel and leave it idle, then tear the server
+        # down so the client observes a server-initiated close.
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+        if not closed_server:
+            closed_server = True
+            def kill_server():
+                if server is not None:
+                    server.close()
+            after 0.05: kill_server()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            finish_error("client connect error: " + err)
+            return
+        ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        client_closed = True
+        maybe_finish()
+
+    def ch_open(ch: ssh.Channel, err: ?str):
+        if err is not None:
+            # Channel open may fail if the server is already gone; that still
+            # exercises teardown. Treat it as channel-closed.
+            client_channel_closed = True
+            maybe_finish()
+            return
+        channel_open = True
+        ch.request_shell(with_pty=False)
+
+    def ch_out(ch: ssh.Channel, data: ?bytes):
+        pass
+
+    def ch_err(ch: ssh.Channel, data: ?bytes):
+        pass
+
+    def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+        pass
+
+    def ch_close(ch: ssh.Channel, reason: str):
+        client_channel_closed = True
+        if client is not None:
+            client.close()
+        maybe_finish()
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_server_close(t: testing.EnvT):
+    """Server teardown with a live client channel must close both sides cleanly."""
+    ServerCloseTester(t)
+
+
+actor ConnectRefusedTester(t: testing.EnvT):
+    """Connecting to a closed port must surface as a connect error, not a hang."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var port: u16 = 0
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        finish_error("timeout waiting for connect-refused test")
+
+    # Bind a server only to learn a free port, then close it and connect there.
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        s.close()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        # Port is now free; a connect should be refused.
+        connect_to_dead_port()
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.reject_auth("no")
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.reject_channel("no")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if done:
+            return
+        if err is None:
+            finish_error("connect unexpectedly succeeded to a closed port")
+            return
+        done = True
+        t.success()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def connect_to_dead_port():
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+            connect_timeout=5.0,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+    )
+    after 20.0: on_timeout()
+
+
+def _test_connect_refused(t: testing.EnvT):
+    """Connecting to a closed port must report a connect error, not hang."""
+    ConnectRefusedTester(t)

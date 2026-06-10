@@ -57,8 +57,23 @@
  *     worker thread. Channel actors invoke action methods on their owning
  *     Client/ServerSession actor for all operations; there is no hidden
  *     cross-actor C magic.
- *   - We replace libssh allocators with Acton's GC allocator so libuv/GC
- *     roots remain visible (libssh structures can reference GC memory).
+ *   - Memory model: two heaps with strict boundary rules.
+ *       GC heap   - actors, ctx structs, B_bytes/B_str, uv handles/timers.
+ *       libc heap - everything allocated inside libssh and mbedtls (their
+ *                   default allocators; we do NOT call
+ *                   libssh_replace_allocator, and the Acton RTS keeps mbedtls
+ *                   on libc calloc/free).
+ *     Rule A: GC memory may point at libc memory, but then we own the free:
+ *       every libssh object (ssh_session, ssh_channel, ssh_bind, ssh_key,
+ *       ssh_message, hash/fingerprint strings) is explicitly released in the
+ *       finalize/teardown paths. The GC is not a backstop for these.
+ *     Rule B: libc memory must never hold the ONLY reference to GC memory.
+ *       Every GC pointer handed to libssh (channel callbacks struct, callback
+ *       userdata pointing at a ctx) is duplicated in our rooted ctx graph
+ *       (ch->callbacks, session/client channel lists). Data buffers cross the
+ *       boundary by copy in both directions (ssh_channel_write copies into
+ *       libssh packet buffers; inbound data is copied into B_bytes before
+ *       delivery).
  *   - Native contexts hold a strong (GC-visible) reference to their owning
  *     actor. Each context is reachable from its live uv_poll handle
  *     (handle->data -> ctx -> actor), so the actor stays alive while it has an
@@ -1909,16 +1924,10 @@ void sshQ___ext_init__() {
     if (log_env != NULL && log_env[0] != '\0') {
         ssh_libssh_log_level = parse_libssh_log_level(log_env);
     }
-    int r = libssh_replace_allocator(acton_malloc,
-                                     acton_realloc,
-                                     acton_calloc,
-                                     acton_free,
-                                     acton_strdup,
-                                     acton_strndup);
-    if (r != SSH_OK) {
-        log_warn("SSH allocator replacement failed");
-    }
-    r = ssh_threads_set_callbacks(ssh_threads_get_default());
+    /* libssh (and mbedtls underneath it) run on the libc heap with their
+     * default allocators; see the memory model notes at the top of this
+     * file. We deliberately do NOT call libssh_replace_allocator(). */
+    int r = ssh_threads_set_callbacks(ssh_threads_get_default());
     if (r != SSH_OK) {
         log_warn("SSH thread callbacks setup failed");
     }
