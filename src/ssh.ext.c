@@ -667,6 +667,24 @@ static void format_session_error(ssh_session session, const char *prefix,
         snprintf(buf, buflen, "%s", prefix);
 }
 
+/* Produce the reason string for a session that ssh_session_handle_poll()
+ * reported a failure on. A peer that ends the connection with SSH_MSG_DISCONNECT
+ * (the normal way a client or server hangs up) lands here too, because libssh
+ * moves the session to its error state on DISCONNECT. We recognise it from the
+ * libssh error text and report a clean "disconnected by peer" rather than a
+ * scary "SSH poll callback error: ...", so on_close/on_session_close reasons
+ * read sensibly for ordinary logouts. */
+static void session_failure_reason(ssh_session session, char *buf, size_t buflen) {
+    if (session != NULL) {
+        const char *err = ssh_get_error(session);
+        if (err != NULL && strstr(err, "SSH_MSG_DISCONNECT") != NULL) {
+            snprintf(buf, buflen, "disconnected by peer");
+            return;
+        }
+    }
+    format_session_error(session, "SSH poll callback error", buf, buflen);
+}
+
 static int session_has_pending_write(ssh_session session) {
     if (session == NULL)
         return 0;
@@ -1697,7 +1715,7 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
     }
     if (session_apply_poll_events(c->session, libssh_events) != 0) {
         char errmsg[256] = {0};
-        format_session_error(c->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+        session_failure_reason(c->session, errmsg, sizeof(errmsg));
         client_fail(c, errmsg);
         return;
     }
@@ -1757,7 +1775,7 @@ static void client_pump_io(ssh_client_ctx *c) {
             ssh_set_fd_toread(c->session);
             if (session_apply_poll_events(c->session, UV_READABLE) != 0) {
                 char errmsg[256] = {0};
-                format_session_error(c->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+                session_failure_reason(c->session, errmsg, sizeof(errmsg));
                 client_fail(c, errmsg);
                 return;
             }
@@ -3084,7 +3102,7 @@ static void session_pump_io(ssh_server_session_ctx *s) {
             ssh_set_fd_toread(s->session);
             if (session_apply_poll_events(s->session, UV_READABLE) != 0) {
                 char errmsg[256] = {0};
-                format_session_error(s->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+                session_failure_reason(s->session, errmsg, sizeof(errmsg));
                 session_fail(s, errmsg);
                 return;
             }
@@ -3427,7 +3445,7 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
     }
     if (session_apply_poll_events(s->session, libssh_events) != 0) {
         char errmsg[256] = {0};
-        format_session_error(s->session, "SSH poll callback error", errmsg, sizeof(errmsg));
+        session_failure_reason(s->session, errmsg, sizeof(errmsg));
         session_fail(s, errmsg);
         return;
     }
