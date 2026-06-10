@@ -59,11 +59,13 @@
  *     cross-actor C magic.
  *   - We replace libssh allocators with Acton's GC allocator so libuv/GC
  *     roots remain visible (libssh structures can reference GC memory).
- *   - Native Client/Server contexts hold their actor reference as a GC-hidden
- *     pointer (weak): if the application drops the actor, the GC can collect
- *     it, which triggers __cleanup__ -> _cleanup_native -> close. Channel and
- *     ServerSession contexts hold strong references while they are live and
- *     null them at finalize.
+ *   - Native contexts hold a strong (GC-visible) reference to their owning
+ *     actor. Each context is reachable from its live uv_poll handle
+ *     (handle->data -> ctx -> actor), so the actor stays alive while it has an
+ *     open session even if the application drops its own reference, matching
+ *     net.TCPConnection. finalize() nulls the actor pointer and frees the
+ *     handles, after which the actor becomes collectable; collection of an
+ *     actor the app dropped runs __cleanup__ -> _cleanup_native -> close.
  *
  * Config & filesystem
  *   - libssh config processing is disabled; known_hosts is only read if
@@ -178,7 +180,7 @@ typedef struct ssh_channel_ctx {
 } ssh_channel_ctx;
 
 typedef struct ssh_client_ctx {
-    GC_hidden_pointer actor;
+    sshQ_Client actor;
     ssh_session session;
     uv_poll_t *poll;
     int poll_events;
@@ -311,7 +313,7 @@ typedef struct ssh_server_session_ctx {
 } ssh_server_session_ctx;
 
 typedef struct ssh_server_ctx {
-    GC_hidden_pointer actor;
+    sshQ_Server actor;
     ssh_bind bind;
     ssh_key hostkey;
     uv_poll_t *poll;
@@ -369,13 +371,8 @@ static void server_poll_close_cb(uv_handle_t *handle);
 static void session_poll_close_cb(uv_handle_t *handle);
 static void session_timer_close_cb(uv_handle_t *handle);
 
-#define STORE_HIDDEN_PTR(slot, ptr) \
-    ((slot) = (ptr) ? (GC_hidden_pointer)GC_HIDE_POINTER(ptr) : (GC_hidden_pointer)0)
-#define LOAD_HIDDEN_PTR(type, slot) \
-    ((slot) ? (type)GC_REVEAL_POINTER(slot) : NULL)
-
 static sshQ_Client client_actor_ref(const ssh_client_ctx *c) {
-    return c ? LOAD_HIDDEN_PTR(sshQ_Client, c->actor) : NULL;
+    return c ? c->actor : NULL;
 }
 
 static sshQ_Channel channel_actor_ref(const ssh_channel_ctx *ch) {
@@ -383,7 +380,7 @@ static sshQ_Channel channel_actor_ref(const ssh_channel_ctx *ch) {
 }
 
 static sshQ_Server server_actor_ref(const ssh_server_ctx *s) {
-    return s ? LOAD_HIDDEN_PTR(sshQ_Server, s->actor) : NULL;
+    return s ? s->actor : NULL;
 }
 
 static sshQ_ServerSession session_actor_ref(const ssh_server_session_ctx *s) {
@@ -1810,7 +1807,7 @@ static void client_finalize(ssh_client_ctx *c) {
     sshQ_Client actor = client_actor_ref(c);
     if (actor)
         actor->_client = 0;
-    STORE_HIDDEN_PTR(c->actor, NULL);
+    c->actor = NULL;
     client_maybe_release(c);
 }
 
@@ -1950,7 +1947,7 @@ $R sshQ_ClientD__pin_affinityG_local(sshQ_Client self, $Cont c$cont) {
 $R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     ssh_configure_libssh_logging();
     ssh_client_ctx *c = acton_calloc(1, sizeof(ssh_client_ctx));
-    STORE_HIDDEN_PTR(c->actor, self);
+    c->actor = self;
     c->on_connect = ($action2)self->_on_connect;
     c->on_close = ($action2)self->_on_close;
     c->on_hostkey = ($action3)self->_on_hostkey;
@@ -3328,7 +3325,7 @@ static void server_finalize(ssh_server_ctx *s) {
     sshQ_Server actor = server_actor_ref(s);
     if (actor)
         actor->_server = 0;
-    STORE_HIDDEN_PTR(s->actor, NULL);
+    s->actor = NULL;
     server_maybe_release(s);
 }
 
@@ -3520,7 +3517,7 @@ $R sshQ_ServerD__pin_affinityG_local(sshQ_Server self, $Cont c$cont) {
 $R sshQ_ServerD__initG_local(sshQ_Server self, $Cont c$cont) {
     ssh_configure_libssh_logging();
     ssh_server_ctx *s = acton_calloc(1, sizeof(ssh_server_ctx));
-    STORE_HIDDEN_PTR(s->actor, self);
+    s->actor = self;
     s->on_listen = ($action2)self->_on_listen;
     s->on_close = ($action2)self->_on_close;
     s->state = SERVER_STATE_INIT;

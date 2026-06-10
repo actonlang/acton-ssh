@@ -1,0 +1,112 @@
+"""Soak test: run many connect -> exec -> close cycles against an in-process
+server and report RSS periodically to detect leaks.
+
+Usage: soak [CYCLES]   (default 2000)
+"""
+
+import net
+import ssh
+
+
+actor main(env):
+    var cycles = 2000
+    if len(env.argv) > 1:
+        cycles = int(env.argv[1])
+
+    var server: ?ssh.Server = None
+    var port: u16 = 0
+    var done = 0
+    var ok = 0
+
+    def report():
+        print("cycle", done, "of", cycles, "ok", ok)
+
+    def fail(msg: str):
+        print("SOAK-FAIL:", msg)
+        env.exit(1)
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            fail("listen: " + err)
+            return
+        port = await async s.bound_port()
+        start_cycle()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.accept_request()
+        ch.write(b"ok\n")
+        ch.send_exit_status(0)
+        ch.close()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def next_cycle():
+        done += 1
+        if done % 200 == 0:
+            report()
+        if done >= cycles:
+            print("SOAK-DONE ok", ok, "of", cycles)
+            if server is not None:
+                server.close()
+            env.exit(0 if ok == cycles else 1)
+            return
+        start_cycle()
+
+    def start_cycle():
+        def on_connect(c: ssh.Client, err: ?str):
+            if err is not None:
+                fail("connect: " + err)
+                return
+            def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, eb: bytes, error: ?str):
+                if error is None and code == 0 and out == b"ok\n":
+                    ok += 1
+                c.close()
+            ssh.RunCommand(c, "go", on_run_exit, timeout=10.0)
+
+        def on_close(c: ssh.Client, reason: str):
+            next_cycle()
+
+        ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            "soak",
+            on_connect,
+            on_close,
+            on_hostkey,
+            password="soak",
+            port=port,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )
