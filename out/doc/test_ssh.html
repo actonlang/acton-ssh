@@ -1074,6 +1074,96 @@
 
 <h2 class="type-context"><code>_test_pubkey_auth</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
 <div class="docstring">Server-side publickey auth: client key, server authorizes pubkey.</div>
+
+<div class="declaration-block">
+<h2 class="type-context"><span class="keyword">actor</span> <code>WriteBufferLimitTester</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
+<div class="docstring">A channel write that would exceed max_write_buffer fails the channel.<br><br>    The per-channel cap bounds total buffered-unsent bytes. A single write<br>    larger than the cap trips it immediately (and the same check bounds<br>    accumulation from a stalled peer), failing the channel with a buffer-limit<br>    reason rather than buffering without bound.<br>    </div>
+
+<h3>Public Constants</h3>
+<div class="attributes">
+<div class="attribute-item"><code>log</code></div>
+<div class="attribute-item"><code>LIMIT</code></div>
+<div class="attribute-item"><code>server</code></div>
+</div>
+<h3>Internal Attributes</h3>
+<div class="attributes">
+<div class="attribute-item"><code>done</code></div>
+<div class="attribute-item"><code>server</code>: <span class="type">?<a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span></div>
+<div class="attribute-item"><code>client</code>: <span class="type">?<a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span></div>
+<div class="attribute-item"><code>limit_hit</code></div>
+<div class="attribute-item"><code>client_closed</code></div>
+<div class="attribute-item"><code>server_closed</code></div>
+</div>
+<h3>Methods</h3>
+<div class="methods">
+<div class="method-item">
+<div class="method-signature"><code>finish_error</code>(<span class="param-name">msg</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>maybe_finish</code>()</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_timeout</code>()</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_listen</code>(<span class="param-name">s</span>: <span class="type"><a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span>, <span class="param-name">err</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_server_close</code>(<span class="param-name">s</span>: <span class="type"><a href="ssh.html#class-Server" class="type-link">ssh.Server</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_session</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_auth</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>, <span class="param-name">req</span>: <span class="type"><a href="ssh.html#class-AuthRequest" class="type-link">ssh.AuthRequest</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_data</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_stderr</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>srv_on_close</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_channel_open</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_exec</code>(<span class="param-name">sess</span>: <span class="type"><a href="ssh.html#class-ServerSession" class="type-link">ssh.ServerSession</a></span>, <span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-ServerChannel" class="type-link">ssh.ServerChannel</a></span>, <span class="param-name">cmd</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_hostkey</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">state</span>: <span class="type">str</span>, <span class="param-name">info</span>: <span class="type"><a href="ssh.html#class-HostKeyInfo" class="type-link">ssh.HostKeyInfo</a></span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_connect</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">err</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>on_client_close</code>(<span class="param-name">c</span>: <span class="type"><a href="ssh.html#class-Client" class="type-link">ssh.Client</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>ch_open</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">err</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>ch_out</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>ch_err</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">data</span>: <span class="type">?bytes</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>ch_exit</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">code</span>: <span class="type">int</span>, <span class="param-name">sig</span>: <span class="type">?str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>ch_close</code>(<span class="param-name">ch</span>: <span class="type"><a href="ssh.html#class-Channel" class="type-link">ssh.Channel</a></span>, <span class="param-name">reason</span>: <span class="type">str</span>)</div>
+</div>
+<div class="method-item">
+<div class="method-signature"><code>start_client</code>(<span class="param-name">port</span>: <span class="type">u16</span>)</div>
+</div>
+</div>
+</div>
+
+<h2 class="type-context"><code>_test_write_buffer_limit</code>(<span class="param-name">t</span>: <span class="type"><a href="testing.html#class-EnvT" class="type-link">testing.EnvT</a></span>)</h2>
+<div class="docstring">A write exceeding max_write_buffer fails the channel.</div>
   </div>
 </body>
 </html>

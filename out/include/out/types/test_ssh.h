@@ -1,4 +1,4 @@
-/* Acton impl hash: fca2907465b821f65e178745aeb608cd3657d98702aaf5e0485f73030ce73949 */
+/* Acton impl hash: 472bf4b9a2b0454c2940d66bd03308f0d0b10afcc47a5e9f1a48e848a0d0138a */
 #pragma once
 #include "builtin/builtin.h"
 #include "rts/rts.h"
@@ -141,7 +141,7 @@ struct test_sshQ_L_2proc {
     struct test_sshQ_L_2procG_class *$class;
     test_sshQ_ExecTester self;
 };
-$R test_sshQ_L_1C_7cont (test_sshQ_ExecTester, $Cont, sshQ_Server);
+$R test_sshQ_L_1C_8cont (test_sshQ_ExecTester, $Cont, sshQ_Server);
 struct test_sshQ_L_3ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -267,7 +267,7 @@ struct test_sshQ_L_15action {
     struct test_sshQ_L_15actionG_class *$class;
     test_sshQ_ExecTester L_14obj;
 };
-$R test_sshQ_L_16C_9cont (test_sshQ_ExecTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_16C_10cont (test_sshQ_ExecTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_17ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -286,7 +286,7 @@ struct test_sshQ_L_17Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_18C_11cont (test_sshQ_ExecTester, $Cont, B_NoneType);
+$R test_sshQ_L_18C_12cont (test_sshQ_ExecTester, $Cont, B_NoneType);
 struct test_sshQ_L_19ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -304,7 +304,7 @@ struct test_sshQ_L_19Cont {
     test_sshQ_ExecTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_20C_13cont ($Cont, B_NoneType);
+$R test_sshQ_L_20C_14cont ($Cont, B_NoneType);
 struct test_sshQ_L_21ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -321,7 +321,7 @@ struct test_sshQ_L_21Cont {
     struct test_sshQ_L_21ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_24C_19cont ($Cont, B_NoneType);
+$R test_sshQ_L_24C_20cont ($Cont, B_NoneType);
 struct test_sshQ_L_25ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -338,7 +338,7 @@ struct test_sshQ_L_25Cont {
     struct test_sshQ_L_25ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_23C_17cont ($Cont, test_sshQ_ExecTester, uint16_t);
+$R test_sshQ_L_23C_18cont ($Cont, test_sshQ_ExecTester, uint16_t);
 struct test_sshQ_L_26ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -356,8 +356,8 @@ struct test_sshQ_L_26Cont {
     $Cont C_cont;
     test_sshQ_ExecTester self;
 };
-$R test_sshQ_L_22C_15cont ($Cont, test_sshQ_ExecTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_27C_21cont ($Cont, B_NoneType);
+$R test_sshQ_L_22C_16cont ($Cont, test_sshQ_ExecTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_27C_22cont ($Cont, B_NoneType);
 struct test_sshQ_L_28ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -392,7 +392,7 @@ struct test_sshQ_L_29Cont {
     test_sshQ_ExecTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_30C_23cont ($Cont, B_NoneType);
+$R test_sshQ_L_30C_24cont ($Cont, B_NoneType);
 struct test_sshQ_L_31ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -409,7 +409,7 @@ struct test_sshQ_L_31Cont {
     struct test_sshQ_L_31ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_32C_25cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R test_sshQ_L_32C_26cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
 struct test_sshQ_L_33ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -481,7 +481,7 @@ struct test_sshQ_L_39action {
     struct test_sshQ_L_39actionG_class *$class;
     test_sshQ_ExecTester L_38obj;
 };
-$R test_sshQ_L_41C_29cont ($Cont, sshQ_RunCommand);
+$R test_sshQ_L_41C_30cont ($Cont, sshQ_RunCommand);
 struct test_sshQ_L_42ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -516,8 +516,8 @@ struct test_sshQ_L_44action {
     struct test_sshQ_L_44actionG_class *$class;
     test_sshQ_ExecTester L_43obj;
 };
-$R test_sshQ_L_40C_27cont ($Cont, sshQ_Client, test_sshQ_ExecTester, B_NoneType);
-$R test_sshQ_L_45C_31cont ($Cont, B_NoneType);
+$R test_sshQ_L_40C_28cont ($Cont, sshQ_Client, test_sshQ_ExecTester, B_NoneType);
+$R test_sshQ_L_45C_32cont ($Cont, B_NoneType);
 struct test_sshQ_L_46ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -552,7 +552,7 @@ struct test_sshQ_L_47Cont {
     sshQ_Client c;
     test_sshQ_ExecTester self;
 };
-$R test_sshQ_L_48C_33cont ($Cont, B_NoneType);
+$R test_sshQ_L_48C_34cont ($Cont, B_NoneType);
 struct test_sshQ_L_49ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -569,7 +569,7 @@ struct test_sshQ_L_49Cont {
     struct test_sshQ_L_49ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_54C_43cont ($Cont, B_NoneType);
+$R test_sshQ_L_54C_44cont ($Cont, B_NoneType);
 struct test_sshQ_L_55ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -586,8 +586,8 @@ struct test_sshQ_L_55Cont {
     struct test_sshQ_L_55ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_53C_41cont (test_sshQ_ExecTester, $Cont, B_NoneType);
-$R test_sshQ_L_56C_45cont ($Cont, B_NoneType);
+$R test_sshQ_L_53C_42cont (test_sshQ_ExecTester, $Cont, B_NoneType);
+$R test_sshQ_L_56C_46cont ($Cont, B_NoneType);
 struct test_sshQ_L_57ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -621,8 +621,8 @@ struct test_sshQ_L_58Cont {
     test_sshQ_ExecTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_52C_39cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_NoneType);
-$R test_sshQ_L_59C_47cont ($Cont, B_NoneType);
+$R test_sshQ_L_52C_40cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_NoneType);
+$R test_sshQ_L_59C_48cont ($Cont, B_NoneType);
 struct test_sshQ_L_60ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -659,8 +659,8 @@ struct test_sshQ_L_61Cont {
     B_bytes err_out;
     B_Plus W_ExecTester_782;
 };
-$R test_sshQ_L_51C_37cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_bytes, B_NoneType);
-$R test_sshQ_L_62C_49cont ($Cont, B_NoneType);
+$R test_sshQ_L_51C_38cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_bytes, B_NoneType);
+$R test_sshQ_L_62C_50cont ($Cont, B_NoneType);
 struct test_sshQ_L_63ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -698,8 +698,8 @@ struct test_sshQ_L_64Cont {
     B_Plus W_ExecTester_782;
     B_bytes out;
 };
-$R test_sshQ_L_50C_35cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_bytes, int64_t, B_NoneType);
-$R test_sshQ_L_65C_51cont ($Cont, B_NoneType);
+$R test_sshQ_L_50C_36cont (test_sshQ_ExecTester, $Cont, B_Eq, B_bytes, B_Plus, B_bytes, int64_t, B_NoneType);
+$R test_sshQ_L_65C_52cont ($Cont, B_NoneType);
 struct test_sshQ_L_66ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -738,7 +738,7 @@ struct test_sshQ_L_67Cont {
     B_bytes out;
     int64_t code;
 };
-$R test_sshQ_L_68C_53cont (test_sshQ_ExecTester, $Cont, sshQ_Client);
+$R test_sshQ_L_68C_54cont (test_sshQ_ExecTester, $Cont, sshQ_Client);
 struct test_sshQ_L_69ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1131,7 +1131,7 @@ struct test_sshQ_L_92proc {
     test_sshQ_ExecTester self;
     uint16_t port;
 };
-$R test_sshQ_L_93C_55cont ($Cont, test_sshQ_ExecTester, B_NoneType);
+$R test_sshQ_L_93C_56cont ($Cont, test_sshQ_ExecTester, B_NoneType);
 struct test_sshQ_L_94ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1354,7 +1354,7 @@ extern struct test_sshQ_ExecTesterG_class test_sshQ_ExecTesterG_methods;
 $R test_sshQ_ExecTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_97Cont;
 typedef struct test_sshQ_L_97Cont *test_sshQ_L_97Cont;
-$R test_sshQ_L_96C_57cont ($Cont, test_sshQ_ExecTester);
+$R test_sshQ_L_96C_58cont ($Cont, test_sshQ_ExecTester);
 struct test_sshQ_L_97ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1529,7 +1529,7 @@ struct test_sshQ_L_99proc {
     struct test_sshQ_L_99procG_class *$class;
     test_sshQ_SubsystemTester self;
 };
-$R test_sshQ_L_98C_59cont (test_sshQ_SubsystemTester, $Cont, sshQ_Server);
+$R test_sshQ_L_98C_60cont (test_sshQ_SubsystemTester, $Cont, sshQ_Server);
 struct test_sshQ_L_100ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1691,7 +1691,7 @@ struct test_sshQ_L_116action {
     struct test_sshQ_L_116actionG_class *$class;
     test_sshQ_SubsystemTester L_115obj;
 };
-$R test_sshQ_L_117C_61cont (test_sshQ_SubsystemTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_117C_62cont (test_sshQ_SubsystemTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_118ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1710,7 +1710,7 @@ struct test_sshQ_L_118Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_119C_63cont (test_sshQ_SubsystemTester, $Cont, B_NoneType);
+$R test_sshQ_L_119C_64cont (test_sshQ_SubsystemTester, $Cont, B_NoneType);
 struct test_sshQ_L_120ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1728,7 +1728,7 @@ struct test_sshQ_L_120Cont {
     test_sshQ_SubsystemTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_121C_65cont ($Cont, B_NoneType);
+$R test_sshQ_L_121C_66cont ($Cont, B_NoneType);
 struct test_sshQ_L_122ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1745,7 +1745,7 @@ struct test_sshQ_L_122Cont {
     struct test_sshQ_L_122ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_125C_71cont ($Cont, B_NoneType);
+$R test_sshQ_L_125C_72cont ($Cont, B_NoneType);
 struct test_sshQ_L_126ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1762,7 +1762,7 @@ struct test_sshQ_L_126Cont {
     struct test_sshQ_L_126ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_124C_69cont ($Cont, test_sshQ_SubsystemTester, uint16_t);
+$R test_sshQ_L_124C_70cont ($Cont, test_sshQ_SubsystemTester, uint16_t);
 struct test_sshQ_L_127ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1780,8 +1780,8 @@ struct test_sshQ_L_127Cont {
     $Cont C_cont;
     test_sshQ_SubsystemTester self;
 };
-$R test_sshQ_L_123C_67cont ($Cont, test_sshQ_SubsystemTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_128C_73cont ($Cont, B_NoneType);
+$R test_sshQ_L_123C_68cont ($Cont, test_sshQ_SubsystemTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_128C_74cont ($Cont, B_NoneType);
 struct test_sshQ_L_129ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1816,7 +1816,7 @@ struct test_sshQ_L_130Cont {
     test_sshQ_SubsystemTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_131C_75cont ($Cont, B_NoneType);
+$R test_sshQ_L_131C_76cont ($Cont, B_NoneType);
 struct test_sshQ_L_132ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1833,7 +1833,7 @@ struct test_sshQ_L_132Cont {
     struct test_sshQ_L_132ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_133C_77cont ($Cont, B_NoneType);
+$R test_sshQ_L_133C_78cont ($Cont, B_NoneType);
 struct test_sshQ_L_134ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1850,7 +1850,7 @@ struct test_sshQ_L_134Cont {
     struct test_sshQ_L_134ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_135C_79cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R test_sshQ_L_135C_80cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
 struct test_sshQ_L_136ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -1922,7 +1922,7 @@ struct test_sshQ_L_142action {
     struct test_sshQ_L_142actionG_class *$class;
     test_sshQ_SubsystemTester L_141obj;
 };
-$R test_sshQ_L_144C_83cont ($Cont, sshQ_Channel);
+$R test_sshQ_L_144C_84cont ($Cont, sshQ_Channel);
 struct test_sshQ_L_145ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2029,8 +2029,8 @@ struct test_sshQ_L_155action {
     struct test_sshQ_L_155actionG_class *$class;
     test_sshQ_SubsystemTester L_154obj;
 };
-$R test_sshQ_L_143C_81cont ($Cont, sshQ_Client, test_sshQ_SubsystemTester, B_NoneType);
-$R test_sshQ_L_156C_85cont ($Cont, B_NoneType);
+$R test_sshQ_L_143C_82cont ($Cont, sshQ_Client, test_sshQ_SubsystemTester, B_NoneType);
+$R test_sshQ_L_156C_86cont ($Cont, B_NoneType);
 struct test_sshQ_L_157ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2065,7 +2065,7 @@ struct test_sshQ_L_158Cont {
     sshQ_Client c;
     test_sshQ_SubsystemTester self;
 };
-$R test_sshQ_L_159C_87cont ($Cont, B_NoneType);
+$R test_sshQ_L_159C_88cont ($Cont, B_NoneType);
 struct test_sshQ_L_160ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2082,8 +2082,8 @@ struct test_sshQ_L_160Cont {
     struct test_sshQ_L_160ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_161C_89cont (sshQ_Channel, test_sshQ_SubsystemTester, $Cont, B_NoneType);
-$R test_sshQ_L_162C_91cont ($Cont, B_NoneType);
+$R test_sshQ_L_161C_90cont (sshQ_Channel, test_sshQ_SubsystemTester, $Cont, B_NoneType);
+$R test_sshQ_L_162C_92cont ($Cont, B_NoneType);
 struct test_sshQ_L_163ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2118,7 +2118,7 @@ struct test_sshQ_L_164Cont {
     test_sshQ_SubsystemTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_165C_93cont ($Cont, B_NoneType);
+$R test_sshQ_L_165C_94cont ($Cont, B_NoneType);
 struct test_sshQ_L_167ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2135,8 +2135,8 @@ struct test_sshQ_L_167Cont {
     struct test_sshQ_L_167ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_166C_95cont (test_sshQ_SubsystemTester, sshQ_Channel, $Cont, B_NoneType);
-$R test_sshQ_L_168C_97cont ($Cont, B_NoneType);
+$R test_sshQ_L_166C_96cont (test_sshQ_SubsystemTester, sshQ_Channel, $Cont, B_NoneType);
+$R test_sshQ_L_168C_98cont ($Cont, B_NoneType);
 struct test_sshQ_L_169ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2203,7 +2203,7 @@ struct test_sshQ_L_172Cont {
     struct test_sshQ_L_172ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_173C_99cont (test_sshQ_SubsystemTester, $Cont, sshQ_Client);
+$R test_sshQ_L_173C_100cont (test_sshQ_SubsystemTester, $Cont, sshQ_Client);
 struct test_sshQ_L_174ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2708,7 +2708,7 @@ struct test_sshQ_L_203proc {
     test_sshQ_SubsystemTester self;
     uint16_t port;
 };
-$R test_sshQ_L_204C_101cont ($Cont, test_sshQ_SubsystemTester, B_NoneType);
+$R test_sshQ_L_204C_102cont ($Cont, test_sshQ_SubsystemTester, B_NoneType);
 struct test_sshQ_L_205ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -2971,7 +2971,7 @@ extern struct test_sshQ_SubsystemTesterG_class test_sshQ_SubsystemTesterG_method
 $R test_sshQ_SubsystemTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_208Cont;
 typedef struct test_sshQ_L_208Cont *test_sshQ_L_208Cont;
-$R test_sshQ_L_207C_103cont ($Cont, test_sshQ_SubsystemTester);
+$R test_sshQ_L_207C_104cont ($Cont, test_sshQ_SubsystemTester);
 struct test_sshQ_L_208ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3082,7 +3082,7 @@ struct test_sshQ_L_210proc {
     struct test_sshQ_L_210procG_class *$class;
     test_sshQ_AuthRejectTester self;
 };
-$R test_sshQ_L_209C_105cont (test_sshQ_AuthRejectTester, $Cont, sshQ_Server);
+$R test_sshQ_L_209C_106cont (test_sshQ_AuthRejectTester, $Cont, sshQ_Server);
 struct test_sshQ_L_211ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3190,7 +3190,7 @@ struct test_sshQ_L_221action {
     struct test_sshQ_L_221actionG_class *$class;
     test_sshQ_AuthRejectTester L_220obj;
 };
-$R test_sshQ_L_222C_107cont (test_sshQ_AuthRejectTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_222C_108cont (test_sshQ_AuthRejectTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_223ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3209,7 +3209,7 @@ struct test_sshQ_L_223Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_224C_109cont (test_sshQ_AuthRejectTester, $Cont, B_NoneType);
+$R test_sshQ_L_224C_110cont (test_sshQ_AuthRejectTester, $Cont, B_NoneType);
 struct test_sshQ_L_225ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3227,7 +3227,7 @@ struct test_sshQ_L_225Cont {
     test_sshQ_AuthRejectTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_226C_111cont ($Cont, B_NoneType);
+$R test_sshQ_L_226C_112cont ($Cont, B_NoneType);
 struct test_sshQ_L_227ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3244,7 +3244,7 @@ struct test_sshQ_L_227Cont {
     struct test_sshQ_L_227ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_230C_117cont ($Cont, B_NoneType);
+$R test_sshQ_L_230C_118cont ($Cont, B_NoneType);
 struct test_sshQ_L_231ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3261,7 +3261,7 @@ struct test_sshQ_L_231Cont {
     struct test_sshQ_L_231ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_229C_115cont ($Cont, test_sshQ_AuthRejectTester, uint16_t);
+$R test_sshQ_L_229C_116cont ($Cont, test_sshQ_AuthRejectTester, uint16_t);
 struct test_sshQ_L_232ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3279,8 +3279,8 @@ struct test_sshQ_L_232Cont {
     $Cont C_cont;
     test_sshQ_AuthRejectTester self;
 };
-$R test_sshQ_L_228C_113cont ($Cont, test_sshQ_AuthRejectTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_233C_119cont ($Cont, B_NoneType);
+$R test_sshQ_L_228C_114cont ($Cont, test_sshQ_AuthRejectTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_233C_120cont ($Cont, B_NoneType);
 struct test_sshQ_L_234ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3315,7 +3315,7 @@ struct test_sshQ_L_235Cont {
     test_sshQ_AuthRejectTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_236C_121cont ($Cont, B_NoneType);
+$R test_sshQ_L_236C_122cont ($Cont, B_NoneType);
 struct test_sshQ_L_237ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3332,7 +3332,7 @@ struct test_sshQ_L_237Cont {
     struct test_sshQ_L_237ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_239C_125cont ($Cont, B_NoneType);
+$R test_sshQ_L_239C_126cont ($Cont, B_NoneType);
 struct test_sshQ_L_240ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3349,8 +3349,8 @@ struct test_sshQ_L_240Cont {
     struct test_sshQ_L_240ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_238C_123cont (test_sshQ_AuthRejectTester, $Cont, B_NoneType);
-$R test_sshQ_L_241C_127cont ($Cont, B_NoneType);
+$R test_sshQ_L_238C_124cont (test_sshQ_AuthRejectTester, $Cont, B_NoneType);
+$R test_sshQ_L_241C_128cont ($Cont, B_NoneType);
 struct test_sshQ_L_242ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3384,7 +3384,7 @@ struct test_sshQ_L_243Cont {
     test_sshQ_AuthRejectTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_244C_129cont (test_sshQ_AuthRejectTester, $Cont, sshQ_Client);
+$R test_sshQ_L_244C_130cont (test_sshQ_AuthRejectTester, $Cont, sshQ_Client);
 struct test_sshQ_L_245ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3677,7 +3677,7 @@ struct test_sshQ_L_263proc {
     test_sshQ_AuthRejectTester self;
     uint16_t port;
 };
-$R test_sshQ_L_264C_131cont ($Cont, test_sshQ_AuthRejectTester, B_NoneType);
+$R test_sshQ_L_264C_132cont ($Cont, test_sshQ_AuthRejectTester, B_NoneType);
 struct test_sshQ_L_265ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3847,7 +3847,7 @@ extern struct test_sshQ_AuthRejectTesterG_class test_sshQ_AuthRejectTesterG_meth
 $R test_sshQ_AuthRejectTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_268Cont;
 typedef struct test_sshQ_L_268Cont *test_sshQ_L_268Cont;
-$R test_sshQ_L_267C_133cont ($Cont, test_sshQ_AuthRejectTester);
+$R test_sshQ_L_267C_134cont ($Cont, test_sshQ_AuthRejectTester);
 struct test_sshQ_L_268ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -3962,7 +3962,7 @@ struct test_sshQ_L_270proc {
     struct test_sshQ_L_270procG_class *$class;
     test_sshQ_HostkeyRejectTester self;
 };
-$R test_sshQ_L_269C_135cont (test_sshQ_HostkeyRejectTester, $Cont, sshQ_Server);
+$R test_sshQ_L_269C_136cont (test_sshQ_HostkeyRejectTester, $Cont, sshQ_Server);
 struct test_sshQ_L_271ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4070,7 +4070,7 @@ struct test_sshQ_L_281action {
     struct test_sshQ_L_281actionG_class *$class;
     test_sshQ_HostkeyRejectTester L_280obj;
 };
-$R test_sshQ_L_282C_137cont (test_sshQ_HostkeyRejectTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_282C_138cont (test_sshQ_HostkeyRejectTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_283ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4089,7 +4089,7 @@ struct test_sshQ_L_283Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_284C_139cont (test_sshQ_HostkeyRejectTester, $Cont, B_NoneType);
+$R test_sshQ_L_284C_140cont (test_sshQ_HostkeyRejectTester, $Cont, B_NoneType);
 struct test_sshQ_L_285ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4107,7 +4107,7 @@ struct test_sshQ_L_285Cont {
     test_sshQ_HostkeyRejectTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_286C_141cont ($Cont, B_NoneType);
+$R test_sshQ_L_286C_142cont ($Cont, B_NoneType);
 struct test_sshQ_L_287ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4124,7 +4124,7 @@ struct test_sshQ_L_287Cont {
     struct test_sshQ_L_287ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_290C_147cont ($Cont, B_NoneType);
+$R test_sshQ_L_290C_148cont ($Cont, B_NoneType);
 struct test_sshQ_L_291ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4141,7 +4141,7 @@ struct test_sshQ_L_291Cont {
     struct test_sshQ_L_291ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_289C_145cont ($Cont, test_sshQ_HostkeyRejectTester, uint16_t);
+$R test_sshQ_L_289C_146cont ($Cont, test_sshQ_HostkeyRejectTester, uint16_t);
 struct test_sshQ_L_292ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4159,8 +4159,8 @@ struct test_sshQ_L_292Cont {
     $Cont C_cont;
     test_sshQ_HostkeyRejectTester self;
 };
-$R test_sshQ_L_288C_143cont ($Cont, test_sshQ_HostkeyRejectTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_293C_149cont ($Cont, B_NoneType);
+$R test_sshQ_L_288C_144cont ($Cont, test_sshQ_HostkeyRejectTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_293C_150cont ($Cont, B_NoneType);
 struct test_sshQ_L_294ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4195,7 +4195,7 @@ struct test_sshQ_L_295Cont {
     test_sshQ_HostkeyRejectTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_296C_151cont ($Cont, B_NoneType);
+$R test_sshQ_L_296C_152cont ($Cont, B_NoneType);
 struct test_sshQ_L_297ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4212,8 +4212,8 @@ struct test_sshQ_L_297Cont {
     struct test_sshQ_L_297ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_298C_153cont (sshQ_Client, $Cont, B_NoneType);
-$R test_sshQ_L_299C_155cont ($Cont, B_NoneType);
+$R test_sshQ_L_298C_154cont (sshQ_Client, $Cont, B_NoneType);
+$R test_sshQ_L_299C_156cont ($Cont, B_NoneType);
 struct test_sshQ_L_300ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4247,7 +4247,7 @@ struct test_sshQ_L_301Cont {
     sshQ_Client c;
     $Cont C_cont;
 };
-$R test_sshQ_L_303C_159cont ($Cont, B_NoneType);
+$R test_sshQ_L_303C_160cont ($Cont, B_NoneType);
 struct test_sshQ_L_304ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4264,8 +4264,8 @@ struct test_sshQ_L_304Cont {
     struct test_sshQ_L_304ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_302C_157cont (test_sshQ_HostkeyRejectTester, $Cont, B_NoneType);
-$R test_sshQ_L_305C_161cont ($Cont, B_NoneType);
+$R test_sshQ_L_302C_158cont (test_sshQ_HostkeyRejectTester, $Cont, B_NoneType);
+$R test_sshQ_L_305C_162cont ($Cont, B_NoneType);
 struct test_sshQ_L_306ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4299,7 +4299,7 @@ struct test_sshQ_L_307Cont {
     test_sshQ_HostkeyRejectTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_308C_163cont (test_sshQ_HostkeyRejectTester, $Cont, sshQ_Client);
+$R test_sshQ_L_308C_164cont (test_sshQ_HostkeyRejectTester, $Cont, sshQ_Client);
 struct test_sshQ_L_309ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4592,7 +4592,7 @@ struct test_sshQ_L_327proc {
     test_sshQ_HostkeyRejectTester self;
     uint16_t port;
 };
-$R test_sshQ_L_328C_165cont ($Cont, test_sshQ_HostkeyRejectTester, B_NoneType);
+$R test_sshQ_L_328C_166cont ($Cont, test_sshQ_HostkeyRejectTester, B_NoneType);
 struct test_sshQ_L_329ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4766,7 +4766,7 @@ extern struct test_sshQ_HostkeyRejectTesterG_class test_sshQ_HostkeyRejectTester
 $R test_sshQ_HostkeyRejectTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_332Cont;
 typedef struct test_sshQ_L_332Cont *test_sshQ_L_332Cont;
-$R test_sshQ_L_331C_167cont ($Cont, test_sshQ_HostkeyRejectTester);
+$R test_sshQ_L_331C_168cont ($Cont, test_sshQ_HostkeyRejectTester);
 struct test_sshQ_L_332ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -4935,7 +4935,7 @@ struct test_sshQ_L_334proc {
     struct test_sshQ_L_334procG_class *$class;
     test_sshQ_EchoPayloadTester self;
 };
-$R test_sshQ_L_333C_169cont (test_sshQ_EchoPayloadTester, $Cont, sshQ_Server);
+$R test_sshQ_L_333C_170cont (test_sshQ_EchoPayloadTester, $Cont, sshQ_Server);
 struct test_sshQ_L_335ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5061,7 +5061,7 @@ struct test_sshQ_L_347action {
     struct test_sshQ_L_347actionG_class *$class;
     test_sshQ_EchoPayloadTester L_346obj;
 };
-$R test_sshQ_L_348C_171cont (test_sshQ_EchoPayloadTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_348C_172cont (test_sshQ_EchoPayloadTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_349ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5080,7 +5080,7 @@ struct test_sshQ_L_349Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_350C_173cont (test_sshQ_EchoPayloadTester, $Cont, B_NoneType);
+$R test_sshQ_L_350C_174cont (test_sshQ_EchoPayloadTester, $Cont, B_NoneType);
 struct test_sshQ_L_351ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5098,7 +5098,7 @@ struct test_sshQ_L_351Cont {
     test_sshQ_EchoPayloadTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_352C_175cont ($Cont, B_NoneType);
+$R test_sshQ_L_352C_176cont ($Cont, B_NoneType);
 struct test_sshQ_L_353ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5115,7 +5115,7 @@ struct test_sshQ_L_353Cont {
     struct test_sshQ_L_353ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_356C_181cont ($Cont, B_NoneType);
+$R test_sshQ_L_356C_182cont ($Cont, B_NoneType);
 struct test_sshQ_L_357ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5132,7 +5132,7 @@ struct test_sshQ_L_357Cont {
     struct test_sshQ_L_357ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_355C_179cont ($Cont, test_sshQ_EchoPayloadTester, uint16_t);
+$R test_sshQ_L_355C_180cont ($Cont, test_sshQ_EchoPayloadTester, uint16_t);
 struct test_sshQ_L_358ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5150,8 +5150,8 @@ struct test_sshQ_L_358Cont {
     $Cont C_cont;
     test_sshQ_EchoPayloadTester self;
 };
-$R test_sshQ_L_354C_177cont ($Cont, test_sshQ_EchoPayloadTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_359C_183cont ($Cont, B_NoneType);
+$R test_sshQ_L_354C_178cont ($Cont, test_sshQ_EchoPayloadTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_359C_184cont ($Cont, B_NoneType);
 struct test_sshQ_L_360ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5186,7 +5186,7 @@ struct test_sshQ_L_361Cont {
     test_sshQ_EchoPayloadTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_362C_185cont ($Cont, B_NoneType);
+$R test_sshQ_L_362C_186cont ($Cont, B_NoneType);
 struct test_sshQ_L_363ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5203,7 +5203,7 @@ struct test_sshQ_L_363Cont {
     struct test_sshQ_L_363ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_364C_187cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R test_sshQ_L_364C_188cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
 struct test_sshQ_L_365ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5275,7 +5275,7 @@ struct test_sshQ_L_371action {
     struct test_sshQ_L_371actionG_class *$class;
     test_sshQ_EchoPayloadTester L_370obj;
 };
-$R test_sshQ_L_373C_191cont ($Cont, sshQ_Channel);
+$R test_sshQ_L_373C_192cont ($Cont, sshQ_Channel);
 struct test_sshQ_L_374ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5382,8 +5382,8 @@ struct test_sshQ_L_384action {
     struct test_sshQ_L_384actionG_class *$class;
     test_sshQ_EchoPayloadTester L_383obj;
 };
-$R test_sshQ_L_372C_189cont ($Cont, sshQ_Client, test_sshQ_EchoPayloadTester, B_NoneType);
-$R test_sshQ_L_385C_193cont ($Cont, B_NoneType);
+$R test_sshQ_L_372C_190cont ($Cont, sshQ_Client, test_sshQ_EchoPayloadTester, B_NoneType);
+$R test_sshQ_L_385C_194cont ($Cont, B_NoneType);
 struct test_sshQ_L_386ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5418,7 +5418,7 @@ struct test_sshQ_L_387Cont {
     sshQ_Client c;
     test_sshQ_EchoPayloadTester self;
 };
-$R test_sshQ_L_388C_195cont ($Cont, B_NoneType);
+$R test_sshQ_L_388C_196cont ($Cont, B_NoneType);
 struct test_sshQ_L_389ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5435,8 +5435,8 @@ struct test_sshQ_L_389Cont {
     struct test_sshQ_L_389ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_390C_197cont (sshQ_Channel, test_sshQ_EchoPayloadTester, $Cont, B_NoneType);
-$R test_sshQ_L_391C_199cont ($Cont, B_NoneType);
+$R test_sshQ_L_390C_198cont (sshQ_Channel, test_sshQ_EchoPayloadTester, $Cont, B_NoneType);
+$R test_sshQ_L_391C_200cont ($Cont, B_NoneType);
 struct test_sshQ_L_392ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5471,7 +5471,7 @@ struct test_sshQ_L_393Cont {
     test_sshQ_EchoPayloadTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_395C_203cont ($Cont, B_NoneType);
+$R test_sshQ_L_395C_204cont ($Cont, B_NoneType);
 struct test_sshQ_L_397ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5488,8 +5488,8 @@ struct test_sshQ_L_397Cont {
     struct test_sshQ_L_397ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_396C_205cont (test_sshQ_EchoPayloadTester, sshQ_Channel, $Cont, B_NoneType);
-$R test_sshQ_L_398C_207cont ($Cont, B_NoneType);
+$R test_sshQ_L_396C_206cont (test_sshQ_EchoPayloadTester, sshQ_Channel, $Cont, B_NoneType);
+$R test_sshQ_L_398C_208cont ($Cont, B_NoneType);
 struct test_sshQ_L_399ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5572,7 +5572,7 @@ struct test_sshQ_L_403Cont {
     struct test_sshQ_L_403ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_394C_201cont ($Cont, B_bytes, test_sshQ_EchoPayloadTester, B_Eq, sshQ_Channel, B_Plus, B_NoneType);
+$R test_sshQ_L_394C_202cont ($Cont, B_bytes, test_sshQ_EchoPayloadTester, B_Eq, sshQ_Channel, B_Plus, B_NoneType);
 struct test_sshQ_L_404ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -5594,7 +5594,7 @@ struct test_sshQ_L_404Cont {
     sshQ_Channel ch;
     B_Plus W_EchoPayloadTester_1086;
 };
-$R test_sshQ_L_405C_209cont (test_sshQ_EchoPayloadTester, $Cont, sshQ_Client);
+$R test_sshQ_L_405C_210cont (test_sshQ_EchoPayloadTester, $Cont, sshQ_Client);
 struct test_sshQ_L_406ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6060,7 +6060,7 @@ struct test_sshQ_L_433proc {
     test_sshQ_EchoPayloadTester self;
     uint16_t port;
 };
-$R test_sshQ_L_434C_211cont ($Cont, test_sshQ_EchoPayloadTester, B_NoneType);
+$R test_sshQ_L_434C_212cont ($Cont, test_sshQ_EchoPayloadTester, B_NoneType);
 struct test_sshQ_L_435ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6311,7 +6311,7 @@ extern struct test_sshQ_EchoPayloadTesterG_class test_sshQ_EchoPayloadTesterG_me
 $R test_sshQ_EchoPayloadTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_438Cont;
 typedef struct test_sshQ_L_438Cont *test_sshQ_L_438Cont;
-$R test_sshQ_L_437C_213cont ($Cont, test_sshQ_EchoPayloadTester);
+$R test_sshQ_L_437C_214cont ($Cont, test_sshQ_EchoPayloadTester);
 struct test_sshQ_L_438ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6476,7 +6476,7 @@ struct test_sshQ_L_440proc {
     struct test_sshQ_L_440procG_class *$class;
     test_sshQ_ConcurrentChannelsTester self;
 };
-$R test_sshQ_L_439C_215cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Server);
+$R test_sshQ_L_439C_216cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Server);
 struct test_sshQ_L_441ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6602,7 +6602,7 @@ struct test_sshQ_L_453action {
     struct test_sshQ_L_453actionG_class *$class;
     test_sshQ_ConcurrentChannelsTester L_452obj;
 };
-$R test_sshQ_L_454C_217cont (test_sshQ_ConcurrentChannelsTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_454C_218cont (test_sshQ_ConcurrentChannelsTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_455ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6621,7 +6621,7 @@ struct test_sshQ_L_455Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_456C_219cont (test_sshQ_ConcurrentChannelsTester, $Cont, B_NoneType);
+$R test_sshQ_L_456C_220cont (test_sshQ_ConcurrentChannelsTester, $Cont, B_NoneType);
 struct test_sshQ_L_457ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6639,7 +6639,7 @@ struct test_sshQ_L_457Cont {
     test_sshQ_ConcurrentChannelsTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_458C_221cont ($Cont, B_NoneType);
+$R test_sshQ_L_458C_222cont ($Cont, B_NoneType);
 struct test_sshQ_L_459ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6656,7 +6656,7 @@ struct test_sshQ_L_459Cont {
     struct test_sshQ_L_459ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_462C_227cont ($Cont, B_NoneType);
+$R test_sshQ_L_462C_228cont ($Cont, B_NoneType);
 struct test_sshQ_L_463ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6673,7 +6673,7 @@ struct test_sshQ_L_463Cont {
     struct test_sshQ_L_463ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_461C_225cont ($Cont, test_sshQ_ConcurrentChannelsTester, uint16_t);
+$R test_sshQ_L_461C_226cont ($Cont, test_sshQ_ConcurrentChannelsTester, uint16_t);
 struct test_sshQ_L_464ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6691,8 +6691,8 @@ struct test_sshQ_L_464Cont {
     $Cont C_cont;
     test_sshQ_ConcurrentChannelsTester self;
 };
-$R test_sshQ_L_460C_223cont ($Cont, test_sshQ_ConcurrentChannelsTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_465C_229cont ($Cont, B_NoneType);
+$R test_sshQ_L_460C_224cont ($Cont, test_sshQ_ConcurrentChannelsTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_465C_230cont ($Cont, B_NoneType);
 struct test_sshQ_L_466ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6727,7 +6727,7 @@ struct test_sshQ_L_467Cont {
     test_sshQ_ConcurrentChannelsTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_468C_231cont ($Cont, B_NoneType);
+$R test_sshQ_L_468C_232cont ($Cont, B_NoneType);
 struct test_sshQ_L_469ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6744,7 +6744,7 @@ struct test_sshQ_L_469Cont {
     struct test_sshQ_L_469ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_470C_233cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R test_sshQ_L_470C_234cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
 struct test_sshQ_L_471ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6816,7 +6816,7 @@ struct test_sshQ_L_477action {
     struct test_sshQ_L_477actionG_class *$class;
     test_sshQ_ConcurrentChannelsTester L_476obj;
 };
-$R test_sshQ_L_479C_237cont ($Cont, B_NoneType);
+$R test_sshQ_L_479C_238cont ($Cont, B_NoneType);
 struct test_sshQ_L_482ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6833,7 +6833,7 @@ struct test_sshQ_L_482Cont {
     struct test_sshQ_L_482ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_481C_241cont ($Cont, B_NoneType);
+$R test_sshQ_L_481C_242cont ($Cont, B_NoneType);
 struct test_sshQ_L_485ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6853,7 +6853,7 @@ struct test_sshQ_L_485Cont {
     sshQ_Client c;
     $Cont C_cont;
 };
-$R test_sshQ_L_484C_245cont (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_NoneType);
+$R test_sshQ_L_484C_246cont (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_NoneType);
 struct test_sshQ_L_486ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6905,7 +6905,7 @@ struct test_sshQ_L_488Cont {
     struct test_sshQ_L_488ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_483C_243loop (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_NoneType);
+$R test_sshQ_L_483C_244loop (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_NoneType);
 struct test_sshQ_L_489ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6922,7 +6922,7 @@ struct test_sshQ_L_489Cont {
     struct test_sshQ_L_489ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_480C_239try (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_bool);
+$R test_sshQ_L_480C_240try (B_range, test_sshQ_ConcurrentChannelsTester, sshQ_Client, $Cont, B_bool);
 struct test_sshQ_L_490ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6942,8 +6942,8 @@ struct test_sshQ_L_490Cont {
     sshQ_Client c;
     $Cont C_cont;
 };
-$R test_sshQ_L_478C_235cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Client, B_NoneType);
-$R test_sshQ_L_491C_247cont ($Cont, B_NoneType);
+$R test_sshQ_L_478C_236cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Client, B_NoneType);
+$R test_sshQ_L_491C_248cont ($Cont, B_NoneType);
 struct test_sshQ_L_492ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6978,7 +6978,7 @@ struct test_sshQ_L_493Cont {
     $Cont C_cont;
     sshQ_Client c;
 };
-$R test_sshQ_L_498C_255cont ($Cont, B_NoneType);
+$R test_sshQ_L_498C_256cont ($Cont, B_NoneType);
 struct test_sshQ_L_499ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -6995,8 +6995,8 @@ struct test_sshQ_L_499Cont {
     struct test_sshQ_L_499ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_497C_253cont (test_sshQ_ConcurrentChannelsTester, $Cont, B_NoneType);
-$R test_sshQ_L_500C_257cont ($Cont, B_NoneType);
+$R test_sshQ_L_497C_254cont (test_sshQ_ConcurrentChannelsTester, $Cont, B_NoneType);
+$R test_sshQ_L_500C_258cont ($Cont, B_NoneType);
 struct test_sshQ_L_501ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7030,8 +7030,8 @@ struct test_sshQ_L_502Cont {
     test_sshQ_ConcurrentChannelsTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_496C_251cont (B_Plus, B_str, test_sshQ_ConcurrentChannelsTester, $Cont, B_Eq, B_bytes, B_NoneType);
-$R test_sshQ_L_503C_259cont ($Cont, B_NoneType);
+$R test_sshQ_L_496C_252cont (B_Plus, B_str, test_sshQ_ConcurrentChannelsTester, $Cont, B_Eq, B_bytes, B_NoneType);
+$R test_sshQ_L_503C_260cont ($Cont, B_NoneType);
 struct test_sshQ_L_504ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7069,8 +7069,8 @@ struct test_sshQ_L_505Cont {
     B_Eq W_ConcurrentChannelsTester_730;
     B_bytes out;
 };
-$R test_sshQ_L_495C_249cont (B_Plus, B_str, test_sshQ_ConcurrentChannelsTester, $Cont, B_Eq, B_bytes, int64_t, B_NoneType);
-$R test_sshQ_L_506C_261cont ($Cont, B_NoneType);
+$R test_sshQ_L_495C_250cont (B_Plus, B_str, test_sshQ_ConcurrentChannelsTester, $Cont, B_Eq, B_bytes, int64_t, B_NoneType);
+$R test_sshQ_L_506C_262cont ($Cont, B_NoneType);
 struct test_sshQ_L_507ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7110,7 +7110,7 @@ struct test_sshQ_L_508Cont {
     int64_t code;
 };
 $R test_sshQ_L_494on_run_exit (B_Plus, B_str, test_sshQ_ConcurrentChannelsTester, B_Eq, $Cont, sshQ_Channel, int64_t, B_str, B_bytes, B_bytes, B_str);
-$R test_sshQ_L_509C_263cont ($Cont, sshQ_RunCommand);
+$R test_sshQ_L_509C_264cont ($Cont, sshQ_RunCommand);
 struct test_sshQ_L_510ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7174,7 +7174,7 @@ struct test_sshQ_L_512action {
     B_Eq W_ConcurrentChannelsTester_730;
     test_sshQ_ConcurrentChannelsTester self;
 };
-$R test_sshQ_L_513C_265cont ($Cont, B_NoneType);
+$R test_sshQ_L_513C_266cont ($Cont, B_NoneType);
 struct test_sshQ_L_514ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7191,7 +7191,7 @@ struct test_sshQ_L_514Cont {
     struct test_sshQ_L_514ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_515C_267cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Client);
+$R test_sshQ_L_515C_268cont (test_sshQ_ConcurrentChannelsTester, $Cont, sshQ_Client);
 struct test_sshQ_L_516ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7580,7 +7580,7 @@ struct test_sshQ_L_539proc {
     test_sshQ_ConcurrentChannelsTester self;
     uint16_t port;
 };
-$R test_sshQ_L_540C_269cont ($Cont, test_sshQ_ConcurrentChannelsTester, B_NoneType);
+$R test_sshQ_L_540C_270cont ($Cont, test_sshQ_ConcurrentChannelsTester, B_NoneType);
 struct test_sshQ_L_541ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7816,7 +7816,7 @@ extern struct test_sshQ_ConcurrentChannelsTesterG_class test_sshQ_ConcurrentChan
 $R test_sshQ_ConcurrentChannelsTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_544Cont;
 typedef struct test_sshQ_L_544Cont *test_sshQ_L_544Cont;
-$R test_sshQ_L_543C_271cont ($Cont, test_sshQ_ConcurrentChannelsTester);
+$R test_sshQ_L_543C_272cont ($Cont, test_sshQ_ConcurrentChannelsTester);
 struct test_sshQ_L_544ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -7975,7 +7975,7 @@ struct test_sshQ_L_546proc {
     struct test_sshQ_L_546procG_class *$class;
     test_sshQ_ServerCloseTester self;
 };
-$R test_sshQ_L_545C_273cont (test_sshQ_ServerCloseTester, $Cont, sshQ_Server);
+$R test_sshQ_L_545C_274cont (test_sshQ_ServerCloseTester, $Cont, sshQ_Server);
 struct test_sshQ_L_547ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8083,7 +8083,7 @@ struct test_sshQ_L_557action {
     struct test_sshQ_L_557actionG_class *$class;
     test_sshQ_ServerCloseTester L_556obj;
 };
-$R test_sshQ_L_558C_275cont (test_sshQ_ServerCloseTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_558C_276cont (test_sshQ_ServerCloseTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_559ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8102,7 +8102,7 @@ struct test_sshQ_L_559Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_560C_277cont (test_sshQ_ServerCloseTester, $Cont, B_NoneType);
+$R test_sshQ_L_560C_278cont (test_sshQ_ServerCloseTester, $Cont, B_NoneType);
 struct test_sshQ_L_561ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8120,7 +8120,7 @@ struct test_sshQ_L_561Cont {
     test_sshQ_ServerCloseTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_562C_279cont ($Cont, B_NoneType);
+$R test_sshQ_L_562C_280cont ($Cont, B_NoneType);
 struct test_sshQ_L_563ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8137,7 +8137,7 @@ struct test_sshQ_L_563Cont {
     struct test_sshQ_L_563ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_566C_285cont ($Cont, B_NoneType);
+$R test_sshQ_L_566C_286cont ($Cont, B_NoneType);
 struct test_sshQ_L_567ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8154,7 +8154,7 @@ struct test_sshQ_L_567Cont {
     struct test_sshQ_L_567ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_565C_283cont ($Cont, test_sshQ_ServerCloseTester, uint16_t);
+$R test_sshQ_L_565C_284cont ($Cont, test_sshQ_ServerCloseTester, uint16_t);
 struct test_sshQ_L_568ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8172,8 +8172,8 @@ struct test_sshQ_L_568Cont {
     $Cont C_cont;
     test_sshQ_ServerCloseTester self;
 };
-$R test_sshQ_L_564C_281cont ($Cont, test_sshQ_ServerCloseTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_569C_287cont ($Cont, B_NoneType);
+$R test_sshQ_L_564C_282cont ($Cont, test_sshQ_ServerCloseTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_569C_288cont ($Cont, B_NoneType);
 struct test_sshQ_L_570ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8208,7 +8208,7 @@ struct test_sshQ_L_571Cont {
     test_sshQ_ServerCloseTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_572C_289cont ($Cont, B_NoneType);
+$R test_sshQ_L_572C_290cont ($Cont, B_NoneType);
 struct test_sshQ_L_573ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8225,7 +8225,7 @@ struct test_sshQ_L_573Cont {
     struct test_sshQ_L_573ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_575C_293cont ($Cont, B_NoneType);
+$R test_sshQ_L_575C_294cont ($Cont, B_NoneType);
 $R test_sshQ_L_576kill_server (test_sshQ_ServerCloseTester, $Cont);
 struct test_sshQ_L_577procG_class {
     char *$GCINFO;
@@ -8276,7 +8276,7 @@ struct test_sshQ_L_579Cont {
     struct test_sshQ_L_579ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_574C_291cont (sshQ_ServerSession, $Cont, test_sshQ_ServerCloseTester, sshQ_ServerChannel);
+$R test_sshQ_L_574C_292cont (sshQ_ServerSession, $Cont, test_sshQ_ServerCloseTester, sshQ_ServerChannel);
 struct test_sshQ_L_580ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8349,7 +8349,7 @@ struct test_sshQ_L_586action {
     struct test_sshQ_L_586actionG_class *$class;
     test_sshQ_ServerCloseTester L_585obj;
 };
-$R test_sshQ_L_588C_297cont ($Cont, sshQ_Channel);
+$R test_sshQ_L_588C_298cont ($Cont, sshQ_Channel);
 struct test_sshQ_L_589ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8456,8 +8456,8 @@ struct test_sshQ_L_599action {
     struct test_sshQ_L_599actionG_class *$class;
     test_sshQ_ServerCloseTester L_598obj;
 };
-$R test_sshQ_L_587C_295cont ($Cont, sshQ_Client, test_sshQ_ServerCloseTester, B_NoneType);
-$R test_sshQ_L_600C_299cont ($Cont, B_NoneType);
+$R test_sshQ_L_587C_296cont ($Cont, sshQ_Client, test_sshQ_ServerCloseTester, B_NoneType);
+$R test_sshQ_L_600C_300cont ($Cont, B_NoneType);
 struct test_sshQ_L_601ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8492,7 +8492,7 @@ struct test_sshQ_L_602Cont {
     sshQ_Client c;
     test_sshQ_ServerCloseTester self;
 };
-$R test_sshQ_L_603C_301cont ($Cont, B_NoneType);
+$R test_sshQ_L_603C_302cont ($Cont, B_NoneType);
 struct test_sshQ_L_604ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8509,8 +8509,8 @@ struct test_sshQ_L_604Cont {
     struct test_sshQ_L_604ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_605C_303cont (test_sshQ_ServerCloseTester, sshQ_Channel, $Cont, B_NoneType);
-$R test_sshQ_L_606C_305cont ($Cont, B_NoneType);
+$R test_sshQ_L_605C_304cont (test_sshQ_ServerCloseTester, sshQ_Channel, $Cont, B_NoneType);
+$R test_sshQ_L_606C_306cont ($Cont, B_NoneType);
 struct test_sshQ_L_607ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8545,7 +8545,7 @@ struct test_sshQ_L_608Cont {
     sshQ_Channel ch;
     $Cont C_cont;
 };
-$R test_sshQ_L_609C_307cont ($Cont, B_NoneType);
+$R test_sshQ_L_609C_308cont ($Cont, B_NoneType);
 struct test_sshQ_L_610ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -8562,7 +8562,7 @@ struct test_sshQ_L_610Cont {
     struct test_sshQ_L_610ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_611C_309cont (test_sshQ_ServerCloseTester, $Cont, sshQ_Client);
+$R test_sshQ_L_611C_310cont (test_sshQ_ServerCloseTester, $Cont, sshQ_Client);
 struct test_sshQ_L_612ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9008,7 +9008,7 @@ struct test_sshQ_L_638proc {
     test_sshQ_ServerCloseTester self;
     uint16_t port;
 };
-$R test_sshQ_L_639C_311cont ($Cont, test_sshQ_ServerCloseTester, B_NoneType);
+$R test_sshQ_L_639C_312cont ($Cont, test_sshQ_ServerCloseTester, B_NoneType);
 struct test_sshQ_L_640ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9245,7 +9245,7 @@ extern struct test_sshQ_ServerCloseTesterG_class test_sshQ_ServerCloseTesterG_me
 $R test_sshQ_ServerCloseTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_643Cont;
 typedef struct test_sshQ_L_643Cont *test_sshQ_L_643Cont;
-$R test_sshQ_L_642C_313cont ($Cont, test_sshQ_ServerCloseTester);
+$R test_sshQ_L_642C_314cont ($Cont, test_sshQ_ServerCloseTester);
 struct test_sshQ_L_643ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9350,7 +9350,7 @@ struct test_sshQ_L_645proc {
     struct test_sshQ_L_645procG_class *$class;
     test_sshQ_ConnectRefusedTester self;
 };
-$R test_sshQ_L_644C_315cont (test_sshQ_ConnectRefusedTester, $Cont, sshQ_Server);
+$R test_sshQ_L_644C_316cont (test_sshQ_ConnectRefusedTester, $Cont, sshQ_Server);
 struct test_sshQ_L_646ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9458,7 +9458,7 @@ struct test_sshQ_L_656action {
     struct test_sshQ_L_656actionG_class *$class;
     test_sshQ_ConnectRefusedTester L_655obj;
 };
-$R test_sshQ_L_657C_317cont (test_sshQ_ConnectRefusedTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_657C_318cont (test_sshQ_ConnectRefusedTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_658ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9477,7 +9477,7 @@ struct test_sshQ_L_658Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_659C_319cont ($Cont, B_NoneType);
+$R test_sshQ_L_659C_320cont ($Cont, B_NoneType);
 struct test_sshQ_L_660ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9494,7 +9494,7 @@ struct test_sshQ_L_660Cont {
     struct test_sshQ_L_660ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_662C_323cont (test_sshQ_ConnectRefusedTester, sshQ_Server, $Cont, uint16_t);
+$R test_sshQ_L_662C_324cont (test_sshQ_ConnectRefusedTester, sshQ_Server, $Cont, uint16_t);
 struct test_sshQ_L_663ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9513,8 +9513,8 @@ struct test_sshQ_L_663Cont {
     sshQ_Server s;
     $Cont C_cont;
 };
-$R test_sshQ_L_661C_321cont (test_sshQ_ConnectRefusedTester, sshQ_Server, $Cont, B_NoneType);
-$R test_sshQ_L_664C_325cont ($Cont, B_NoneType);
+$R test_sshQ_L_661C_322cont (test_sshQ_ConnectRefusedTester, sshQ_Server, $Cont, B_NoneType);
+$R test_sshQ_L_664C_326cont ($Cont, B_NoneType);
 struct test_sshQ_L_665ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9549,7 +9549,7 @@ struct test_sshQ_L_666Cont {
     sshQ_Server s;
     $Cont C_cont;
 };
-$R test_sshQ_L_667C_327cont ($Cont, B_NoneType);
+$R test_sshQ_L_667C_328cont ($Cont, B_NoneType);
 struct test_sshQ_L_668ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9566,8 +9566,8 @@ struct test_sshQ_L_668Cont {
     struct test_sshQ_L_668ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_670C_331cont (test_sshQ_ConnectRefusedTester, $Cont, B_NoneType);
-$R test_sshQ_L_671C_333cont ($Cont, B_NoneType);
+$R test_sshQ_L_670C_332cont (test_sshQ_ConnectRefusedTester, $Cont, B_NoneType);
+$R test_sshQ_L_671C_334cont ($Cont, B_NoneType);
 struct test_sshQ_L_672ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9601,7 +9601,7 @@ struct test_sshQ_L_673Cont {
     test_sshQ_ConnectRefusedTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_669C_329cont (test_sshQ_ConnectRefusedTester, $Cont, B_str, B_NoneType);
+$R test_sshQ_L_669C_330cont (test_sshQ_ConnectRefusedTester, $Cont, B_str, B_NoneType);
 struct test_sshQ_L_674ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9620,7 +9620,7 @@ struct test_sshQ_L_674Cont {
     $Cont C_cont;
     B_str err;
 };
-$R test_sshQ_L_675C_335cont (test_sshQ_ConnectRefusedTester, $Cont, sshQ_Client);
+$R test_sshQ_L_675C_336cont (test_sshQ_ConnectRefusedTester, $Cont, sshQ_Client);
 struct test_sshQ_L_676ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -9895,7 +9895,7 @@ struct test_sshQ_L_693proc {
     struct test_sshQ_L_693procG_class *$class;
     test_sshQ_ConnectRefusedTester self;
 };
-$R test_sshQ_L_694C_337cont ($Cont, test_sshQ_ConnectRefusedTester, B_NoneType);
+$R test_sshQ_L_694C_338cont ($Cont, test_sshQ_ConnectRefusedTester, B_NoneType);
 struct test_sshQ_L_695ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10056,7 +10056,7 @@ extern struct test_sshQ_ConnectRefusedTesterG_class test_sshQ_ConnectRefusedTest
 $R test_sshQ_ConnectRefusedTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_698Cont;
 typedef struct test_sshQ_L_698Cont *test_sshQ_L_698Cont;
-$R test_sshQ_L_697C_339cont ($Cont, test_sshQ_ConnectRefusedTester);
+$R test_sshQ_L_697C_340cont ($Cont, test_sshQ_ConnectRefusedTester);
 struct test_sshQ_L_698ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10238,7 +10238,7 @@ struct test_sshQ_L_701proc {
     struct test_sshQ_L_701procG_class *$class;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_699C_341cont (test_sshQ_PubkeyAuthTester, $Cont, fileQ_FS);
+$R test_sshQ_L_699C_342cont (test_sshQ_PubkeyAuthTester, $Cont, fileQ_FS);
 struct test_sshQ_L_702ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10256,7 +10256,7 @@ struct test_sshQ_L_702Cont {
     test_sshQ_PubkeyAuthTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_703C_343cont (test_sshQ_PubkeyAuthTester, B_str, $Cont, B_NoneType);
+$R test_sshQ_L_703C_344cont (test_sshQ_PubkeyAuthTester, B_str, $Cont, B_NoneType);
 struct test_sshQ_L_704ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10275,7 +10275,7 @@ struct test_sshQ_L_704Cont {
     B_str msg;
     $Cont C_cont;
 };
-$R test_sshQ_L_705C_345cont (test_sshQ_PubkeyAuthTester, $Cont, B_NoneType);
+$R test_sshQ_L_705C_346cont (test_sshQ_PubkeyAuthTester, $Cont, B_NoneType);
 struct test_sshQ_L_706ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10293,7 +10293,7 @@ struct test_sshQ_L_706Cont {
     test_sshQ_PubkeyAuthTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_707C_347cont ($Cont, B_NoneType);
+$R test_sshQ_L_707C_348cont ($Cont, B_NoneType);
 struct test_sshQ_L_708ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10310,7 +10310,7 @@ struct test_sshQ_L_708Cont {
     struct test_sshQ_L_708ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_711C_353cont ($Cont, B_NoneType);
+$R test_sshQ_L_711C_354cont ($Cont, B_NoneType);
 struct test_sshQ_L_712ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10327,7 +10327,7 @@ struct test_sshQ_L_712Cont {
     struct test_sshQ_L_712ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_710C_351cont ($Cont, test_sshQ_PubkeyAuthTester, uint16_t);
+$R test_sshQ_L_710C_352cont ($Cont, test_sshQ_PubkeyAuthTester, uint16_t);
 struct test_sshQ_L_713ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10345,8 +10345,8 @@ struct test_sshQ_L_713Cont {
     $Cont C_cont;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_709C_349cont ($Cont, test_sshQ_PubkeyAuthTester, sshQ_Server, B_NoneType);
-$R test_sshQ_L_714C_355cont ($Cont, B_NoneType);
+$R test_sshQ_L_709C_350cont ($Cont, test_sshQ_PubkeyAuthTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_714C_356cont ($Cont, B_NoneType);
 struct test_sshQ_L_715ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10381,7 +10381,7 @@ struct test_sshQ_L_716Cont {
     test_sshQ_PubkeyAuthTester self;
     sshQ_Server s;
 };
-$R test_sshQ_L_717C_357cont ($Cont, B_NoneType);
+$R test_sshQ_L_717C_358cont ($Cont, B_NoneType);
 struct test_sshQ_L_718ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10398,7 +10398,7 @@ struct test_sshQ_L_718Cont {
     struct test_sshQ_L_718ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_719C_359cont (sshQ_AuthRequest, B_Eq, B_Eq, test_sshQ_PubkeyAuthTester, sshQ_ServerSession, $Cont, B_NoneType);
+$R test_sshQ_L_719C_360cont (sshQ_AuthRequest, B_Eq, B_Eq, test_sshQ_PubkeyAuthTester, sshQ_ServerSession, $Cont, B_NoneType);
 struct test_sshQ_L_720ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10420,7 +10420,7 @@ struct test_sshQ_L_720Cont {
     sshQ_ServerSession sess;
     $Cont C_cont;
 };
-$R test_sshQ_L_721C_361cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+$R test_sshQ_L_721C_362cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
 struct test_sshQ_L_722ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10492,7 +10492,7 @@ struct test_sshQ_L_728action {
     struct test_sshQ_L_728actionG_class *$class;
     test_sshQ_PubkeyAuthTester L_727obj;
 };
-$R test_sshQ_L_730C_365cont ($Cont, sshQ_RunCommand);
+$R test_sshQ_L_730C_366cont ($Cont, sshQ_RunCommand);
 struct test_sshQ_L_731ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10527,8 +10527,8 @@ struct test_sshQ_L_733action {
     struct test_sshQ_L_733actionG_class *$class;
     test_sshQ_PubkeyAuthTester L_732obj;
 };
-$R test_sshQ_L_729C_363cont ($Cont, sshQ_Client, test_sshQ_PubkeyAuthTester, B_NoneType);
-$R test_sshQ_L_734C_367cont ($Cont, B_NoneType);
+$R test_sshQ_L_729C_364cont ($Cont, sshQ_Client, test_sshQ_PubkeyAuthTester, B_NoneType);
+$R test_sshQ_L_734C_368cont ($Cont, B_NoneType);
 struct test_sshQ_L_735ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10563,7 +10563,7 @@ struct test_sshQ_L_736Cont {
     sshQ_Client c;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_737C_369cont ($Cont, B_NoneType);
+$R test_sshQ_L_737C_370cont ($Cont, B_NoneType);
 struct test_sshQ_L_738ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10580,7 +10580,7 @@ struct test_sshQ_L_738Cont {
     struct test_sshQ_L_738ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_741C_375cont ($Cont, B_NoneType);
+$R test_sshQ_L_741C_376cont ($Cont, B_NoneType);
 struct test_sshQ_L_742ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10597,8 +10597,8 @@ struct test_sshQ_L_742Cont {
     struct test_sshQ_L_742ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_740C_373cont (test_sshQ_PubkeyAuthTester, $Cont, B_NoneType);
-$R test_sshQ_L_743C_377cont ($Cont, B_NoneType);
+$R test_sshQ_L_740C_374cont (test_sshQ_PubkeyAuthTester, $Cont, B_NoneType);
+$R test_sshQ_L_743C_378cont ($Cont, B_NoneType);
 struct test_sshQ_L_744ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10632,8 +10632,8 @@ struct test_sshQ_L_745Cont {
     test_sshQ_PubkeyAuthTester self;
     $Cont C_cont;
 };
-$R test_sshQ_L_739C_371cont (test_sshQ_PubkeyAuthTester, $Cont, B_Eq, B_bytes, B_NoneType);
-$R test_sshQ_L_746C_379cont ($Cont, B_NoneType);
+$R test_sshQ_L_739C_372cont (test_sshQ_PubkeyAuthTester, $Cont, B_Eq, B_bytes, B_NoneType);
+$R test_sshQ_L_746C_380cont ($Cont, B_NoneType);
 struct test_sshQ_L_747ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10669,7 +10669,7 @@ struct test_sshQ_L_748Cont {
     B_Eq W_PubkeyAuthTester_680;
     B_bytes out;
 };
-$R test_sshQ_L_749C_381cont (test_sshQ_PubkeyAuthTester, $Cont, sshQ_Client);
+$R test_sshQ_L_749C_382cont (test_sshQ_PubkeyAuthTester, $Cont, sshQ_Client);
 struct test_sshQ_L_750ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10741,7 +10741,7 @@ struct test_sshQ_L_756action {
     struct test_sshQ_L_756actionG_class *$class;
     test_sshQ_PubkeyAuthTester L_755obj;
 };
-$R test_sshQ_L_757C_383cont (test_sshQ_PubkeyAuthTester, $Cont, sshQ_Server);
+$R test_sshQ_L_757C_384cont (test_sshQ_PubkeyAuthTester, $Cont, sshQ_Server);
 struct test_sshQ_L_758ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10867,7 +10867,7 @@ struct test_sshQ_L_770action {
     struct test_sshQ_L_770actionG_class *$class;
     test_sshQ_PubkeyAuthTester L_769obj;
 };
-$R test_sshQ_L_775C_393cont ($Cont, B_NoneType);
+$R test_sshQ_L_775C_394cont ($Cont, B_NoneType);
 struct test_sshQ_L_776ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10884,7 +10884,7 @@ struct test_sshQ_L_776Cont {
     struct test_sshQ_L_776ContG_class *$class;
     $Cont C_cont;
 };
-$R test_sshQ_L_774C_391cont ($Cont, test_sshQ_PubkeyAuthTester, B_NoneType);
+$R test_sshQ_L_774C_392cont ($Cont, test_sshQ_PubkeyAuthTester, B_NoneType);
 struct test_sshQ_L_777ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10902,7 +10902,7 @@ struct test_sshQ_L_777Cont {
     $Cont C_cont;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_773C_389cont ($Cont, test_sshQ_PubkeyAuthTester, fileQ_WriteFile, B_NoneType);
+$R test_sshQ_L_773C_390cont ($Cont, test_sshQ_PubkeyAuthTester, fileQ_WriteFile, B_NoneType);
 struct test_sshQ_L_778ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10921,7 +10921,7 @@ struct test_sshQ_L_778Cont {
     test_sshQ_PubkeyAuthTester self;
     fileQ_WriteFile wf;
 };
-$R test_sshQ_L_772C_387cont ($Cont, test_sshQ_PubkeyAuthTester, fileQ_WriteFile);
+$R test_sshQ_L_772C_388cont ($Cont, test_sshQ_PubkeyAuthTester, fileQ_WriteFile);
 struct test_sshQ_L_779ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -10939,7 +10939,7 @@ struct test_sshQ_L_779Cont {
     $Cont C_cont;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_771C_385cont (test_sshQ_PubkeyAuthTester, $Cont, B_str);
+$R test_sshQ_L_771C_386cont (test_sshQ_PubkeyAuthTester, $Cont, B_str);
 struct test_sshQ_L_780ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -11312,7 +11312,7 @@ struct test_sshQ_L_799proc {
     struct test_sshQ_L_799procG_class *$class;
     test_sshQ_PubkeyAuthTester self;
 };
-$R test_sshQ_L_800C_395cont ($Cont, test_sshQ_PubkeyAuthTester, B_NoneType);
+$R test_sshQ_L_800C_396cont ($Cont, test_sshQ_PubkeyAuthTester, B_NoneType);
 struct test_sshQ_L_801ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -11555,7 +11555,7 @@ extern struct test_sshQ_PubkeyAuthTesterG_class test_sshQ_PubkeyAuthTesterG_meth
 $R test_sshQ_PubkeyAuthTesterG_new($Cont, testingQ_EnvT);
 struct test_sshQ_L_804Cont;
 typedef struct test_sshQ_L_804Cont *test_sshQ_L_804Cont;
-$R test_sshQ_L_803C_397cont ($Cont, test_sshQ_PubkeyAuthTester);
+$R test_sshQ_L_803C_398cont ($Cont, test_sshQ_PubkeyAuthTester);
 struct test_sshQ_L_804ContG_class {
     char *$GCINFO;
     int $class_id;
@@ -11575,444 +11575,1943 @@ struct test_sshQ_L_804Cont {
 $R test_sshQ__test_pubkey_auth ($Cont, testingQ_EnvT);
 extern struct test_sshQ_L_804ContG_class test_sshQ_L_804ContG_methods;
 test_sshQ_L_804Cont test_sshQ_L_804ContG_new($Cont);
-struct test_sshQ_L_806Cont;
-typedef struct test_sshQ_L_806Cont *test_sshQ_L_806Cont;
-$R test_sshQ_L_805C_399cont ($Cont, test_sshQ_ExecTester);
-struct test_sshQ_L_806ContG_class {
+struct test_sshQ_L_806proc;
+struct test_sshQ_L_807Cont;
+struct test_sshQ_L_809action;
+struct test_sshQ_L_811action;
+struct test_sshQ_L_813action;
+struct test_sshQ_L_815action;
+struct test_sshQ_L_817action;
+struct test_sshQ_L_819action;
+struct test_sshQ_L_821Cont;
+struct test_sshQ_L_823Cont;
+struct test_sshQ_L_825Cont;
+struct test_sshQ_L_829Cont;
+struct test_sshQ_L_830Cont;
+struct test_sshQ_L_832Cont;
+struct test_sshQ_L_833Cont;
+struct test_sshQ_L_835Cont;
+struct test_sshQ_L_837Cont;
+struct test_sshQ_L_839action;
+struct test_sshQ_L_841action;
+struct test_sshQ_L_843action;
+struct test_sshQ_L_846Cont;
+struct test_sshQ_L_848action;
+struct test_sshQ_L_850action;
+struct test_sshQ_L_852action;
+struct test_sshQ_L_854action;
+struct test_sshQ_L_856action;
+struct test_sshQ_L_858Cont;
+struct test_sshQ_L_859Cont;
+struct test_sshQ_L_861Cont;
+struct test_sshQ_L_864Cont;
+struct test_sshQ_L_865Cont;
+struct test_sshQ_L_868Cont;
+struct test_sshQ_L_869Cont;
+struct test_sshQ_L_871Cont;
+struct test_sshQ_L_873Cont;
+struct test_sshQ_L_875action;
+struct test_sshQ_L_877action;
+struct test_sshQ_L_879action;
+struct test_sshQ_L_880proc;
+struct test_sshQ_L_881proc;
+struct test_sshQ_L_882proc;
+struct test_sshQ_L_883proc;
+struct test_sshQ_L_884proc;
+struct test_sshQ_L_885proc;
+struct test_sshQ_L_886proc;
+struct test_sshQ_L_887proc;
+struct test_sshQ_L_888proc;
+struct test_sshQ_L_889proc;
+struct test_sshQ_L_890proc;
+struct test_sshQ_L_891proc;
+struct test_sshQ_L_892proc;
+struct test_sshQ_L_893proc;
+struct test_sshQ_L_894proc;
+struct test_sshQ_L_895proc;
+struct test_sshQ_L_896proc;
+struct test_sshQ_L_897proc;
+struct test_sshQ_L_898proc;
+struct test_sshQ_L_899proc;
+struct test_sshQ_L_900proc;
+struct test_sshQ_L_902Cont;
+struct test_sshQ_L_903proc;
+struct test_sshQ_WriteBufferLimitTester;
+typedef struct test_sshQ_L_806proc *test_sshQ_L_806proc;
+typedef struct test_sshQ_L_807Cont *test_sshQ_L_807Cont;
+typedef struct test_sshQ_L_809action *test_sshQ_L_809action;
+typedef struct test_sshQ_L_811action *test_sshQ_L_811action;
+typedef struct test_sshQ_L_813action *test_sshQ_L_813action;
+typedef struct test_sshQ_L_815action *test_sshQ_L_815action;
+typedef struct test_sshQ_L_817action *test_sshQ_L_817action;
+typedef struct test_sshQ_L_819action *test_sshQ_L_819action;
+typedef struct test_sshQ_L_821Cont *test_sshQ_L_821Cont;
+typedef struct test_sshQ_L_823Cont *test_sshQ_L_823Cont;
+typedef struct test_sshQ_L_825Cont *test_sshQ_L_825Cont;
+typedef struct test_sshQ_L_829Cont *test_sshQ_L_829Cont;
+typedef struct test_sshQ_L_830Cont *test_sshQ_L_830Cont;
+typedef struct test_sshQ_L_832Cont *test_sshQ_L_832Cont;
+typedef struct test_sshQ_L_833Cont *test_sshQ_L_833Cont;
+typedef struct test_sshQ_L_835Cont *test_sshQ_L_835Cont;
+typedef struct test_sshQ_L_837Cont *test_sshQ_L_837Cont;
+typedef struct test_sshQ_L_839action *test_sshQ_L_839action;
+typedef struct test_sshQ_L_841action *test_sshQ_L_841action;
+typedef struct test_sshQ_L_843action *test_sshQ_L_843action;
+typedef struct test_sshQ_L_846Cont *test_sshQ_L_846Cont;
+typedef struct test_sshQ_L_848action *test_sshQ_L_848action;
+typedef struct test_sshQ_L_850action *test_sshQ_L_850action;
+typedef struct test_sshQ_L_852action *test_sshQ_L_852action;
+typedef struct test_sshQ_L_854action *test_sshQ_L_854action;
+typedef struct test_sshQ_L_856action *test_sshQ_L_856action;
+typedef struct test_sshQ_L_858Cont *test_sshQ_L_858Cont;
+typedef struct test_sshQ_L_859Cont *test_sshQ_L_859Cont;
+typedef struct test_sshQ_L_861Cont *test_sshQ_L_861Cont;
+typedef struct test_sshQ_L_864Cont *test_sshQ_L_864Cont;
+typedef struct test_sshQ_L_865Cont *test_sshQ_L_865Cont;
+typedef struct test_sshQ_L_868Cont *test_sshQ_L_868Cont;
+typedef struct test_sshQ_L_869Cont *test_sshQ_L_869Cont;
+typedef struct test_sshQ_L_871Cont *test_sshQ_L_871Cont;
+typedef struct test_sshQ_L_873Cont *test_sshQ_L_873Cont;
+typedef struct test_sshQ_L_875action *test_sshQ_L_875action;
+typedef struct test_sshQ_L_877action *test_sshQ_L_877action;
+typedef struct test_sshQ_L_879action *test_sshQ_L_879action;
+typedef struct test_sshQ_L_880proc *test_sshQ_L_880proc;
+typedef struct test_sshQ_L_881proc *test_sshQ_L_881proc;
+typedef struct test_sshQ_L_882proc *test_sshQ_L_882proc;
+typedef struct test_sshQ_L_883proc *test_sshQ_L_883proc;
+typedef struct test_sshQ_L_884proc *test_sshQ_L_884proc;
+typedef struct test_sshQ_L_885proc *test_sshQ_L_885proc;
+typedef struct test_sshQ_L_886proc *test_sshQ_L_886proc;
+typedef struct test_sshQ_L_887proc *test_sshQ_L_887proc;
+typedef struct test_sshQ_L_888proc *test_sshQ_L_888proc;
+typedef struct test_sshQ_L_889proc *test_sshQ_L_889proc;
+typedef struct test_sshQ_L_890proc *test_sshQ_L_890proc;
+typedef struct test_sshQ_L_891proc *test_sshQ_L_891proc;
+typedef struct test_sshQ_L_892proc *test_sshQ_L_892proc;
+typedef struct test_sshQ_L_893proc *test_sshQ_L_893proc;
+typedef struct test_sshQ_L_894proc *test_sshQ_L_894proc;
+typedef struct test_sshQ_L_895proc *test_sshQ_L_895proc;
+typedef struct test_sshQ_L_896proc *test_sshQ_L_896proc;
+typedef struct test_sshQ_L_897proc *test_sshQ_L_897proc;
+typedef struct test_sshQ_L_898proc *test_sshQ_L_898proc;
+typedef struct test_sshQ_L_899proc *test_sshQ_L_899proc;
+typedef struct test_sshQ_L_900proc *test_sshQ_L_900proc;
+typedef struct test_sshQ_L_902Cont *test_sshQ_L_902Cont;
+typedef struct test_sshQ_L_903proc *test_sshQ_L_903proc;
+typedef struct test_sshQ_WriteBufferLimitTester *test_sshQ_WriteBufferLimitTester;
+struct test_sshQ_L_806procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_806Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_806Cont, $Serial$state);
-    test_sshQ_L_806Cont (*__deserialize__) (test_sshQ_L_806Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_806Cont);
-    B_str (*__str__) (test_sshQ_L_806Cont);
-    B_str (*__repr__) (test_sshQ_L_806Cont);
-    $R (*__call__) (test_sshQ_L_806Cont, test_sshQ_ExecTester);
+    B_NoneType (*__init__) (test_sshQ_L_806proc, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_806proc, $Serial$state);
+    test_sshQ_L_806proc (*__deserialize__) (test_sshQ_L_806proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_806proc);
+    B_str (*__str__) (test_sshQ_L_806proc);
+    B_str (*__repr__) (test_sshQ_L_806proc);
+    $R (*__call__) (test_sshQ_L_806proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_806proc, $Cont);
 };
-struct test_sshQ_L_806Cont {
-    struct test_sshQ_L_806ContG_class *$class;
+struct test_sshQ_L_806proc {
+    struct test_sshQ_L_806procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+};
+$R test_sshQ_L_805C_400cont (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Server);
+struct test_sshQ_L_807ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_807Cont, test_sshQ_WriteBufferLimitTester, $Cont);
+    void (*__serialize__) (test_sshQ_L_807Cont, $Serial$state);
+    test_sshQ_L_807Cont (*__deserialize__) (test_sshQ_L_807Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_807Cont);
+    B_str (*__str__) (test_sshQ_L_807Cont);
+    B_str (*__repr__) (test_sshQ_L_807Cont);
+    $R (*__call__) (test_sshQ_L_807Cont, sshQ_Server);
+};
+struct test_sshQ_L_807Cont {
+    struct test_sshQ_L_807ContG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    $Cont C_cont;
+};
+struct test_sshQ_L_809actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_809action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_809action, $Serial$state);
+    test_sshQ_L_809action (*__deserialize__) (test_sshQ_L_809action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_809action);
+    B_str (*__str__) (test_sshQ_L_809action);
+    B_str (*__repr__) (test_sshQ_L_809action);
+    $R (*__call__) (test_sshQ_L_809action, $Cont, sshQ_Server, B_str);
+    $R (*__exec__) (test_sshQ_L_809action, $Cont, sshQ_Server, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_809action, sshQ_Server, B_str);
+};
+struct test_sshQ_L_809action {
+    struct test_sshQ_L_809actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_808obj;
+};
+struct test_sshQ_L_811actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_811action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_811action, $Serial$state);
+    test_sshQ_L_811action (*__deserialize__) (test_sshQ_L_811action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_811action);
+    B_str (*__str__) (test_sshQ_L_811action);
+    B_str (*__repr__) (test_sshQ_L_811action);
+    $R (*__call__) (test_sshQ_L_811action, $Cont, sshQ_Server, B_str);
+    $R (*__exec__) (test_sshQ_L_811action, $Cont, sshQ_Server, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_811action, sshQ_Server, B_str);
+};
+struct test_sshQ_L_811action {
+    struct test_sshQ_L_811actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_810obj;
+};
+struct test_sshQ_L_813actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_813action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_813action, $Serial$state);
+    test_sshQ_L_813action (*__deserialize__) (test_sshQ_L_813action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_813action);
+    B_str (*__str__) (test_sshQ_L_813action);
+    B_str (*__repr__) (test_sshQ_L_813action);
+    $R (*__call__) (test_sshQ_L_813action, $Cont, sshQ_ServerSession);
+    $R (*__exec__) (test_sshQ_L_813action, $Cont, sshQ_ServerSession);
+    B_Msg (*__asyn__) (test_sshQ_L_813action, sshQ_ServerSession);
+};
+struct test_sshQ_L_813action {
+    struct test_sshQ_L_813actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_812obj;
+};
+struct test_sshQ_L_815actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_815action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_815action, $Serial$state);
+    test_sshQ_L_815action (*__deserialize__) (test_sshQ_L_815action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_815action);
+    B_str (*__str__) (test_sshQ_L_815action);
+    B_str (*__repr__) (test_sshQ_L_815action);
+    $R (*__call__) (test_sshQ_L_815action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
+    $R (*__exec__) (test_sshQ_L_815action, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
+    B_Msg (*__asyn__) (test_sshQ_L_815action, sshQ_ServerSession, sshQ_AuthRequest);
+};
+struct test_sshQ_L_815action {
+    struct test_sshQ_L_815actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_814obj;
+};
+struct test_sshQ_L_817actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_817action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_817action, $Serial$state);
+    test_sshQ_L_817action (*__deserialize__) (test_sshQ_L_817action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_817action);
+    B_str (*__str__) (test_sshQ_L_817action);
+    B_str (*__repr__) (test_sshQ_L_817action);
+    $R (*__call__) (test_sshQ_L_817action, $Cont, sshQ_ServerSession);
+    $R (*__exec__) (test_sshQ_L_817action, $Cont, sshQ_ServerSession);
+    B_Msg (*__asyn__) (test_sshQ_L_817action, sshQ_ServerSession);
+};
+struct test_sshQ_L_817action {
+    struct test_sshQ_L_817actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_816obj;
+};
+struct test_sshQ_L_819actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_819action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_819action, $Serial$state);
+    test_sshQ_L_819action (*__deserialize__) (test_sshQ_L_819action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_819action);
+    B_str (*__str__) (test_sshQ_L_819action);
+    B_str (*__repr__) (test_sshQ_L_819action);
+    $R (*__call__) (test_sshQ_L_819action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    $R (*__exec__) (test_sshQ_L_819action, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_819action, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+};
+struct test_sshQ_L_819action {
+    struct test_sshQ_L_819actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_818obj;
+};
+$R test_sshQ_L_820C_402cont (test_sshQ_WriteBufferLimitTester, B_str, $Cont, B_NoneType);
+struct test_sshQ_L_821ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_821Cont, test_sshQ_WriteBufferLimitTester, B_str, $Cont);
+    void (*__serialize__) (test_sshQ_L_821Cont, $Serial$state);
+    test_sshQ_L_821Cont (*__deserialize__) (test_sshQ_L_821Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_821Cont);
+    B_str (*__str__) (test_sshQ_L_821Cont);
+    B_str (*__repr__) (test_sshQ_L_821Cont);
+    $R (*__call__) (test_sshQ_L_821Cont, B_NoneType);
+};
+struct test_sshQ_L_821Cont {
+    struct test_sshQ_L_821ContG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    B_str msg;
+    $Cont C_cont;
+};
+$R test_sshQ_L_822C_404cont (test_sshQ_WriteBufferLimitTester, $Cont, B_NoneType);
+struct test_sshQ_L_823ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_823Cont, test_sshQ_WriteBufferLimitTester, $Cont);
+    void (*__serialize__) (test_sshQ_L_823Cont, $Serial$state);
+    test_sshQ_L_823Cont (*__deserialize__) (test_sshQ_L_823Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_823Cont);
+    B_str (*__str__) (test_sshQ_L_823Cont);
+    B_str (*__repr__) (test_sshQ_L_823Cont);
+    $R (*__call__) (test_sshQ_L_823Cont, B_NoneType);
+};
+struct test_sshQ_L_823Cont {
+    struct test_sshQ_L_823ContG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    $Cont C_cont;
+};
+$R test_sshQ_L_824C_406cont ($Cont, B_NoneType);
+struct test_sshQ_L_825ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_825Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_825Cont, $Serial$state);
+    test_sshQ_L_825Cont (*__deserialize__) (test_sshQ_L_825Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_825Cont);
+    B_str (*__str__) (test_sshQ_L_825Cont);
+    B_str (*__repr__) (test_sshQ_L_825Cont);
+    $R (*__call__) (test_sshQ_L_825Cont, B_NoneType);
+};
+struct test_sshQ_L_825Cont {
+    struct test_sshQ_L_825ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_828C_412cont ($Cont, B_NoneType);
+struct test_sshQ_L_829ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_829Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_829Cont, $Serial$state);
+    test_sshQ_L_829Cont (*__deserialize__) (test_sshQ_L_829Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_829Cont);
+    B_str (*__str__) (test_sshQ_L_829Cont);
+    B_str (*__repr__) (test_sshQ_L_829Cont);
+    $R (*__call__) (test_sshQ_L_829Cont, B_NoneType);
+};
+struct test_sshQ_L_829Cont {
+    struct test_sshQ_L_829ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_827C_410cont ($Cont, test_sshQ_WriteBufferLimitTester, uint16_t);
+struct test_sshQ_L_830ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_830Cont, $Cont, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_830Cont, $Serial$state);
+    test_sshQ_L_830Cont (*__deserialize__) (test_sshQ_L_830Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_830Cont);
+    B_str (*__str__) (test_sshQ_L_830Cont);
+    B_str (*__repr__) (test_sshQ_L_830Cont);
+    $R (*__call__) (test_sshQ_L_830Cont, B_u16);
+};
+struct test_sshQ_L_830Cont {
+    struct test_sshQ_L_830ContG_class *$class;
+    $Cont C_cont;
+    test_sshQ_WriteBufferLimitTester self;
+};
+$R test_sshQ_L_826C_408cont ($Cont, test_sshQ_WriteBufferLimitTester, sshQ_Server, B_NoneType);
+$R test_sshQ_L_831C_414cont ($Cont, B_NoneType);
+struct test_sshQ_L_832ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_832Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_832Cont, $Serial$state);
+    test_sshQ_L_832Cont (*__deserialize__) (test_sshQ_L_832Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_832Cont);
+    B_str (*__str__) (test_sshQ_L_832Cont);
+    B_str (*__repr__) (test_sshQ_L_832Cont);
+    $R (*__call__) (test_sshQ_L_832Cont, B_NoneType);
+};
+struct test_sshQ_L_832Cont {
+    struct test_sshQ_L_832ContG_class *$class;
+    $Cont C_cont;
+};
+struct test_sshQ_L_833ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_833Cont, $Cont, test_sshQ_WriteBufferLimitTester, sshQ_Server);
+    void (*__serialize__) (test_sshQ_L_833Cont, $Serial$state);
+    test_sshQ_L_833Cont (*__deserialize__) (test_sshQ_L_833Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_833Cont);
+    B_str (*__str__) (test_sshQ_L_833Cont);
+    B_str (*__repr__) (test_sshQ_L_833Cont);
+    $R (*__call__) (test_sshQ_L_833Cont, B_NoneType);
+};
+struct test_sshQ_L_833Cont {
+    struct test_sshQ_L_833ContG_class *$class;
+    $Cont C_cont;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Server s;
+};
+$R test_sshQ_L_834C_416cont ($Cont, B_NoneType);
+struct test_sshQ_L_835ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_835Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_835Cont, $Serial$state);
+    test_sshQ_L_835Cont (*__deserialize__) (test_sshQ_L_835Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_835Cont);
+    B_str (*__str__) (test_sshQ_L_835Cont);
+    B_str (*__repr__) (test_sshQ_L_835Cont);
+    $R (*__call__) (test_sshQ_L_835Cont, B_NoneType);
+};
+struct test_sshQ_L_835Cont {
+    struct test_sshQ_L_835ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_836C_418cont (sshQ_ServerSession, $Cont, sshQ_ServerChannel);
+struct test_sshQ_L_837ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_837Cont, sshQ_ServerSession, $Cont);
+    void (*__serialize__) (test_sshQ_L_837Cont, $Serial$state);
+    test_sshQ_L_837Cont (*__deserialize__) (test_sshQ_L_837Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_837Cont);
+    B_str (*__str__) (test_sshQ_L_837Cont);
+    B_str (*__repr__) (test_sshQ_L_837Cont);
+    $R (*__call__) (test_sshQ_L_837Cont, sshQ_ServerChannel);
+};
+struct test_sshQ_L_837Cont {
+    struct test_sshQ_L_837ContG_class *$class;
+    sshQ_ServerSession sess;
+    $Cont C_cont;
+};
+struct test_sshQ_L_839actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_839action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_839action, $Serial$state);
+    test_sshQ_L_839action (*__deserialize__) (test_sshQ_L_839action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_839action);
+    B_str (*__str__) (test_sshQ_L_839action);
+    B_str (*__repr__) (test_sshQ_L_839action);
+    $R (*__call__) (test_sshQ_L_839action, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*__exec__) (test_sshQ_L_839action, $Cont, sshQ_ServerChannel, B_bytes);
+    B_Msg (*__asyn__) (test_sshQ_L_839action, sshQ_ServerChannel, B_bytes);
+};
+struct test_sshQ_L_839action {
+    struct test_sshQ_L_839actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_838obj;
+};
+struct test_sshQ_L_841actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_841action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_841action, $Serial$state);
+    test_sshQ_L_841action (*__deserialize__) (test_sshQ_L_841action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_841action);
+    B_str (*__str__) (test_sshQ_L_841action);
+    B_str (*__repr__) (test_sshQ_L_841action);
+    $R (*__call__) (test_sshQ_L_841action, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*__exec__) (test_sshQ_L_841action, $Cont, sshQ_ServerChannel, B_bytes);
+    B_Msg (*__asyn__) (test_sshQ_L_841action, sshQ_ServerChannel, B_bytes);
+};
+struct test_sshQ_L_841action {
+    struct test_sshQ_L_841actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_840obj;
+};
+struct test_sshQ_L_843actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_843action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_843action, $Serial$state);
+    test_sshQ_L_843action (*__deserialize__) (test_sshQ_L_843action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_843action);
+    B_str (*__str__) (test_sshQ_L_843action);
+    B_str (*__repr__) (test_sshQ_L_843action);
+    $R (*__call__) (test_sshQ_L_843action, $Cont, sshQ_ServerChannel, B_str);
+    $R (*__exec__) (test_sshQ_L_843action, $Cont, sshQ_ServerChannel, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_843action, sshQ_ServerChannel, B_str);
+};
+struct test_sshQ_L_843action {
+    struct test_sshQ_L_843actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_842obj;
+};
+$R test_sshQ_L_845C_422cont ($Cont, sshQ_Channel);
+struct test_sshQ_L_846ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_846Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_846Cont, $Serial$state);
+    test_sshQ_L_846Cont (*__deserialize__) (test_sshQ_L_846Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_846Cont);
+    B_str (*__str__) (test_sshQ_L_846Cont);
+    B_str (*__repr__) (test_sshQ_L_846Cont);
+    $R (*__call__) (test_sshQ_L_846Cont, sshQ_Channel);
+};
+struct test_sshQ_L_846Cont {
+    struct test_sshQ_L_846ContG_class *$class;
+    $Cont C_cont;
+};
+struct test_sshQ_L_848actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_848action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_848action, $Serial$state);
+    test_sshQ_L_848action (*__deserialize__) (test_sshQ_L_848action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_848action);
+    B_str (*__str__) (test_sshQ_L_848action);
+    B_str (*__repr__) (test_sshQ_L_848action);
+    $R (*__call__) (test_sshQ_L_848action, $Cont, sshQ_Channel, B_str);
+    $R (*__exec__) (test_sshQ_L_848action, $Cont, sshQ_Channel, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_848action, sshQ_Channel, B_str);
+};
+struct test_sshQ_L_848action {
+    struct test_sshQ_L_848actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_847obj;
+};
+struct test_sshQ_L_850actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_850action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_850action, $Serial$state);
+    test_sshQ_L_850action (*__deserialize__) (test_sshQ_L_850action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_850action);
+    B_str (*__str__) (test_sshQ_L_850action);
+    B_str (*__repr__) (test_sshQ_L_850action);
+    $R (*__call__) (test_sshQ_L_850action, $Cont, sshQ_Channel, B_bytes);
+    $R (*__exec__) (test_sshQ_L_850action, $Cont, sshQ_Channel, B_bytes);
+    B_Msg (*__asyn__) (test_sshQ_L_850action, sshQ_Channel, B_bytes);
+};
+struct test_sshQ_L_850action {
+    struct test_sshQ_L_850actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_849obj;
+};
+struct test_sshQ_L_852actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_852action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_852action, $Serial$state);
+    test_sshQ_L_852action (*__deserialize__) (test_sshQ_L_852action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_852action);
+    B_str (*__str__) (test_sshQ_L_852action);
+    B_str (*__repr__) (test_sshQ_L_852action);
+    $R (*__call__) (test_sshQ_L_852action, $Cont, sshQ_Channel, B_bytes);
+    $R (*__exec__) (test_sshQ_L_852action, $Cont, sshQ_Channel, B_bytes);
+    B_Msg (*__asyn__) (test_sshQ_L_852action, sshQ_Channel, B_bytes);
+};
+struct test_sshQ_L_852action {
+    struct test_sshQ_L_852actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_851obj;
+};
+struct test_sshQ_L_854actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_854action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_854action, $Serial$state);
+    test_sshQ_L_854action (*__deserialize__) (test_sshQ_L_854action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_854action);
+    B_str (*__str__) (test_sshQ_L_854action);
+    B_str (*__repr__) (test_sshQ_L_854action);
+    $R (*__call__) (test_sshQ_L_854action, $Cont, sshQ_Channel, B_int, B_str);
+    $R (*__exec__) (test_sshQ_L_854action, $Cont, sshQ_Channel, B_int, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_854action, sshQ_Channel, B_int, B_str);
+};
+struct test_sshQ_L_854action {
+    struct test_sshQ_L_854actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_853obj;
+};
+struct test_sshQ_L_856actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_856action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_856action, $Serial$state);
+    test_sshQ_L_856action (*__deserialize__) (test_sshQ_L_856action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_856action);
+    B_str (*__str__) (test_sshQ_L_856action);
+    B_str (*__repr__) (test_sshQ_L_856action);
+    $R (*__call__) (test_sshQ_L_856action, $Cont, sshQ_Channel, B_str);
+    $R (*__exec__) (test_sshQ_L_856action, $Cont, sshQ_Channel, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_856action, sshQ_Channel, B_str);
+};
+struct test_sshQ_L_856action {
+    struct test_sshQ_L_856actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_855obj;
+};
+$R test_sshQ_L_844C_420cont ($Cont, sshQ_Client, test_sshQ_WriteBufferLimitTester, B_NoneType);
+$R test_sshQ_L_857C_424cont ($Cont, B_NoneType);
+struct test_sshQ_L_858ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_858Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_858Cont, $Serial$state);
+    test_sshQ_L_858Cont (*__deserialize__) (test_sshQ_L_858Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_858Cont);
+    B_str (*__str__) (test_sshQ_L_858Cont);
+    B_str (*__repr__) (test_sshQ_L_858Cont);
+    $R (*__call__) (test_sshQ_L_858Cont, B_NoneType);
+};
+struct test_sshQ_L_858Cont {
+    struct test_sshQ_L_858ContG_class *$class;
+    $Cont C_cont;
+};
+struct test_sshQ_L_859ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_859Cont, $Cont, sshQ_Client, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_859Cont, $Serial$state);
+    test_sshQ_L_859Cont (*__deserialize__) (test_sshQ_L_859Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_859Cont);
+    B_str (*__str__) (test_sshQ_L_859Cont);
+    B_str (*__repr__) (test_sshQ_L_859Cont);
+    $R (*__call__) (test_sshQ_L_859Cont, B_NoneType);
+};
+struct test_sshQ_L_859Cont {
+    struct test_sshQ_L_859ContG_class *$class;
+    $Cont C_cont;
+    sshQ_Client c;
+    test_sshQ_WriteBufferLimitTester self;
+};
+$R test_sshQ_L_860C_426cont ($Cont, B_NoneType);
+struct test_sshQ_L_861ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_861Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_861Cont, $Serial$state);
+    test_sshQ_L_861Cont (*__deserialize__) (test_sshQ_L_861Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_861Cont);
+    B_str (*__str__) (test_sshQ_L_861Cont);
+    B_str (*__repr__) (test_sshQ_L_861Cont);
+    $R (*__call__) (test_sshQ_L_861Cont, B_NoneType);
+};
+struct test_sshQ_L_861Cont {
+    struct test_sshQ_L_861ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_862C_428cont (sshQ_Channel, B_Times, B_Times, test_sshQ_WriteBufferLimitTester, $Cont, B_NoneType);
+$R test_sshQ_L_863C_430cont ($Cont, B_NoneType);
+struct test_sshQ_L_864ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_864Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_864Cont, $Serial$state);
+    test_sshQ_L_864Cont (*__deserialize__) (test_sshQ_L_864Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_864Cont);
+    B_str (*__str__) (test_sshQ_L_864Cont);
+    B_str (*__repr__) (test_sshQ_L_864Cont);
+    $R (*__call__) (test_sshQ_L_864Cont, B_NoneType);
+};
+struct test_sshQ_L_864Cont {
+    struct test_sshQ_L_864ContG_class *$class;
+    $Cont C_cont;
+};
+struct test_sshQ_L_865ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_865Cont, sshQ_Channel, B_Times, B_Times, test_sshQ_WriteBufferLimitTester, $Cont);
+    void (*__serialize__) (test_sshQ_L_865Cont, $Serial$state);
+    test_sshQ_L_865Cont (*__deserialize__) (test_sshQ_L_865Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_865Cont);
+    B_str (*__str__) (test_sshQ_L_865Cont);
+    B_str (*__repr__) (test_sshQ_L_865Cont);
+    $R (*__call__) (test_sshQ_L_865Cont, B_NoneType);
+};
+struct test_sshQ_L_865Cont {
+    struct test_sshQ_L_865ContG_class *$class;
+    sshQ_Channel ch;
+    B_Times W_WriteBufferLimitTester_615;
+    B_Times W_WriteBufferLimitTester_613;
+    test_sshQ_WriteBufferLimitTester self;
+    $Cont C_cont;
+};
+$R test_sshQ_L_867C_434cont ($Cont, B_NoneType);
+struct test_sshQ_L_868ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_868Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_868Cont, $Serial$state);
+    test_sshQ_L_868Cont (*__deserialize__) (test_sshQ_L_868Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_868Cont);
+    B_str (*__str__) (test_sshQ_L_868Cont);
+    B_str (*__repr__) (test_sshQ_L_868Cont);
+    $R (*__call__) (test_sshQ_L_868Cont, B_NoneType);
+};
+struct test_sshQ_L_868Cont {
+    struct test_sshQ_L_868ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_866C_432cont (test_sshQ_WriteBufferLimitTester, $Cont, B_NoneType);
+struct test_sshQ_L_869ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_869Cont, test_sshQ_WriteBufferLimitTester, $Cont);
+    void (*__serialize__) (test_sshQ_L_869Cont, $Serial$state);
+    test_sshQ_L_869Cont (*__deserialize__) (test_sshQ_L_869Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_869Cont);
+    B_str (*__str__) (test_sshQ_L_869Cont);
+    B_str (*__repr__) (test_sshQ_L_869Cont);
+    $R (*__call__) (test_sshQ_L_869Cont, B_NoneType);
+};
+struct test_sshQ_L_869Cont {
+    struct test_sshQ_L_869ContG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    $Cont C_cont;
+};
+$R test_sshQ_L_870C_436cont ($Cont, B_NoneType);
+struct test_sshQ_L_871ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_871Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_871Cont, $Serial$state);
+    test_sshQ_L_871Cont (*__deserialize__) (test_sshQ_L_871Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_871Cont);
+    B_str (*__str__) (test_sshQ_L_871Cont);
+    B_str (*__repr__) (test_sshQ_L_871Cont);
+    $R (*__call__) (test_sshQ_L_871Cont, B_NoneType);
+};
+struct test_sshQ_L_871Cont {
+    struct test_sshQ_L_871ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ_L_872C_438cont (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Client);
+struct test_sshQ_L_873ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_873Cont, test_sshQ_WriteBufferLimitTester, $Cont);
+    void (*__serialize__) (test_sshQ_L_873Cont, $Serial$state);
+    test_sshQ_L_873Cont (*__deserialize__) (test_sshQ_L_873Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_873Cont);
+    B_str (*__str__) (test_sshQ_L_873Cont);
+    B_str (*__repr__) (test_sshQ_L_873Cont);
+    $R (*__call__) (test_sshQ_L_873Cont, sshQ_Client);
+};
+struct test_sshQ_L_873Cont {
+    struct test_sshQ_L_873ContG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    $Cont C_cont;
+};
+struct test_sshQ_L_875actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_875action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_875action, $Serial$state);
+    test_sshQ_L_875action (*__deserialize__) (test_sshQ_L_875action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_875action);
+    B_str (*__str__) (test_sshQ_L_875action);
+    B_str (*__repr__) (test_sshQ_L_875action);
+    $R (*__call__) (test_sshQ_L_875action, $Cont, sshQ_Client, B_str);
+    $R (*__exec__) (test_sshQ_L_875action, $Cont, sshQ_Client, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_875action, sshQ_Client, B_str);
+};
+struct test_sshQ_L_875action {
+    struct test_sshQ_L_875actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_874obj;
+};
+struct test_sshQ_L_877actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_877action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_877action, $Serial$state);
+    test_sshQ_L_877action (*__deserialize__) (test_sshQ_L_877action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_877action);
+    B_str (*__str__) (test_sshQ_L_877action);
+    B_str (*__repr__) (test_sshQ_L_877action);
+    $R (*__call__) (test_sshQ_L_877action, $Cont, sshQ_Client, B_str);
+    $R (*__exec__) (test_sshQ_L_877action, $Cont, sshQ_Client, B_str);
+    B_Msg (*__asyn__) (test_sshQ_L_877action, sshQ_Client, B_str);
+};
+struct test_sshQ_L_877action {
+    struct test_sshQ_L_877actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_876obj;
+};
+struct test_sshQ_L_879actionG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_879action, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_879action, $Serial$state);
+    test_sshQ_L_879action (*__deserialize__) (test_sshQ_L_879action, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_879action);
+    B_str (*__str__) (test_sshQ_L_879action);
+    B_str (*__repr__) (test_sshQ_L_879action);
+    $R (*__call__) (test_sshQ_L_879action, $Cont, sshQ_Client, B_str, sshQ_HostKeyInfo);
+    $R (*__exec__) (test_sshQ_L_879action, $Cont, sshQ_Client, B_str, sshQ_HostKeyInfo);
+    B_Msg (*__asyn__) (test_sshQ_L_879action, sshQ_Client, B_str, sshQ_HostKeyInfo);
+};
+struct test_sshQ_L_879action {
+    struct test_sshQ_L_879actionG_class *$class;
+    test_sshQ_WriteBufferLimitTester L_878obj;
+};
+struct test_sshQ_L_880procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_880proc, test_sshQ_WriteBufferLimitTester, B_str);
+    void (*__serialize__) (test_sshQ_L_880proc, $Serial$state);
+    test_sshQ_L_880proc (*__deserialize__) (test_sshQ_L_880proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_880proc);
+    B_str (*__str__) (test_sshQ_L_880proc);
+    B_str (*__repr__) (test_sshQ_L_880proc);
+    $R (*__call__) (test_sshQ_L_880proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_880proc, $Cont);
+};
+struct test_sshQ_L_880proc {
+    struct test_sshQ_L_880procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    B_str msg;
+};
+struct test_sshQ_L_881procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_881proc, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_881proc, $Serial$state);
+    test_sshQ_L_881proc (*__deserialize__) (test_sshQ_L_881proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_881proc);
+    B_str (*__str__) (test_sshQ_L_881proc);
+    B_str (*__repr__) (test_sshQ_L_881proc);
+    $R (*__call__) (test_sshQ_L_881proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_881proc, $Cont);
+};
+struct test_sshQ_L_881proc {
+    struct test_sshQ_L_881procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+};
+struct test_sshQ_L_882procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_882proc, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_882proc, $Serial$state);
+    test_sshQ_L_882proc (*__deserialize__) (test_sshQ_L_882proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_882proc);
+    B_str (*__str__) (test_sshQ_L_882proc);
+    B_str (*__repr__) (test_sshQ_L_882proc);
+    $R (*__call__) (test_sshQ_L_882proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_882proc, $Cont);
+};
+struct test_sshQ_L_882proc {
+    struct test_sshQ_L_882procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+};
+struct test_sshQ_L_883procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_883proc, test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+    void (*__serialize__) (test_sshQ_L_883proc, $Serial$state);
+    test_sshQ_L_883proc (*__deserialize__) (test_sshQ_L_883proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_883proc);
+    B_str (*__str__) (test_sshQ_L_883proc);
+    B_str (*__repr__) (test_sshQ_L_883proc);
+    $R (*__call__) (test_sshQ_L_883proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_883proc, $Cont);
+};
+struct test_sshQ_L_883proc {
+    struct test_sshQ_L_883procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Server s;
+    B_str err;
+};
+struct test_sshQ_L_884procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_884proc, test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+    void (*__serialize__) (test_sshQ_L_884proc, $Serial$state);
+    test_sshQ_L_884proc (*__deserialize__) (test_sshQ_L_884proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_884proc);
+    B_str (*__str__) (test_sshQ_L_884proc);
+    B_str (*__repr__) (test_sshQ_L_884proc);
+    $R (*__call__) (test_sshQ_L_884proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_884proc, $Cont);
+};
+struct test_sshQ_L_884proc {
+    struct test_sshQ_L_884procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Server s;
+    B_str reason;
+};
+struct test_sshQ_L_885procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_885proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+    void (*__serialize__) (test_sshQ_L_885proc, $Serial$state);
+    test_sshQ_L_885proc (*__deserialize__) (test_sshQ_L_885proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_885proc);
+    B_str (*__str__) (test_sshQ_L_885proc);
+    B_str (*__repr__) (test_sshQ_L_885proc);
+    $R (*__call__) (test_sshQ_L_885proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_885proc, $Cont);
+};
+struct test_sshQ_L_885proc {
+    struct test_sshQ_L_885procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerSession sess;
+};
+struct test_sshQ_L_886procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_886proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_AuthRequest);
+    void (*__serialize__) (test_sshQ_L_886proc, $Serial$state);
+    test_sshQ_L_886proc (*__deserialize__) (test_sshQ_L_886proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_886proc);
+    B_str (*__str__) (test_sshQ_L_886proc);
+    B_str (*__repr__) (test_sshQ_L_886proc);
+    $R (*__call__) (test_sshQ_L_886proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_886proc, $Cont);
+};
+struct test_sshQ_L_886proc {
+    struct test_sshQ_L_886procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerSession sess;
+    sshQ_AuthRequest req;
+};
+struct test_sshQ_L_887procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_887proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+    void (*__serialize__) (test_sshQ_L_887proc, $Serial$state);
+    test_sshQ_L_887proc (*__deserialize__) (test_sshQ_L_887proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_887proc);
+    B_str (*__str__) (test_sshQ_L_887proc);
+    B_str (*__repr__) (test_sshQ_L_887proc);
+    $R (*__call__) (test_sshQ_L_887proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_887proc, $Cont);
+};
+struct test_sshQ_L_887proc {
+    struct test_sshQ_L_887procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerChannel ch;
+    B_bytes data;
+};
+struct test_sshQ_L_888procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_888proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+    void (*__serialize__) (test_sshQ_L_888proc, $Serial$state);
+    test_sshQ_L_888proc (*__deserialize__) (test_sshQ_L_888proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_888proc);
+    B_str (*__str__) (test_sshQ_L_888proc);
+    B_str (*__repr__) (test_sshQ_L_888proc);
+    $R (*__call__) (test_sshQ_L_888proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_888proc, $Cont);
+};
+struct test_sshQ_L_888proc {
+    struct test_sshQ_L_888procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerChannel ch;
+    B_bytes data;
+};
+struct test_sshQ_L_889procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_889proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_str);
+    void (*__serialize__) (test_sshQ_L_889proc, $Serial$state);
+    test_sshQ_L_889proc (*__deserialize__) (test_sshQ_L_889proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_889proc);
+    B_str (*__str__) (test_sshQ_L_889proc);
+    B_str (*__repr__) (test_sshQ_L_889proc);
+    $R (*__call__) (test_sshQ_L_889proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_889proc, $Cont);
+};
+struct test_sshQ_L_889proc {
+    struct test_sshQ_L_889procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerChannel ch;
+    B_str reason;
+};
+struct test_sshQ_L_890procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_890proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+    void (*__serialize__) (test_sshQ_L_890proc, $Serial$state);
+    test_sshQ_L_890proc (*__deserialize__) (test_sshQ_L_890proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_890proc);
+    B_str (*__str__) (test_sshQ_L_890proc);
+    B_str (*__repr__) (test_sshQ_L_890proc);
+    $R (*__call__) (test_sshQ_L_890proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_890proc, $Cont);
+};
+struct test_sshQ_L_890proc {
+    struct test_sshQ_L_890procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerSession sess;
+};
+struct test_sshQ_L_891procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_891proc, test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    void (*__serialize__) (test_sshQ_L_891proc, $Serial$state);
+    test_sshQ_L_891proc (*__deserialize__) (test_sshQ_L_891proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_891proc);
+    B_str (*__str__) (test_sshQ_L_891proc);
+    B_str (*__repr__) (test_sshQ_L_891proc);
+    $R (*__call__) (test_sshQ_L_891proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_891proc, $Cont);
+};
+struct test_sshQ_L_891proc {
+    struct test_sshQ_L_891procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_ServerSession sess;
+    sshQ_ServerChannel ch;
+    B_str cmd;
+};
+struct test_sshQ_L_892procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_892proc, test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str, sshQ_HostKeyInfo);
+    void (*__serialize__) (test_sshQ_L_892proc, $Serial$state);
+    test_sshQ_L_892proc (*__deserialize__) (test_sshQ_L_892proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_892proc);
+    B_str (*__str__) (test_sshQ_L_892proc);
+    B_str (*__repr__) (test_sshQ_L_892proc);
+    $R (*__call__) (test_sshQ_L_892proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_892proc, $Cont);
+};
+struct test_sshQ_L_892proc {
+    struct test_sshQ_L_892procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Client c;
+    B_str state;
+    sshQ_HostKeyInfo info;
+};
+struct test_sshQ_L_893procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_893proc, test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+    void (*__serialize__) (test_sshQ_L_893proc, $Serial$state);
+    test_sshQ_L_893proc (*__deserialize__) (test_sshQ_L_893proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_893proc);
+    B_str (*__str__) (test_sshQ_L_893proc);
+    B_str (*__repr__) (test_sshQ_L_893proc);
+    $R (*__call__) (test_sshQ_L_893proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_893proc, $Cont);
+};
+struct test_sshQ_L_893proc {
+    struct test_sshQ_L_893procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Client c;
+    B_str err;
+};
+struct test_sshQ_L_894procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_894proc, test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+    void (*__serialize__) (test_sshQ_L_894proc, $Serial$state);
+    test_sshQ_L_894proc (*__deserialize__) (test_sshQ_L_894proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_894proc);
+    B_str (*__str__) (test_sshQ_L_894proc);
+    B_str (*__repr__) (test_sshQ_L_894proc);
+    $R (*__call__) (test_sshQ_L_894proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_894proc, $Cont);
+};
+struct test_sshQ_L_894proc {
+    struct test_sshQ_L_894procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Client c;
+    B_str reason;
+};
+struct test_sshQ_L_895procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_895proc, test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+    void (*__serialize__) (test_sshQ_L_895proc, $Serial$state);
+    test_sshQ_L_895proc (*__deserialize__) (test_sshQ_L_895proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_895proc);
+    B_str (*__str__) (test_sshQ_L_895proc);
+    B_str (*__repr__) (test_sshQ_L_895proc);
+    $R (*__call__) (test_sshQ_L_895proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_895proc, $Cont);
+};
+struct test_sshQ_L_895proc {
+    struct test_sshQ_L_895procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Channel ch;
+    B_str err;
+};
+struct test_sshQ_L_896procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_896proc, test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+    void (*__serialize__) (test_sshQ_L_896proc, $Serial$state);
+    test_sshQ_L_896proc (*__deserialize__) (test_sshQ_L_896proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_896proc);
+    B_str (*__str__) (test_sshQ_L_896proc);
+    B_str (*__repr__) (test_sshQ_L_896proc);
+    $R (*__call__) (test_sshQ_L_896proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_896proc, $Cont);
+};
+struct test_sshQ_L_896proc {
+    struct test_sshQ_L_896procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Channel ch;
+    B_bytes data;
+};
+struct test_sshQ_L_897procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_897proc, test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+    void (*__serialize__) (test_sshQ_L_897proc, $Serial$state);
+    test_sshQ_L_897proc (*__deserialize__) (test_sshQ_L_897proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_897proc);
+    B_str (*__str__) (test_sshQ_L_897proc);
+    B_str (*__repr__) (test_sshQ_L_897proc);
+    $R (*__call__) (test_sshQ_L_897proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_897proc, $Cont);
+};
+struct test_sshQ_L_897proc {
+    struct test_sshQ_L_897procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Channel ch;
+    B_bytes data;
+};
+struct test_sshQ_L_898procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_898proc, test_sshQ_WriteBufferLimitTester, sshQ_Channel, int64_t, B_str);
+    void (*__serialize__) (test_sshQ_L_898proc, $Serial$state);
+    test_sshQ_L_898proc (*__deserialize__) (test_sshQ_L_898proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_898proc);
+    B_str (*__str__) (test_sshQ_L_898proc);
+    B_str (*__repr__) (test_sshQ_L_898proc);
+    $R (*__call__) (test_sshQ_L_898proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_898proc, $Cont);
+};
+struct test_sshQ_L_898proc {
+    struct test_sshQ_L_898procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Channel ch;
+    int64_t code;
+    B_str sig;
+};
+struct test_sshQ_L_899procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_899proc, test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+    void (*__serialize__) (test_sshQ_L_899proc, $Serial$state);
+    test_sshQ_L_899proc (*__deserialize__) (test_sshQ_L_899proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_899proc);
+    B_str (*__str__) (test_sshQ_L_899proc);
+    B_str (*__repr__) (test_sshQ_L_899proc);
+    $R (*__call__) (test_sshQ_L_899proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_899proc, $Cont);
+};
+struct test_sshQ_L_899proc {
+    struct test_sshQ_L_899procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    sshQ_Channel ch;
+    B_str reason;
+};
+struct test_sshQ_L_900procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_900proc, test_sshQ_WriteBufferLimitTester, uint16_t);
+    void (*__serialize__) (test_sshQ_L_900proc, $Serial$state);
+    test_sshQ_L_900proc (*__deserialize__) (test_sshQ_L_900proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_900proc);
+    B_str (*__str__) (test_sshQ_L_900proc);
+    B_str (*__repr__) (test_sshQ_L_900proc);
+    $R (*__call__) (test_sshQ_L_900proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_900proc, $Cont);
+};
+struct test_sshQ_L_900proc {
+    struct test_sshQ_L_900procG_class *$class;
+    test_sshQ_WriteBufferLimitTester self;
+    uint16_t port;
+};
+$R test_sshQ_L_901C_440cont ($Cont, test_sshQ_WriteBufferLimitTester, B_NoneType);
+struct test_sshQ_L_902ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_902Cont, $Cont, test_sshQ_WriteBufferLimitTester);
+    void (*__serialize__) (test_sshQ_L_902Cont, $Serial$state);
+    test_sshQ_L_902Cont (*__deserialize__) (test_sshQ_L_902Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_902Cont);
+    B_str (*__str__) (test_sshQ_L_902Cont);
+    B_str (*__repr__) (test_sshQ_L_902Cont);
+    $R (*__call__) (test_sshQ_L_902Cont, B_NoneType);
+};
+struct test_sshQ_L_902Cont {
+    struct test_sshQ_L_902ContG_class *$class;
+    $Cont C_cont;
+    test_sshQ_WriteBufferLimitTester G_act;
+};
+struct test_sshQ_L_903procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_903proc, test_sshQ_WriteBufferLimitTester, testingQ_EnvT);
+    void (*__serialize__) (test_sshQ_L_903proc, $Serial$state);
+    test_sshQ_L_903proc (*__deserialize__) (test_sshQ_L_903proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_903proc);
+    B_str (*__str__) (test_sshQ_L_903proc);
+    B_str (*__repr__) (test_sshQ_L_903proc);
+    $R (*__call__) (test_sshQ_L_903proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_903proc, $Cont);
+};
+struct test_sshQ_L_903proc {
+    struct test_sshQ_L_903procG_class *$class;
+    test_sshQ_WriteBufferLimitTester G_act;
+    testingQ_EnvT t;
+};
+struct test_sshQ_WriteBufferLimitTesterG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    $R (*__init__) (test_sshQ_WriteBufferLimitTester, $Cont, testingQ_EnvT);
+    void (*__serialize__) (test_sshQ_WriteBufferLimitTester, $Serial$state);
+    test_sshQ_WriteBufferLimitTester (*__deserialize__) (test_sshQ_WriteBufferLimitTester, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_WriteBufferLimitTester);
+    B_str (*__str__) (test_sshQ_WriteBufferLimitTester);
+    B_str (*__repr__) (test_sshQ_WriteBufferLimitTester);
+    B_NoneType (*__resume__) (test_sshQ_WriteBufferLimitTester);
+    B_NoneType (*__cleanup__) (test_sshQ_WriteBufferLimitTester);
+    $R (*finish_errorG_local) (test_sshQ_WriteBufferLimitTester, $Cont, B_str);
+    $R (*maybe_finishG_local) (test_sshQ_WriteBufferLimitTester, $Cont);
+    $R (*on_timeoutG_local) (test_sshQ_WriteBufferLimitTester, $Cont);
+    $R (*on_listenG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Server, B_str);
+    $R (*on_server_closeG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Server, B_str);
+    $R (*on_sessionG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerSession);
+    $R (*on_authG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerSession, sshQ_AuthRequest);
+    $R (*srv_on_dataG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*srv_on_stderrG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerChannel, B_bytes);
+    $R (*srv_on_closeG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerChannel, B_str);
+    $R (*on_channel_openG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerSession);
+    $R (*on_execG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    $R (*on_hostkeyG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Client, B_str, sshQ_HostKeyInfo);
+    $R (*on_connectG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Client, B_str);
+    $R (*on_client_closeG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Client, B_str);
+    $R (*ch_openG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Channel, B_str);
+    $R (*ch_outG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Channel, B_bytes);
+    $R (*ch_errG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Channel, B_bytes);
+    $R (*ch_exitG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Channel, int64_t, B_str);
+    $R (*ch_closeG_local) (test_sshQ_WriteBufferLimitTester, $Cont, sshQ_Channel, B_str);
+    $R (*start_clientG_local) (test_sshQ_WriteBufferLimitTester, $Cont, uint16_t);
+    B_Msg (*finish_error) (test_sshQ_WriteBufferLimitTester, B_str);
+    B_Msg (*maybe_finish) (test_sshQ_WriteBufferLimitTester);
+    B_Msg (*on_timeout) (test_sshQ_WriteBufferLimitTester);
+    B_Msg (*on_listen) (test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+    B_Msg (*on_server_close) (test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+    B_Msg (*on_session) (test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+    B_Msg (*on_auth) (test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_AuthRequest);
+    B_Msg (*srv_on_data) (test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+    B_Msg (*srv_on_stderr) (test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+    B_Msg (*srv_on_close) (test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_str);
+    B_Msg (*on_channel_open) (test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+    B_Msg (*on_exec) (test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+    B_Msg (*on_hostkey) (test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str, sshQ_HostKeyInfo);
+    B_Msg (*on_connect) (test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+    B_Msg (*on_client_close) (test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+    B_Msg (*ch_open) (test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+    B_Msg (*ch_out) (test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+    B_Msg (*ch_err) (test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+    B_Msg (*ch_exit) (test_sshQ_WriteBufferLimitTester, sshQ_Channel, int64_t, B_str);
+    B_Msg (*ch_close) (test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+    B_Msg (*start_client) (test_sshQ_WriteBufferLimitTester, uint16_t);
+};
+struct test_sshQ_WriteBufferLimitTester {
+    struct test_sshQ_WriteBufferLimitTesterG_class *$class;
+    $Actor $next;
+    B_Msg $msg;
+    B_Msg $msg_tail;
+    $Lock $msg_lock;
+    $int64 $affinity;
+    B_Msg $outgoing;
+    B_Msg $waitsfor;
+    $int64 $consume_hd;
+    $Catcher $catcher;
+    $long $globkey;
+    testingQ_EnvT t;
+    loggingQ_Logger log;
+    int64_t LIMIT;
+    B_bool done;
+    sshQ_Server server;
+    sshQ_Client client;
+    B_bool limit_hit;
+    B_bool client_closed;
+    B_bool server_closed;
+};
+$R test_sshQ_WriteBufferLimitTesterG_newact ($Cont, testingQ_EnvT);
+extern struct test_sshQ_L_806procG_class test_sshQ_L_806procG_methods;
+test_sshQ_L_806proc test_sshQ_L_806procG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_807ContG_class test_sshQ_L_807ContG_methods;
+test_sshQ_L_807Cont test_sshQ_L_807ContG_new(test_sshQ_WriteBufferLimitTester, $Cont);
+extern struct test_sshQ_L_809actionG_class test_sshQ_L_809actionG_methods;
+test_sshQ_L_809action test_sshQ_L_809actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_811actionG_class test_sshQ_L_811actionG_methods;
+test_sshQ_L_811action test_sshQ_L_811actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_813actionG_class test_sshQ_L_813actionG_methods;
+test_sshQ_L_813action test_sshQ_L_813actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_815actionG_class test_sshQ_L_815actionG_methods;
+test_sshQ_L_815action test_sshQ_L_815actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_817actionG_class test_sshQ_L_817actionG_methods;
+test_sshQ_L_817action test_sshQ_L_817actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_819actionG_class test_sshQ_L_819actionG_methods;
+test_sshQ_L_819action test_sshQ_L_819actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_821ContG_class test_sshQ_L_821ContG_methods;
+test_sshQ_L_821Cont test_sshQ_L_821ContG_new(test_sshQ_WriteBufferLimitTester, B_str, $Cont);
+extern struct test_sshQ_L_823ContG_class test_sshQ_L_823ContG_methods;
+test_sshQ_L_823Cont test_sshQ_L_823ContG_new(test_sshQ_WriteBufferLimitTester, $Cont);
+extern struct test_sshQ_L_825ContG_class test_sshQ_L_825ContG_methods;
+test_sshQ_L_825Cont test_sshQ_L_825ContG_new($Cont);
+extern struct test_sshQ_L_829ContG_class test_sshQ_L_829ContG_methods;
+test_sshQ_L_829Cont test_sshQ_L_829ContG_new($Cont);
+extern struct test_sshQ_L_830ContG_class test_sshQ_L_830ContG_methods;
+test_sshQ_L_830Cont test_sshQ_L_830ContG_new($Cont, test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_832ContG_class test_sshQ_L_832ContG_methods;
+test_sshQ_L_832Cont test_sshQ_L_832ContG_new($Cont);
+extern struct test_sshQ_L_833ContG_class test_sshQ_L_833ContG_methods;
+test_sshQ_L_833Cont test_sshQ_L_833ContG_new($Cont, test_sshQ_WriteBufferLimitTester, sshQ_Server);
+extern struct test_sshQ_L_835ContG_class test_sshQ_L_835ContG_methods;
+test_sshQ_L_835Cont test_sshQ_L_835ContG_new($Cont);
+extern struct test_sshQ_L_837ContG_class test_sshQ_L_837ContG_methods;
+test_sshQ_L_837Cont test_sshQ_L_837ContG_new(sshQ_ServerSession, $Cont);
+extern struct test_sshQ_L_839actionG_class test_sshQ_L_839actionG_methods;
+test_sshQ_L_839action test_sshQ_L_839actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_841actionG_class test_sshQ_L_841actionG_methods;
+test_sshQ_L_841action test_sshQ_L_841actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_843actionG_class test_sshQ_L_843actionG_methods;
+test_sshQ_L_843action test_sshQ_L_843actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_846ContG_class test_sshQ_L_846ContG_methods;
+test_sshQ_L_846Cont test_sshQ_L_846ContG_new($Cont);
+extern struct test_sshQ_L_848actionG_class test_sshQ_L_848actionG_methods;
+test_sshQ_L_848action test_sshQ_L_848actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_850actionG_class test_sshQ_L_850actionG_methods;
+test_sshQ_L_850action test_sshQ_L_850actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_852actionG_class test_sshQ_L_852actionG_methods;
+test_sshQ_L_852action test_sshQ_L_852actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_854actionG_class test_sshQ_L_854actionG_methods;
+test_sshQ_L_854action test_sshQ_L_854actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_856actionG_class test_sshQ_L_856actionG_methods;
+test_sshQ_L_856action test_sshQ_L_856actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_858ContG_class test_sshQ_L_858ContG_methods;
+test_sshQ_L_858Cont test_sshQ_L_858ContG_new($Cont);
+extern struct test_sshQ_L_859ContG_class test_sshQ_L_859ContG_methods;
+test_sshQ_L_859Cont test_sshQ_L_859ContG_new($Cont, sshQ_Client, test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_861ContG_class test_sshQ_L_861ContG_methods;
+test_sshQ_L_861Cont test_sshQ_L_861ContG_new($Cont);
+extern struct test_sshQ_L_864ContG_class test_sshQ_L_864ContG_methods;
+test_sshQ_L_864Cont test_sshQ_L_864ContG_new($Cont);
+extern struct test_sshQ_L_865ContG_class test_sshQ_L_865ContG_methods;
+test_sshQ_L_865Cont test_sshQ_L_865ContG_new(sshQ_Channel, B_Times, B_Times, test_sshQ_WriteBufferLimitTester, $Cont);
+extern struct test_sshQ_L_868ContG_class test_sshQ_L_868ContG_methods;
+test_sshQ_L_868Cont test_sshQ_L_868ContG_new($Cont);
+extern struct test_sshQ_L_869ContG_class test_sshQ_L_869ContG_methods;
+test_sshQ_L_869Cont test_sshQ_L_869ContG_new(test_sshQ_WriteBufferLimitTester, $Cont);
+extern struct test_sshQ_L_871ContG_class test_sshQ_L_871ContG_methods;
+test_sshQ_L_871Cont test_sshQ_L_871ContG_new($Cont);
+extern struct test_sshQ_L_873ContG_class test_sshQ_L_873ContG_methods;
+test_sshQ_L_873Cont test_sshQ_L_873ContG_new(test_sshQ_WriteBufferLimitTester, $Cont);
+extern struct test_sshQ_L_875actionG_class test_sshQ_L_875actionG_methods;
+test_sshQ_L_875action test_sshQ_L_875actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_877actionG_class test_sshQ_L_877actionG_methods;
+test_sshQ_L_877action test_sshQ_L_877actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_879actionG_class test_sshQ_L_879actionG_methods;
+test_sshQ_L_879action test_sshQ_L_879actionG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_880procG_class test_sshQ_L_880procG_methods;
+test_sshQ_L_880proc test_sshQ_L_880procG_new(test_sshQ_WriteBufferLimitTester, B_str);
+extern struct test_sshQ_L_881procG_class test_sshQ_L_881procG_methods;
+test_sshQ_L_881proc test_sshQ_L_881procG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_882procG_class test_sshQ_L_882procG_methods;
+test_sshQ_L_882proc test_sshQ_L_882procG_new(test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_883procG_class test_sshQ_L_883procG_methods;
+test_sshQ_L_883proc test_sshQ_L_883procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+extern struct test_sshQ_L_884procG_class test_sshQ_L_884procG_methods;
+test_sshQ_L_884proc test_sshQ_L_884procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Server, B_str);
+extern struct test_sshQ_L_885procG_class test_sshQ_L_885procG_methods;
+test_sshQ_L_885proc test_sshQ_L_885procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+extern struct test_sshQ_L_886procG_class test_sshQ_L_886procG_methods;
+test_sshQ_L_886proc test_sshQ_L_886procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_AuthRequest);
+extern struct test_sshQ_L_887procG_class test_sshQ_L_887procG_methods;
+test_sshQ_L_887proc test_sshQ_L_887procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+extern struct test_sshQ_L_888procG_class test_sshQ_L_888procG_methods;
+test_sshQ_L_888proc test_sshQ_L_888procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_bytes);
+extern struct test_sshQ_L_889procG_class test_sshQ_L_889procG_methods;
+test_sshQ_L_889proc test_sshQ_L_889procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerChannel, B_str);
+extern struct test_sshQ_L_890procG_class test_sshQ_L_890procG_methods;
+test_sshQ_L_890proc test_sshQ_L_890procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerSession);
+extern struct test_sshQ_L_891procG_class test_sshQ_L_891procG_methods;
+test_sshQ_L_891proc test_sshQ_L_891procG_new(test_sshQ_WriteBufferLimitTester, sshQ_ServerSession, sshQ_ServerChannel, B_str);
+extern struct test_sshQ_L_892procG_class test_sshQ_L_892procG_methods;
+test_sshQ_L_892proc test_sshQ_L_892procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str, sshQ_HostKeyInfo);
+extern struct test_sshQ_L_893procG_class test_sshQ_L_893procG_methods;
+test_sshQ_L_893proc test_sshQ_L_893procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+extern struct test_sshQ_L_894procG_class test_sshQ_L_894procG_methods;
+test_sshQ_L_894proc test_sshQ_L_894procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Client, B_str);
+extern struct test_sshQ_L_895procG_class test_sshQ_L_895procG_methods;
+test_sshQ_L_895proc test_sshQ_L_895procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+extern struct test_sshQ_L_896procG_class test_sshQ_L_896procG_methods;
+test_sshQ_L_896proc test_sshQ_L_896procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+extern struct test_sshQ_L_897procG_class test_sshQ_L_897procG_methods;
+test_sshQ_L_897proc test_sshQ_L_897procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_bytes);
+extern struct test_sshQ_L_898procG_class test_sshQ_L_898procG_methods;
+test_sshQ_L_898proc test_sshQ_L_898procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Channel, int64_t, B_str);
+extern struct test_sshQ_L_899procG_class test_sshQ_L_899procG_methods;
+test_sshQ_L_899proc test_sshQ_L_899procG_new(test_sshQ_WriteBufferLimitTester, sshQ_Channel, B_str);
+extern struct test_sshQ_L_900procG_class test_sshQ_L_900procG_methods;
+test_sshQ_L_900proc test_sshQ_L_900procG_new(test_sshQ_WriteBufferLimitTester, uint16_t);
+extern struct test_sshQ_L_902ContG_class test_sshQ_L_902ContG_methods;
+test_sshQ_L_902Cont test_sshQ_L_902ContG_new($Cont, test_sshQ_WriteBufferLimitTester);
+extern struct test_sshQ_L_903procG_class test_sshQ_L_903procG_methods;
+test_sshQ_L_903proc test_sshQ_L_903procG_new(test_sshQ_WriteBufferLimitTester, testingQ_EnvT);
+extern struct test_sshQ_WriteBufferLimitTesterG_class test_sshQ_WriteBufferLimitTesterG_methods;
+$R test_sshQ_WriteBufferLimitTesterG_new($Cont, testingQ_EnvT);
+struct test_sshQ_L_905Cont;
+typedef struct test_sshQ_L_905Cont *test_sshQ_L_905Cont;
+$R test_sshQ_L_904C_442cont ($Cont, test_sshQ_WriteBufferLimitTester);
+struct test_sshQ_L_905ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_905Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_905Cont, $Serial$state);
+    test_sshQ_L_905Cont (*__deserialize__) (test_sshQ_L_905Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_905Cont);
+    B_str (*__str__) (test_sshQ_L_905Cont);
+    B_str (*__repr__) (test_sshQ_L_905Cont);
+    $R (*__call__) (test_sshQ_L_905Cont, test_sshQ_WriteBufferLimitTester);
+};
+struct test_sshQ_L_905Cont {
+    struct test_sshQ_L_905ContG_class *$class;
+    $Cont C_cont;
+};
+$R test_sshQ__test_write_buffer_limit ($Cont, testingQ_EnvT);
+extern struct test_sshQ_L_905ContG_class test_sshQ_L_905ContG_methods;
+test_sshQ_L_905Cont test_sshQ_L_905ContG_new($Cont);
+struct test_sshQ_L_907Cont;
+typedef struct test_sshQ_L_907Cont *test_sshQ_L_907Cont;
+$R test_sshQ_L_906C_444cont ($Cont, test_sshQ_ExecTester);
+struct test_sshQ_L_907ContG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_907Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_907Cont, $Serial$state);
+    test_sshQ_L_907Cont (*__deserialize__) (test_sshQ_L_907Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_907Cont);
+    B_str (*__str__) (test_sshQ_L_907Cont);
+    B_str (*__repr__) (test_sshQ_L_907Cont);
+    $R (*__call__) (test_sshQ_L_907Cont, test_sshQ_ExecTester);
+};
+struct test_sshQ_L_907Cont {
+    struct test_sshQ_L_907ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_ExecTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_806ContG_class test_sshQ_L_806ContG_methods;
-test_sshQ_L_806Cont test_sshQ_L_806ContG_new($Cont);
-struct test_sshQ_L_808Cont;
-typedef struct test_sshQ_L_808Cont *test_sshQ_L_808Cont;
-$R test_sshQ_L_807C_401cont ($Cont, test_sshQ_SubsystemTester);
-struct test_sshQ_L_808ContG_class {
+extern struct test_sshQ_L_907ContG_class test_sshQ_L_907ContG_methods;
+test_sshQ_L_907Cont test_sshQ_L_907ContG_new($Cont);
+struct test_sshQ_L_909Cont;
+typedef struct test_sshQ_L_909Cont *test_sshQ_L_909Cont;
+$R test_sshQ_L_908C_446cont ($Cont, test_sshQ_SubsystemTester);
+struct test_sshQ_L_909ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_808Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_808Cont, $Serial$state);
-    test_sshQ_L_808Cont (*__deserialize__) (test_sshQ_L_808Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_808Cont);
-    B_str (*__str__) (test_sshQ_L_808Cont);
-    B_str (*__repr__) (test_sshQ_L_808Cont);
-    $R (*__call__) (test_sshQ_L_808Cont, test_sshQ_SubsystemTester);
+    B_NoneType (*__init__) (test_sshQ_L_909Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_909Cont, $Serial$state);
+    test_sshQ_L_909Cont (*__deserialize__) (test_sshQ_L_909Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_909Cont);
+    B_str (*__str__) (test_sshQ_L_909Cont);
+    B_str (*__repr__) (test_sshQ_L_909Cont);
+    $R (*__call__) (test_sshQ_L_909Cont, test_sshQ_SubsystemTester);
 };
-struct test_sshQ_L_808Cont {
-    struct test_sshQ_L_808ContG_class *$class;
+struct test_sshQ_L_909Cont {
+    struct test_sshQ_L_909ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_SubsystemTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_808ContG_class test_sshQ_L_808ContG_methods;
-test_sshQ_L_808Cont test_sshQ_L_808ContG_new($Cont);
-struct test_sshQ_L_810Cont;
-typedef struct test_sshQ_L_810Cont *test_sshQ_L_810Cont;
-$R test_sshQ_L_809C_403cont ($Cont, test_sshQ_AuthRejectTester);
-struct test_sshQ_L_810ContG_class {
+extern struct test_sshQ_L_909ContG_class test_sshQ_L_909ContG_methods;
+test_sshQ_L_909Cont test_sshQ_L_909ContG_new($Cont);
+struct test_sshQ_L_911Cont;
+typedef struct test_sshQ_L_911Cont *test_sshQ_L_911Cont;
+$R test_sshQ_L_910C_448cont ($Cont, test_sshQ_AuthRejectTester);
+struct test_sshQ_L_911ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_810Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_810Cont, $Serial$state);
-    test_sshQ_L_810Cont (*__deserialize__) (test_sshQ_L_810Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_810Cont);
-    B_str (*__str__) (test_sshQ_L_810Cont);
-    B_str (*__repr__) (test_sshQ_L_810Cont);
-    $R (*__call__) (test_sshQ_L_810Cont, test_sshQ_AuthRejectTester);
+    B_NoneType (*__init__) (test_sshQ_L_911Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_911Cont, $Serial$state);
+    test_sshQ_L_911Cont (*__deserialize__) (test_sshQ_L_911Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_911Cont);
+    B_str (*__str__) (test_sshQ_L_911Cont);
+    B_str (*__repr__) (test_sshQ_L_911Cont);
+    $R (*__call__) (test_sshQ_L_911Cont, test_sshQ_AuthRejectTester);
 };
-struct test_sshQ_L_810Cont {
-    struct test_sshQ_L_810ContG_class *$class;
+struct test_sshQ_L_911Cont {
+    struct test_sshQ_L_911ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_AuthRejectTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_810ContG_class test_sshQ_L_810ContG_methods;
-test_sshQ_L_810Cont test_sshQ_L_810ContG_new($Cont);
-struct test_sshQ_L_812Cont;
-typedef struct test_sshQ_L_812Cont *test_sshQ_L_812Cont;
-$R test_sshQ_L_811C_405cont ($Cont, test_sshQ_HostkeyRejectTester);
-struct test_sshQ_L_812ContG_class {
+extern struct test_sshQ_L_911ContG_class test_sshQ_L_911ContG_methods;
+test_sshQ_L_911Cont test_sshQ_L_911ContG_new($Cont);
+struct test_sshQ_L_913Cont;
+typedef struct test_sshQ_L_913Cont *test_sshQ_L_913Cont;
+$R test_sshQ_L_912C_450cont ($Cont, test_sshQ_HostkeyRejectTester);
+struct test_sshQ_L_913ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_812Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_812Cont, $Serial$state);
-    test_sshQ_L_812Cont (*__deserialize__) (test_sshQ_L_812Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_812Cont);
-    B_str (*__str__) (test_sshQ_L_812Cont);
-    B_str (*__repr__) (test_sshQ_L_812Cont);
-    $R (*__call__) (test_sshQ_L_812Cont, test_sshQ_HostkeyRejectTester);
+    B_NoneType (*__init__) (test_sshQ_L_913Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_913Cont, $Serial$state);
+    test_sshQ_L_913Cont (*__deserialize__) (test_sshQ_L_913Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_913Cont);
+    B_str (*__str__) (test_sshQ_L_913Cont);
+    B_str (*__repr__) (test_sshQ_L_913Cont);
+    $R (*__call__) (test_sshQ_L_913Cont, test_sshQ_HostkeyRejectTester);
 };
-struct test_sshQ_L_812Cont {
-    struct test_sshQ_L_812ContG_class *$class;
+struct test_sshQ_L_913Cont {
+    struct test_sshQ_L_913ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_HostkeyRejectTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_812ContG_class test_sshQ_L_812ContG_methods;
-test_sshQ_L_812Cont test_sshQ_L_812ContG_new($Cont);
-struct test_sshQ_L_814Cont;
-typedef struct test_sshQ_L_814Cont *test_sshQ_L_814Cont;
-$R test_sshQ_L_813C_407cont ($Cont, test_sshQ_EchoPayloadTester);
-struct test_sshQ_L_814ContG_class {
+extern struct test_sshQ_L_913ContG_class test_sshQ_L_913ContG_methods;
+test_sshQ_L_913Cont test_sshQ_L_913ContG_new($Cont);
+struct test_sshQ_L_915Cont;
+typedef struct test_sshQ_L_915Cont *test_sshQ_L_915Cont;
+$R test_sshQ_L_914C_452cont ($Cont, test_sshQ_EchoPayloadTester);
+struct test_sshQ_L_915ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_814Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_814Cont, $Serial$state);
-    test_sshQ_L_814Cont (*__deserialize__) (test_sshQ_L_814Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_814Cont);
-    B_str (*__str__) (test_sshQ_L_814Cont);
-    B_str (*__repr__) (test_sshQ_L_814Cont);
-    $R (*__call__) (test_sshQ_L_814Cont, test_sshQ_EchoPayloadTester);
+    B_NoneType (*__init__) (test_sshQ_L_915Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_915Cont, $Serial$state);
+    test_sshQ_L_915Cont (*__deserialize__) (test_sshQ_L_915Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_915Cont);
+    B_str (*__str__) (test_sshQ_L_915Cont);
+    B_str (*__repr__) (test_sshQ_L_915Cont);
+    $R (*__call__) (test_sshQ_L_915Cont, test_sshQ_EchoPayloadTester);
 };
-struct test_sshQ_L_814Cont {
-    struct test_sshQ_L_814ContG_class *$class;
+struct test_sshQ_L_915Cont {
+    struct test_sshQ_L_915ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_EchoPayloadTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_814ContG_class test_sshQ_L_814ContG_methods;
-test_sshQ_L_814Cont test_sshQ_L_814ContG_new($Cont);
-struct test_sshQ_L_816Cont;
-typedef struct test_sshQ_L_816Cont *test_sshQ_L_816Cont;
-$R test_sshQ_L_815C_409cont ($Cont, test_sshQ_ConcurrentChannelsTester);
-struct test_sshQ_L_816ContG_class {
+extern struct test_sshQ_L_915ContG_class test_sshQ_L_915ContG_methods;
+test_sshQ_L_915Cont test_sshQ_L_915ContG_new($Cont);
+struct test_sshQ_L_917Cont;
+typedef struct test_sshQ_L_917Cont *test_sshQ_L_917Cont;
+$R test_sshQ_L_916C_454cont ($Cont, test_sshQ_ConcurrentChannelsTester);
+struct test_sshQ_L_917ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_816Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_816Cont, $Serial$state);
-    test_sshQ_L_816Cont (*__deserialize__) (test_sshQ_L_816Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_816Cont);
-    B_str (*__str__) (test_sshQ_L_816Cont);
-    B_str (*__repr__) (test_sshQ_L_816Cont);
-    $R (*__call__) (test_sshQ_L_816Cont, test_sshQ_ConcurrentChannelsTester);
+    B_NoneType (*__init__) (test_sshQ_L_917Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_917Cont, $Serial$state);
+    test_sshQ_L_917Cont (*__deserialize__) (test_sshQ_L_917Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_917Cont);
+    B_str (*__str__) (test_sshQ_L_917Cont);
+    B_str (*__repr__) (test_sshQ_L_917Cont);
+    $R (*__call__) (test_sshQ_L_917Cont, test_sshQ_ConcurrentChannelsTester);
 };
-struct test_sshQ_L_816Cont {
-    struct test_sshQ_L_816ContG_class *$class;
+struct test_sshQ_L_917Cont {
+    struct test_sshQ_L_917ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_ConcurrentChannelsTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_816ContG_class test_sshQ_L_816ContG_methods;
-test_sshQ_L_816Cont test_sshQ_L_816ContG_new($Cont);
-struct test_sshQ_L_818Cont;
-typedef struct test_sshQ_L_818Cont *test_sshQ_L_818Cont;
-$R test_sshQ_L_817C_411cont ($Cont, test_sshQ_ServerCloseTester);
-struct test_sshQ_L_818ContG_class {
+extern struct test_sshQ_L_917ContG_class test_sshQ_L_917ContG_methods;
+test_sshQ_L_917Cont test_sshQ_L_917ContG_new($Cont);
+struct test_sshQ_L_919Cont;
+typedef struct test_sshQ_L_919Cont *test_sshQ_L_919Cont;
+$R test_sshQ_L_918C_456cont ($Cont, test_sshQ_ServerCloseTester);
+struct test_sshQ_L_919ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_818Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_818Cont, $Serial$state);
-    test_sshQ_L_818Cont (*__deserialize__) (test_sshQ_L_818Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_818Cont);
-    B_str (*__str__) (test_sshQ_L_818Cont);
-    B_str (*__repr__) (test_sshQ_L_818Cont);
-    $R (*__call__) (test_sshQ_L_818Cont, test_sshQ_ServerCloseTester);
+    B_NoneType (*__init__) (test_sshQ_L_919Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_919Cont, $Serial$state);
+    test_sshQ_L_919Cont (*__deserialize__) (test_sshQ_L_919Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_919Cont);
+    B_str (*__str__) (test_sshQ_L_919Cont);
+    B_str (*__repr__) (test_sshQ_L_919Cont);
+    $R (*__call__) (test_sshQ_L_919Cont, test_sshQ_ServerCloseTester);
 };
-struct test_sshQ_L_818Cont {
-    struct test_sshQ_L_818ContG_class *$class;
+struct test_sshQ_L_919Cont {
+    struct test_sshQ_L_919ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_ServerCloseTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_818ContG_class test_sshQ_L_818ContG_methods;
-test_sshQ_L_818Cont test_sshQ_L_818ContG_new($Cont);
-struct test_sshQ_L_820Cont;
-typedef struct test_sshQ_L_820Cont *test_sshQ_L_820Cont;
-$R test_sshQ_L_819C_413cont ($Cont, test_sshQ_ConnectRefusedTester);
-struct test_sshQ_L_820ContG_class {
+extern struct test_sshQ_L_919ContG_class test_sshQ_L_919ContG_methods;
+test_sshQ_L_919Cont test_sshQ_L_919ContG_new($Cont);
+struct test_sshQ_L_921Cont;
+typedef struct test_sshQ_L_921Cont *test_sshQ_L_921Cont;
+$R test_sshQ_L_920C_458cont ($Cont, test_sshQ_ConnectRefusedTester);
+struct test_sshQ_L_921ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_820Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_820Cont, $Serial$state);
-    test_sshQ_L_820Cont (*__deserialize__) (test_sshQ_L_820Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_820Cont);
-    B_str (*__str__) (test_sshQ_L_820Cont);
-    B_str (*__repr__) (test_sshQ_L_820Cont);
-    $R (*__call__) (test_sshQ_L_820Cont, test_sshQ_ConnectRefusedTester);
+    B_NoneType (*__init__) (test_sshQ_L_921Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_921Cont, $Serial$state);
+    test_sshQ_L_921Cont (*__deserialize__) (test_sshQ_L_921Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_921Cont);
+    B_str (*__str__) (test_sshQ_L_921Cont);
+    B_str (*__repr__) (test_sshQ_L_921Cont);
+    $R (*__call__) (test_sshQ_L_921Cont, test_sshQ_ConnectRefusedTester);
 };
-struct test_sshQ_L_820Cont {
-    struct test_sshQ_L_820ContG_class *$class;
+struct test_sshQ_L_921Cont {
+    struct test_sshQ_L_921ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_ConnectRefusedTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_820ContG_class test_sshQ_L_820ContG_methods;
-test_sshQ_L_820Cont test_sshQ_L_820ContG_new($Cont);
-struct test_sshQ_L_822Cont;
-typedef struct test_sshQ_L_822Cont *test_sshQ_L_822Cont;
-$R test_sshQ_L_821C_415cont ($Cont, test_sshQ_PubkeyAuthTester);
-struct test_sshQ_L_822ContG_class {
+extern struct test_sshQ_L_921ContG_class test_sshQ_L_921ContG_methods;
+test_sshQ_L_921Cont test_sshQ_L_921ContG_new($Cont);
+struct test_sshQ_L_923Cont;
+typedef struct test_sshQ_L_923Cont *test_sshQ_L_923Cont;
+$R test_sshQ_L_922C_460cont ($Cont, test_sshQ_PubkeyAuthTester);
+struct test_sshQ_L_923ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_822Cont, $Cont);
-    void (*__serialize__) (test_sshQ_L_822Cont, $Serial$state);
-    test_sshQ_L_822Cont (*__deserialize__) (test_sshQ_L_822Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_822Cont);
-    B_str (*__str__) (test_sshQ_L_822Cont);
-    B_str (*__repr__) (test_sshQ_L_822Cont);
-    $R (*__call__) (test_sshQ_L_822Cont, test_sshQ_PubkeyAuthTester);
+    B_NoneType (*__init__) (test_sshQ_L_923Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_923Cont, $Serial$state);
+    test_sshQ_L_923Cont (*__deserialize__) (test_sshQ_L_923Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_923Cont);
+    B_str (*__str__) (test_sshQ_L_923Cont);
+    B_str (*__repr__) (test_sshQ_L_923Cont);
+    $R (*__call__) (test_sshQ_L_923Cont, test_sshQ_PubkeyAuthTester);
 };
-struct test_sshQ_L_822Cont {
-    struct test_sshQ_L_822ContG_class *$class;
+struct test_sshQ_L_923Cont {
+    struct test_sshQ_L_923ContG_class *$class;
     $Cont C_cont;
 };
 $R test_sshQ__test_PubkeyAuthTester ($Cont, testingQ_EnvT);
-extern struct test_sshQ_L_822ContG_class test_sshQ_L_822ContG_methods;
-test_sshQ_L_822Cont test_sshQ_L_822ContG_new($Cont);
-struct test_sshQ_L_823mut;
-typedef struct test_sshQ_L_823mut *test_sshQ_L_823mut;
-struct test_sshQ_L_823mutG_class {
+extern struct test_sshQ_L_923ContG_class test_sshQ_L_923ContG_methods;
+test_sshQ_L_923Cont test_sshQ_L_923ContG_new($Cont);
+struct test_sshQ_L_925Cont;
+typedef struct test_sshQ_L_925Cont *test_sshQ_L_925Cont;
+$R test_sshQ_L_924C_462cont ($Cont, test_sshQ_WriteBufferLimitTester);
+struct test_sshQ_L_925ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_823mut);
-    void (*__serialize__) (test_sshQ_L_823mut, $Serial$state);
-    test_sshQ_L_823mut (*__deserialize__) (test_sshQ_L_823mut, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_823mut);
-    B_str (*__str__) (test_sshQ_L_823mut);
-    B_str (*__repr__) (test_sshQ_L_823mut);
-    $R (*__call__) (test_sshQ_L_823mut, $Cont);
-    $R (*__exec__) (test_sshQ_L_823mut, $Cont);
-    B_NoneType (*__eval__) (test_sshQ_L_823mut);
+    B_NoneType (*__init__) (test_sshQ_L_925Cont, $Cont);
+    void (*__serialize__) (test_sshQ_L_925Cont, $Serial$state);
+    test_sshQ_L_925Cont (*__deserialize__) (test_sshQ_L_925Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_925Cont);
+    B_str (*__str__) (test_sshQ_L_925Cont);
+    B_str (*__repr__) (test_sshQ_L_925Cont);
+    $R (*__call__) (test_sshQ_L_925Cont, test_sshQ_WriteBufferLimitTester);
 };
-struct test_sshQ_L_823mut {
-    struct test_sshQ_L_823mutG_class *$class;
+struct test_sshQ_L_925Cont {
+    struct test_sshQ_L_925ContG_class *$class;
+    $Cont C_cont;
 };
-extern struct test_sshQ_L_823mutG_class test_sshQ_L_823mutG_methods;
-test_sshQ_L_823mut test_sshQ_L_823mutG_new();
-struct test_sshQ_L_824proc;
-struct test_sshQ_L_825proc;
-struct test_sshQ_L_826proc;
-struct test_sshQ_L_827proc;
-struct test_sshQ_L_828proc;
-struct test_sshQ_L_829proc;
-struct test_sshQ_L_830proc;
-struct test_sshQ_L_831proc;
-struct test_sshQ_L_832proc;
-typedef struct test_sshQ_L_824proc *test_sshQ_L_824proc;
-typedef struct test_sshQ_L_825proc *test_sshQ_L_825proc;
-typedef struct test_sshQ_L_826proc *test_sshQ_L_826proc;
-typedef struct test_sshQ_L_827proc *test_sshQ_L_827proc;
-typedef struct test_sshQ_L_828proc *test_sshQ_L_828proc;
-typedef struct test_sshQ_L_829proc *test_sshQ_L_829proc;
-typedef struct test_sshQ_L_830proc *test_sshQ_L_830proc;
-typedef struct test_sshQ_L_831proc *test_sshQ_L_831proc;
-typedef struct test_sshQ_L_832proc *test_sshQ_L_832proc;
-struct test_sshQ_L_824procG_class {
+$R test_sshQ__test_WriteBufferLimitTester ($Cont, testingQ_EnvT);
+extern struct test_sshQ_L_925ContG_class test_sshQ_L_925ContG_methods;
+test_sshQ_L_925Cont test_sshQ_L_925ContG_new($Cont);
+struct test_sshQ_L_926mut;
+typedef struct test_sshQ_L_926mut *test_sshQ_L_926mut;
+struct test_sshQ_L_926mutG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_824proc);
-    void (*__serialize__) (test_sshQ_L_824proc, $Serial$state);
-    test_sshQ_L_824proc (*__deserialize__) (test_sshQ_L_824proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_824proc);
-    B_str (*__str__) (test_sshQ_L_824proc);
-    B_str (*__repr__) (test_sshQ_L_824proc);
-    $R (*__call__) (test_sshQ_L_824proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_824proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_926mut);
+    void (*__serialize__) (test_sshQ_L_926mut, $Serial$state);
+    test_sshQ_L_926mut (*__deserialize__) (test_sshQ_L_926mut, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_926mut);
+    B_str (*__str__) (test_sshQ_L_926mut);
+    B_str (*__repr__) (test_sshQ_L_926mut);
+    $R (*__call__) (test_sshQ_L_926mut, $Cont);
+    $R (*__exec__) (test_sshQ_L_926mut, $Cont);
+    B_NoneType (*__eval__) (test_sshQ_L_926mut);
 };
-struct test_sshQ_L_824proc {
-    struct test_sshQ_L_824procG_class *$class;
+struct test_sshQ_L_926mut {
+    struct test_sshQ_L_926mutG_class *$class;
 };
-struct test_sshQ_L_825procG_class {
+extern struct test_sshQ_L_926mutG_class test_sshQ_L_926mutG_methods;
+test_sshQ_L_926mut test_sshQ_L_926mutG_new();
+struct test_sshQ_L_927proc;
+struct test_sshQ_L_928proc;
+struct test_sshQ_L_929proc;
+struct test_sshQ_L_930proc;
+struct test_sshQ_L_931proc;
+struct test_sshQ_L_932proc;
+struct test_sshQ_L_933proc;
+struct test_sshQ_L_934proc;
+struct test_sshQ_L_935proc;
+struct test_sshQ_L_936proc;
+typedef struct test_sshQ_L_927proc *test_sshQ_L_927proc;
+typedef struct test_sshQ_L_928proc *test_sshQ_L_928proc;
+typedef struct test_sshQ_L_929proc *test_sshQ_L_929proc;
+typedef struct test_sshQ_L_930proc *test_sshQ_L_930proc;
+typedef struct test_sshQ_L_931proc *test_sshQ_L_931proc;
+typedef struct test_sshQ_L_932proc *test_sshQ_L_932proc;
+typedef struct test_sshQ_L_933proc *test_sshQ_L_933proc;
+typedef struct test_sshQ_L_934proc *test_sshQ_L_934proc;
+typedef struct test_sshQ_L_935proc *test_sshQ_L_935proc;
+typedef struct test_sshQ_L_936proc *test_sshQ_L_936proc;
+struct test_sshQ_L_927procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_825proc);
-    void (*__serialize__) (test_sshQ_L_825proc, $Serial$state);
-    test_sshQ_L_825proc (*__deserialize__) (test_sshQ_L_825proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_825proc);
-    B_str (*__str__) (test_sshQ_L_825proc);
-    B_str (*__repr__) (test_sshQ_L_825proc);
-    $R (*__call__) (test_sshQ_L_825proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_825proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_927proc);
+    void (*__serialize__) (test_sshQ_L_927proc, $Serial$state);
+    test_sshQ_L_927proc (*__deserialize__) (test_sshQ_L_927proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_927proc);
+    B_str (*__str__) (test_sshQ_L_927proc);
+    B_str (*__repr__) (test_sshQ_L_927proc);
+    $R (*__call__) (test_sshQ_L_927proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_927proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_825proc {
-    struct test_sshQ_L_825procG_class *$class;
+struct test_sshQ_L_927proc {
+    struct test_sshQ_L_927procG_class *$class;
 };
-struct test_sshQ_L_826procG_class {
+struct test_sshQ_L_928procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_826proc);
-    void (*__serialize__) (test_sshQ_L_826proc, $Serial$state);
-    test_sshQ_L_826proc (*__deserialize__) (test_sshQ_L_826proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_826proc);
-    B_str (*__str__) (test_sshQ_L_826proc);
-    B_str (*__repr__) (test_sshQ_L_826proc);
-    $R (*__call__) (test_sshQ_L_826proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_826proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_928proc);
+    void (*__serialize__) (test_sshQ_L_928proc, $Serial$state);
+    test_sshQ_L_928proc (*__deserialize__) (test_sshQ_L_928proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_928proc);
+    B_str (*__str__) (test_sshQ_L_928proc);
+    B_str (*__repr__) (test_sshQ_L_928proc);
+    $R (*__call__) (test_sshQ_L_928proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_928proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_826proc {
-    struct test_sshQ_L_826procG_class *$class;
+struct test_sshQ_L_928proc {
+    struct test_sshQ_L_928procG_class *$class;
 };
-struct test_sshQ_L_827procG_class {
+struct test_sshQ_L_929procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_827proc);
-    void (*__serialize__) (test_sshQ_L_827proc, $Serial$state);
-    test_sshQ_L_827proc (*__deserialize__) (test_sshQ_L_827proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_827proc);
-    B_str (*__str__) (test_sshQ_L_827proc);
-    B_str (*__repr__) (test_sshQ_L_827proc);
-    $R (*__call__) (test_sshQ_L_827proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_827proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_929proc);
+    void (*__serialize__) (test_sshQ_L_929proc, $Serial$state);
+    test_sshQ_L_929proc (*__deserialize__) (test_sshQ_L_929proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_929proc);
+    B_str (*__str__) (test_sshQ_L_929proc);
+    B_str (*__repr__) (test_sshQ_L_929proc);
+    $R (*__call__) (test_sshQ_L_929proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_929proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_827proc {
-    struct test_sshQ_L_827procG_class *$class;
+struct test_sshQ_L_929proc {
+    struct test_sshQ_L_929procG_class *$class;
 };
-struct test_sshQ_L_828procG_class {
+struct test_sshQ_L_930procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_828proc);
-    void (*__serialize__) (test_sshQ_L_828proc, $Serial$state);
-    test_sshQ_L_828proc (*__deserialize__) (test_sshQ_L_828proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_828proc);
-    B_str (*__str__) (test_sshQ_L_828proc);
-    B_str (*__repr__) (test_sshQ_L_828proc);
-    $R (*__call__) (test_sshQ_L_828proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_828proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_930proc);
+    void (*__serialize__) (test_sshQ_L_930proc, $Serial$state);
+    test_sshQ_L_930proc (*__deserialize__) (test_sshQ_L_930proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_930proc);
+    B_str (*__str__) (test_sshQ_L_930proc);
+    B_str (*__repr__) (test_sshQ_L_930proc);
+    $R (*__call__) (test_sshQ_L_930proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_930proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_828proc {
-    struct test_sshQ_L_828procG_class *$class;
+struct test_sshQ_L_930proc {
+    struct test_sshQ_L_930procG_class *$class;
 };
-struct test_sshQ_L_829procG_class {
+struct test_sshQ_L_931procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_829proc);
-    void (*__serialize__) (test_sshQ_L_829proc, $Serial$state);
-    test_sshQ_L_829proc (*__deserialize__) (test_sshQ_L_829proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_829proc);
-    B_str (*__str__) (test_sshQ_L_829proc);
-    B_str (*__repr__) (test_sshQ_L_829proc);
-    $R (*__call__) (test_sshQ_L_829proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_829proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_931proc);
+    void (*__serialize__) (test_sshQ_L_931proc, $Serial$state);
+    test_sshQ_L_931proc (*__deserialize__) (test_sshQ_L_931proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_931proc);
+    B_str (*__str__) (test_sshQ_L_931proc);
+    B_str (*__repr__) (test_sshQ_L_931proc);
+    $R (*__call__) (test_sshQ_L_931proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_931proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_829proc {
-    struct test_sshQ_L_829procG_class *$class;
+struct test_sshQ_L_931proc {
+    struct test_sshQ_L_931procG_class *$class;
 };
-struct test_sshQ_L_830procG_class {
+struct test_sshQ_L_932procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_830proc);
-    void (*__serialize__) (test_sshQ_L_830proc, $Serial$state);
-    test_sshQ_L_830proc (*__deserialize__) (test_sshQ_L_830proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_830proc);
-    B_str (*__str__) (test_sshQ_L_830proc);
-    B_str (*__repr__) (test_sshQ_L_830proc);
-    $R (*__call__) (test_sshQ_L_830proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_830proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_932proc);
+    void (*__serialize__) (test_sshQ_L_932proc, $Serial$state);
+    test_sshQ_L_932proc (*__deserialize__) (test_sshQ_L_932proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_932proc);
+    B_str (*__str__) (test_sshQ_L_932proc);
+    B_str (*__repr__) (test_sshQ_L_932proc);
+    $R (*__call__) (test_sshQ_L_932proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_932proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_830proc {
-    struct test_sshQ_L_830procG_class *$class;
+struct test_sshQ_L_932proc {
+    struct test_sshQ_L_932procG_class *$class;
 };
-struct test_sshQ_L_831procG_class {
+struct test_sshQ_L_933procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_831proc);
-    void (*__serialize__) (test_sshQ_L_831proc, $Serial$state);
-    test_sshQ_L_831proc (*__deserialize__) (test_sshQ_L_831proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_831proc);
-    B_str (*__str__) (test_sshQ_L_831proc);
-    B_str (*__repr__) (test_sshQ_L_831proc);
-    $R (*__call__) (test_sshQ_L_831proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_831proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_933proc);
+    void (*__serialize__) (test_sshQ_L_933proc, $Serial$state);
+    test_sshQ_L_933proc (*__deserialize__) (test_sshQ_L_933proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_933proc);
+    B_str (*__str__) (test_sshQ_L_933proc);
+    B_str (*__repr__) (test_sshQ_L_933proc);
+    $R (*__call__) (test_sshQ_L_933proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_933proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_831proc {
-    struct test_sshQ_L_831procG_class *$class;
+struct test_sshQ_L_933proc {
+    struct test_sshQ_L_933procG_class *$class;
 };
-struct test_sshQ_L_832procG_class {
+struct test_sshQ_L_934procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_832proc);
-    void (*__serialize__) (test_sshQ_L_832proc, $Serial$state);
-    test_sshQ_L_832proc (*__deserialize__) (test_sshQ_L_832proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_832proc);
-    B_str (*__str__) (test_sshQ_L_832proc);
-    B_str (*__repr__) (test_sshQ_L_832proc);
-    $R (*__call__) (test_sshQ_L_832proc, $Cont, testingQ_EnvT);
-    $R (*__exec__) (test_sshQ_L_832proc, $Cont, testingQ_EnvT);
+    B_NoneType (*__init__) (test_sshQ_L_934proc);
+    void (*__serialize__) (test_sshQ_L_934proc, $Serial$state);
+    test_sshQ_L_934proc (*__deserialize__) (test_sshQ_L_934proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_934proc);
+    B_str (*__str__) (test_sshQ_L_934proc);
+    B_str (*__repr__) (test_sshQ_L_934proc);
+    $R (*__call__) (test_sshQ_L_934proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_934proc, $Cont, testingQ_EnvT);
 };
-struct test_sshQ_L_832proc {
-    struct test_sshQ_L_832procG_class *$class;
+struct test_sshQ_L_934proc {
+    struct test_sshQ_L_934procG_class *$class;
 };
-extern struct test_sshQ_L_824procG_class test_sshQ_L_824procG_methods;
-test_sshQ_L_824proc test_sshQ_L_824procG_new();
-extern struct test_sshQ_L_825procG_class test_sshQ_L_825procG_methods;
-test_sshQ_L_825proc test_sshQ_L_825procG_new();
-extern struct test_sshQ_L_826procG_class test_sshQ_L_826procG_methods;
-test_sshQ_L_826proc test_sshQ_L_826procG_new();
-extern struct test_sshQ_L_827procG_class test_sshQ_L_827procG_methods;
-test_sshQ_L_827proc test_sshQ_L_827procG_new();
-extern struct test_sshQ_L_828procG_class test_sshQ_L_828procG_methods;
-test_sshQ_L_828proc test_sshQ_L_828procG_new();
-extern struct test_sshQ_L_829procG_class test_sshQ_L_829procG_methods;
-test_sshQ_L_829proc test_sshQ_L_829procG_new();
-extern struct test_sshQ_L_830procG_class test_sshQ_L_830procG_methods;
-test_sshQ_L_830proc test_sshQ_L_830procG_new();
-extern struct test_sshQ_L_831procG_class test_sshQ_L_831procG_methods;
-test_sshQ_L_831proc test_sshQ_L_831procG_new();
-extern struct test_sshQ_L_832procG_class test_sshQ_L_832procG_methods;
-test_sshQ_L_832proc test_sshQ_L_832procG_new();
-struct test_sshQ_L_834Cont;
-struct test_sshQ_L_835proc;
+struct test_sshQ_L_935procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_935proc);
+    void (*__serialize__) (test_sshQ_L_935proc, $Serial$state);
+    test_sshQ_L_935proc (*__deserialize__) (test_sshQ_L_935proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_935proc);
+    B_str (*__str__) (test_sshQ_L_935proc);
+    B_str (*__repr__) (test_sshQ_L_935proc);
+    $R (*__call__) (test_sshQ_L_935proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_935proc, $Cont, testingQ_EnvT);
+};
+struct test_sshQ_L_935proc {
+    struct test_sshQ_L_935procG_class *$class;
+};
+struct test_sshQ_L_936procG_class {
+    char *$GCINFO;
+    int $class_id;
+    $SuperG_class $superclass;
+    B_NoneType (*__init__) (test_sshQ_L_936proc);
+    void (*__serialize__) (test_sshQ_L_936proc, $Serial$state);
+    test_sshQ_L_936proc (*__deserialize__) (test_sshQ_L_936proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_936proc);
+    B_str (*__str__) (test_sshQ_L_936proc);
+    B_str (*__repr__) (test_sshQ_L_936proc);
+    $R (*__call__) (test_sshQ_L_936proc, $Cont, testingQ_EnvT);
+    $R (*__exec__) (test_sshQ_L_936proc, $Cont, testingQ_EnvT);
+};
+struct test_sshQ_L_936proc {
+    struct test_sshQ_L_936procG_class *$class;
+};
+extern struct test_sshQ_L_927procG_class test_sshQ_L_927procG_methods;
+test_sshQ_L_927proc test_sshQ_L_927procG_new();
+extern struct test_sshQ_L_928procG_class test_sshQ_L_928procG_methods;
+test_sshQ_L_928proc test_sshQ_L_928procG_new();
+extern struct test_sshQ_L_929procG_class test_sshQ_L_929procG_methods;
+test_sshQ_L_929proc test_sshQ_L_929procG_new();
+extern struct test_sshQ_L_930procG_class test_sshQ_L_930procG_methods;
+test_sshQ_L_930proc test_sshQ_L_930procG_new();
+extern struct test_sshQ_L_931procG_class test_sshQ_L_931procG_methods;
+test_sshQ_L_931proc test_sshQ_L_931procG_new();
+extern struct test_sshQ_L_932procG_class test_sshQ_L_932procG_methods;
+test_sshQ_L_932proc test_sshQ_L_932procG_new();
+extern struct test_sshQ_L_933procG_class test_sshQ_L_933procG_methods;
+test_sshQ_L_933proc test_sshQ_L_933procG_new();
+extern struct test_sshQ_L_934procG_class test_sshQ_L_934procG_methods;
+test_sshQ_L_934proc test_sshQ_L_934procG_new();
+extern struct test_sshQ_L_935procG_class test_sshQ_L_935procG_methods;
+test_sshQ_L_935proc test_sshQ_L_935procG_new();
+extern struct test_sshQ_L_936procG_class test_sshQ_L_936procG_methods;
+test_sshQ_L_936proc test_sshQ_L_936procG_new();
+struct test_sshQ_L_938Cont;
+struct test_sshQ_L_939proc;
 struct test_sshQ_test_main;
-typedef struct test_sshQ_L_834Cont *test_sshQ_L_834Cont;
-typedef struct test_sshQ_L_835proc *test_sshQ_L_835proc;
+typedef struct test_sshQ_L_938Cont *test_sshQ_L_938Cont;
+typedef struct test_sshQ_L_939proc *test_sshQ_L_939proc;
 typedef struct test_sshQ_test_main *test_sshQ_test_main;
-$R test_sshQ_L_833C_417cont ($Cont, test_sshQ_test_main, B_NoneType);
-struct test_sshQ_L_834ContG_class {
+$R test_sshQ_L_937C_464cont ($Cont, test_sshQ_test_main, B_NoneType);
+struct test_sshQ_L_938ContG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_834Cont, $Cont, test_sshQ_test_main);
-    void (*__serialize__) (test_sshQ_L_834Cont, $Serial$state);
-    test_sshQ_L_834Cont (*__deserialize__) (test_sshQ_L_834Cont, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_834Cont);
-    B_str (*__str__) (test_sshQ_L_834Cont);
-    B_str (*__repr__) (test_sshQ_L_834Cont);
-    $R (*__call__) (test_sshQ_L_834Cont, B_NoneType);
+    B_NoneType (*__init__) (test_sshQ_L_938Cont, $Cont, test_sshQ_test_main);
+    void (*__serialize__) (test_sshQ_L_938Cont, $Serial$state);
+    test_sshQ_L_938Cont (*__deserialize__) (test_sshQ_L_938Cont, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_938Cont);
+    B_str (*__str__) (test_sshQ_L_938Cont);
+    B_str (*__repr__) (test_sshQ_L_938Cont);
+    $R (*__call__) (test_sshQ_L_938Cont, B_NoneType);
 };
-struct test_sshQ_L_834Cont {
-    struct test_sshQ_L_834ContG_class *$class;
+struct test_sshQ_L_938Cont {
+    struct test_sshQ_L_938ContG_class *$class;
     $Cont C_cont;
     test_sshQ_test_main G_act;
 };
-struct test_sshQ_L_835procG_class {
+struct test_sshQ_L_939procG_class {
     char *$GCINFO;
     int $class_id;
     $SuperG_class $superclass;
-    B_NoneType (*__init__) (test_sshQ_L_835proc, test_sshQ_test_main, B_Env);
-    void (*__serialize__) (test_sshQ_L_835proc, $Serial$state);
-    test_sshQ_L_835proc (*__deserialize__) (test_sshQ_L_835proc, $Serial$state);
-    B_bool (*__bool__) (test_sshQ_L_835proc);
-    B_str (*__str__) (test_sshQ_L_835proc);
-    B_str (*__repr__) (test_sshQ_L_835proc);
-    $R (*__call__) (test_sshQ_L_835proc, $Cont);
-    $R (*__exec__) (test_sshQ_L_835proc, $Cont);
+    B_NoneType (*__init__) (test_sshQ_L_939proc, test_sshQ_test_main, B_Env);
+    void (*__serialize__) (test_sshQ_L_939proc, $Serial$state);
+    test_sshQ_L_939proc (*__deserialize__) (test_sshQ_L_939proc, $Serial$state);
+    B_bool (*__bool__) (test_sshQ_L_939proc);
+    B_str (*__str__) (test_sshQ_L_939proc);
+    B_str (*__repr__) (test_sshQ_L_939proc);
+    $R (*__call__) (test_sshQ_L_939proc, $Cont);
+    $R (*__exec__) (test_sshQ_L_939proc, $Cont);
 };
-struct test_sshQ_L_835proc {
-    struct test_sshQ_L_835procG_class *$class;
+struct test_sshQ_L_939proc {
+    struct test_sshQ_L_939procG_class *$class;
     test_sshQ_test_main G_act;
     B_Env env;
 };
@@ -12043,10 +13542,10 @@ struct test_sshQ_test_main {
     $long $globkey;
 };
 $R test_sshQ_test_mainG_newact ($Cont, B_Env);
-extern struct test_sshQ_L_834ContG_class test_sshQ_L_834ContG_methods;
-test_sshQ_L_834Cont test_sshQ_L_834ContG_new($Cont, test_sshQ_test_main);
-extern struct test_sshQ_L_835procG_class test_sshQ_L_835procG_methods;
-test_sshQ_L_835proc test_sshQ_L_835procG_new(test_sshQ_test_main, B_Env);
+extern struct test_sshQ_L_938ContG_class test_sshQ_L_938ContG_methods;
+test_sshQ_L_938Cont test_sshQ_L_938ContG_new($Cont, test_sshQ_test_main);
+extern struct test_sshQ_L_939procG_class test_sshQ_L_939procG_methods;
+test_sshQ_L_939proc test_sshQ_L_939procG_new(test_sshQ_test_main, B_Env);
 extern struct test_sshQ_test_mainG_class test_sshQ_test_mainG_methods;
 $R test_sshQ_test_mainG_new($Cont, B_Env);
 extern B_str test_sshQ_TEST_USER;
