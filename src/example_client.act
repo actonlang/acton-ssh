@@ -1,0 +1,85 @@
+"""Example SSH client: connect, run a command, print its output.
+
+Build:  acton build
+Run:    ./out/bin/example_client HOST USER CMD [PORT] [PASSWORD]
+
+  - With PASSWORD, authenticates by password; otherwise by the private key
+    in KEYFILE (default ~/.ssh/id_ed25519).
+  - Host key checking here is permissive (accepts any key) so the example
+    works against an unknown server. A real client must verify the host key
+    against known_hosts or a pinned fingerprint.
+
+Examples:
+  ./out/bin/example_client 127.0.0.1 admin "uname -a" 2222 secret
+  ./out/bin/example_client example.com alice uptime
+"""
+
+import net
+import ssh
+
+
+actor main(env):
+    if len(env.argv) < 4:
+        print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
+        env.exit(2)
+
+    host = env.argv[1]
+    user = env.argv[2]
+    cmd = env.argv[3]
+    port = u16(22)
+    if len(env.argv) > 4:
+        port = u16(int(env.argv[4]))
+
+    var password: ?str = None
+    var key_file: ?str = None
+    if len(env.argv) > 5:
+        password = env.argv[5]
+    else:
+        home = env.getenv("HOME")
+        if home is not None:
+            key_file = home + "/.ssh/id_ed25519"
+
+    var client: ?ssh.Client = None
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure. In production, compare
+        # info.fingerprint against a known value before accepting.
+        print("host key [" + state + "]", info.key_type, info.fingerprint)
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            print("connect error:", err)
+            env.exit(1)
+            return
+        ssh.RunCommand(c, cmd, on_exit, timeout=30.0)
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+        if error is not None:
+            print("run error:", error)
+            if client is not None:
+                client.close()
+            env.exit(1)
+            return
+        if len(out) > 0:
+            print(out.decode(), end="")
+        if len(err_out) > 0:
+            print(err_out.decode(), end="")
+        if client is not None:
+            client.close()
+        env.exit(code)
+
+    client = ssh.Client(
+        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+        host,
+        user,
+        on_connect,
+        on_close,
+        on_hostkey,
+        password=password,
+        private_key_file=key_file,
+        port=port,
+    )
