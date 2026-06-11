@@ -3,7 +3,7 @@ fingerprint = 0xee8dcc44255e0a2e
 zig_dependencies = {
   "libssh": (
         path="deps/libssh",
-        options={"WITH_SERVER": "true"},
+        options={"WITH_SERVER": "true", "acton_sysdeps": "{{sysdeps}}"},
         artifacts=["ssh"]
     )
 }

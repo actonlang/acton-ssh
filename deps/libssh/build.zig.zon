@@ -12,13 +12,9 @@
             .hash = "N-V-__8AAOhETABotmEwFsdxaIh9QrKb55e9pRhi4IOlEugd",
             .lazy = false,
         },
-        // Acton's mbedtls (the crypto backend). Same package the runtime/base
-        // links, so Zig deduplicates it at the final link. The path assumes the
-        // standard sibling layout: this project and the Acton toolchain checkout
-        // both live directly under the same parent directory.
-        .libmbedtls = .{
-            .path = "../../../acton-tls/dist/deps/mbedtls",
-        },
+        // No mbedtls dependency here: libssh compiles against the toolchain's
+        // mbedtls headers (found via the -Dacton_sysdeps build option) and the
+        // mbedtls objects are linked through Acton's base at the final link.
     },
     .paths = .{
         "build.zig",

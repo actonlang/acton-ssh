@@ -6,8 +6,12 @@
 // actonlang/libssh) as close to upstream as possible — only a tiny set of C
 // source patches, no Acton-specific build files.
 //
-// libssh's crypto backend is mbedtls; we link Acton's mbedtls (the same
-// package the runtime/base links, so Zig deduplicates it at the final link).
+// libssh's crypto backend is mbedtls. We compile against Acton's mbedtls
+// headers — located via the -Dacton_sysdeps build option that the Acton builder
+// injects, pointing at the toolchain's <dist>/deps — but we do NOT link mbedtls
+// here. The mbedtls objects are provided by Acton's base library at the final
+// executable link; linking them here too would only duplicate symbols. Using
+// the toolchain's own headers guarantees the ABI matches the mbedtls base links.
 
 const builtin = @import("builtin");
 const std = @import("std");
@@ -18,6 +22,11 @@ pub fn build(b: *std.Build) void {
     const t = target.result;
     const with_server = b.option(bool, "WITH_SERVER", "Enable server-side APIs") orelse false;
     const has_pthread = (t.os.tag != .windows);
+    // Absolute path to the Acton toolchain's bundled deps (<dist>/deps), injected
+    // by the Acton builder via {{sysdeps}} substitution. Used to find the mbedtls
+    // headers libssh compiles against (must match the mbedtls that base links).
+    // Empty only for a standalone `zig build` that does not use the crypto backend.
+    const acton_sysdeps = b.option([]const u8, "acton_sysdeps", "Absolute path to the Acton toolchain deps dir (<dist>/deps)") orelse "";
 
     const upstream = b.dependency("libssh_upstream", .{});
 
@@ -156,11 +165,6 @@ pub fn build(b: *std.Build) void {
     lib.root_module.addConfigHeader(config_header);
     lib.root_module.addConfigHeader(version_header);
 
-    const dep_libmbedtls = b.dependency("libmbedtls", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     var source_files = std.ArrayList([]const u8).empty;
     defer source_files.deinit(b.allocator);
     var flags = std.ArrayList([]const u8).empty;
@@ -265,9 +269,12 @@ pub fn build(b: *std.Build) void {
         .flags = flags.items,
     });
     lib.root_module.addIncludePath(upstream.path("include"));
-    lib.root_module.linkLibrary(dep_libmbedtls.artifact("mbedcrypto"));
-    lib.root_module.linkLibrary(dep_libmbedtls.artifact("mbedtls"));
-    lib.root_module.linkLibrary(dep_libmbedtls.artifact("mbedx509"));
+    // mbedtls headers only — the objects are linked via Acton's base at the final
+    // executable link (see top-of-file note). acton_sysdeps points at the
+    // toolchain's <dist>/deps; mbedtls headers live under mbedtls/include.
+    if (acton_sysdeps.len > 0) {
+        lib.root_module.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ acton_sysdeps, "mbedtls", "include" }) });
+    }
     lib.root_module.link_libc = true;
 
     lib.installHeadersDirectory(upstream.path("include/libssh"), "libssh", .{});
