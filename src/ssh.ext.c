@@ -112,7 +112,6 @@
 
 uv_loop_t *get_uv_loop(void);
 
-#define SSH_READ_BUFSIZE 4096
 #define SSH_IO_PUMP_LIMIT 128
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
 #define SSH_KEYEX_TIMEOUT_SEC 2.0
@@ -1235,44 +1234,6 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     }
 }
 
-static int channel_read_stream(ssh_client_ctx *c, ssh_channel_ctx *ch, int is_stderr) {
-    char buf[SSH_READ_BUFSIZE];
-    int read_any = 0;
-    for (;;) {
-        int n = ssh_channel_read_buffered(ch->channel, buf, sizeof(buf), is_stderr);
-        if (n > 0) {
-            read_any = 1;
-            B_bytes out = to$bytesD_len(buf, n);
-            sshQ_Channel actor = channel_actor_ref(ch);
-            if (is_stderr) {
-                if (ch->on_stderr) {
-                    $action2 f = ($action2)ch->on_stderr;
-                    f->$class->__asyn__(f, actor, out);
-                }
-            } else {
-                if (ch->on_stdout) {
-                    $action2 f = ($action2)ch->on_stdout;
-                    f->$class->__asyn__(f, actor, out);
-                }
-            }
-            continue;
-        }
-        if (n == 0 || n == SSH_AGAIN) {
-            break;
-        }
-        if (n == SSH_EOF) {
-            break;
-        }
-        if (n == SSH_ERROR) {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "SSH channel read error: %s", ssh_get_error(c->session));
-            channel_fail(c, ch, errmsg);
-            break;
-        }
-    }
-    return read_any;
-}
-
 static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR)
         return;
@@ -1423,16 +1384,6 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
                 snprintf(errmsg, sizeof(errmsg), "Failed to close channel: %s", ssh_get_error(c->session));
                 channel_fail(c, ch, errmsg);
                 return;
-            }
-        }
-
-        if (ch->callbacks == NULL) {
-            for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
-                int did = 0;
-                did |= channel_read_stream(c, ch, 0);
-                did |= channel_read_stream(c, ch, 1);
-                if (!did)
-                    break;
             }
         }
     }
@@ -2714,44 +2665,6 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
     }
 }
 
-static int server_channel_read_stream(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch, int is_stderr) {
-    char buf[SSH_READ_BUFSIZE];
-    int read_any = 0;
-    for (;;) {
-        int n = ssh_channel_read_buffered(ch->channel, buf, sizeof(buf), is_stderr);
-        if (n > 0) {
-            read_any = 1;
-            B_bytes out = to$bytesD_len(buf, n);
-            sshQ_ServerChannel actor = server_channel_actor_ref(ch);
-            if (is_stderr) {
-                if (ch->on_stderr) {
-                    $action2 f = ($action2)ch->on_stderr;
-                    f->$class->__asyn__(f, actor, out);
-                }
-            } else {
-                if (ch->on_data) {
-                    $action2 f = ($action2)ch->on_data;
-                    f->$class->__asyn__(f, actor, out);
-                }
-            }
-            continue;
-        }
-        if (n == 0 || n == SSH_AGAIN) {
-            break;
-        }
-        if (n == SSH_EOF) {
-            break;
-        }
-        if (n == SSH_ERROR) {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "SSH server channel read error: %s", ssh_get_error(s->session));
-            server_channel_fail(s, ch, errmsg);
-            break;
-        }
-    }
-    return read_any;
-}
-
 static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
     if (ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR)
         return;
@@ -2818,16 +2731,6 @@ static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_c
             snprintf(errmsg, sizeof(errmsg), "SSH server channel close failed: %s", ssh_get_error(s->session));
             server_channel_fail(s, ch, errmsg);
             return;
-        }
-    }
-
-    if (ch->callbacks == NULL) {
-        for (int i = 0; i < SSH_IO_PUMP_LIMIT; i++) {
-            int did = 0;
-            did |= server_channel_read_stream(s, ch, 0);
-            did |= server_channel_read_stream(s, ch, 1);
-            if (!did)
-                break;
         }
     }
 
