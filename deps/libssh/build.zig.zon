@@ -1,0 +1,27 @@
+.{
+    .name = .libssh,
+    .version = "0.11.0",
+    .fingerprint = 0xda35516053c953ab,
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{
+        // libssh as a pure-source dependency: the actonlang/libssh "acton"
+        // branch carries no build.zig (only a minimal set of source patches);
+        // this wrapper owns the build configuration. Pinned by commit.
+        .libssh_upstream = .{
+            .url = "https://github.com/actonlang/libssh/archive/71c9761c41cd51f55cf52dd0eb2f883b39033ce0.tar.gz",
+            .hash = "N-V-__8AANhNTADsc47tNHtpkhhSYozf9wEXqfxBA_ipzy_2",
+            .lazy = false,
+        },
+        // Acton's mbedtls (the crypto backend). Same package the runtime/base
+        // links, so Zig deduplicates it at the final link. The path assumes the
+        // standard sibling layout: this project and the Acton toolchain checkout
+        // both live directly under the same parent directory.
+        .libmbedtls = .{
+            .path = "../../../acton-tls/dist/deps/mbedtls",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+    },
+}
