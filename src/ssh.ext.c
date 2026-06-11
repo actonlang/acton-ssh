@@ -1758,14 +1758,23 @@ static int client_needs_write(ssh_client_ctx *c) {
         return 0;
     ssh_channel_ctx *ch = c->channels;
     while (ch != NULL) {
-        if (ch->pending_req != CHAN_REQ_NONE && !ch->req_submitted)
-            return 1;
-        if (ch->write_head != NULL)
-            return 1;
-        if (ch->send_eof && !ch->eof_sent)
-            return 1;
-        if (ch->close_requested && !ch->close_sent)
-            return 1;
+        if (ch->pending_req != CHAN_REQ_NONE) {
+            if (!ch->req_submitted)
+                return 1;
+            /* Request submitted, awaiting the peer's reply (a readable
+             * event). channel_drive early-returns until it arrives, so
+             * queued writes/EOF/close cannot be acted on yet - counting
+             * them here would arm UV_WRITABLE on an always-writable
+             * socket and hot-spin, starving the very actor that would
+             * reply in loopback setups. */
+        } else {
+            if (ch->write_head != NULL)
+                return 1;
+            if (ch->send_eof && !ch->eof_sent)
+                return 1;
+            if (ch->close_requested && !ch->close_sent)
+                return 1;
+        }
         ch = ch->next;
     }
     return 0;
