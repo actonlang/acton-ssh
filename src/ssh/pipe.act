@@ -1,0 +1,462 @@
+"""SSH transport as byte-stream Pipes.
+
+Adapters exposing SSH channels through the generic `pipe.Pipe` interface, so
+protocols that run over a byte stream (NETCONF, etc.) can use SSH as a
+transport without depending on the ssh module API directly.
+
+Client side: SshPipe connects to an SSH server, authenticates, opens a session
+channel and requests a subsystem (or executes a command); the channel's
+stdin/stdout is the pipe. The connection is established lazily when the first
+read callback is installed (mirroring the other Pipe implementations). The
+connected signal is read_cb(None, None); data is read_cb(None, data); errors
+(including channel EOF/close) are read_cb(err, None).
+
+Server side: SshPipeListener accepts SSH sessions, authenticates them via a
+caller-supplied check function, and turns each accepted subsystem channel into
+an SshListenPipe delivered through on_accept.
+"""
+
+import logging
+import net
+import ssh
+from pipe import Pipe
+
+# Host key checking policies for SshPipe.
+HOST_KEY_CHECK_NONE = "none"            # accept any host key
+HOST_KEY_CHECK_ACCEPT_NEW = "accept-new"  # accept unknown keys, reject changed
+HOST_KEY_CHECK_STRICT = "strict"        # reject any key not trusted via known_hosts
+
+
+class SshPipe(Pipe):
+    """SSH client channel as a Pipe.
+
+    Exactly one of subsystem/command must be given; it determines what is
+    requested on the session channel once the SSH connection is authenticated.
+    """
+    _endpoint: _SshClientPipeEndpoint
+
+    def __init__(self,
+                 connect_cap: net.TCPConnectCap,
+                 address: str,
+                 port: int,
+                 username: str,
+                 password: ?str=None,
+                 private_key_file: ?str=None,
+                 private_key_passphrase: ?str=None,
+                 subsystem: ?str=None,
+                 command: ?str=None,
+                 host_key_check: str=HOST_KEY_CHECK_ACCEPT_NEW,
+                 known_hosts: ?str=None,
+                 log_handler: ?logging.Handler=None):
+        if subsystem is None and command is None:
+            raise ValueError("SshPipe requires a subsystem or a command")
+        if subsystem is not None and command is not None:
+            raise ValueError("SshPipe takes either a subsystem or a command, not both")
+        self._endpoint = _SshClientPipeEndpoint(connect_cap, address, port,
+                                                username, password,
+                                                private_key_file,
+                                                private_key_passphrase,
+                                                subsystem, command,
+                                                host_key_check, known_hosts,
+                                                log_handler)
+
+    proc def write(self, data: bytes):
+        self._endpoint.write(data)
+
+    proc def read_cb(self, cb: action(?Exception, ?bytes) -> None):
+        self._endpoint.read_cb(cb)
+
+    proc def close(self, on_close: ?action() -> None):
+        self._endpoint.close(on_close)
+
+    proc def restart(self):
+        self._endpoint.restart()
+
+
+actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
+                             address: str,
+                             port: int,
+                             username: str,
+                             password: ?str,
+                             private_key_file: ?str,
+                             private_key_passphrase: ?str,
+                             subsystem: ?str,
+                             command: ?str,
+                             host_key_check: str,
+                             known_hosts: ?str,
+                             log_handler: ?logging.Handler):
+    _log = logging.Logger(log_handler)
+
+    def _noop_read_cb(error: ?Exception, data: ?bytes):
+        pass
+
+    var _read_cb: action(?Exception, ?bytes) -> None = _noop_read_cb
+    var _has_read_cb = False
+    var _connected_pending = False
+    var _pending_in: list[bytes] = []
+    var _pending_err: ?Exception = None
+    var _client: ?ssh.Client = None
+    var _channel: ?ssh.Channel = None
+    var _closing = False
+    var _failed = False
+
+    def _emit_pending():
+        if not _has_read_cb:
+            return
+        if _connected_pending:
+            _connected_pending = False
+            await async _read_cb(None, None)
+        while len(_pending_in) > 0:
+            data = _pending_in[0]
+            _pending_in = _pending_in[1:]
+            await async _read_cb(None, data)
+        err = _pending_err
+        if err is not None:
+            _pending_err = None
+            await async _read_cb(err, None)
+
+    def _fail(msg: str):
+        if _closing or _failed:
+            return
+        _failed = True
+        _pending_err = OSError(msg)
+        _emit_pending()
+
+    def _on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        if host_key_check == HOST_KEY_CHECK_NONE:
+            c.accept_hostkey()
+        elif host_key_check == HOST_KEY_CHECK_ACCEPT_NEW and state == "unknown":
+            c.accept_hostkey()
+        else:
+            _log.warning("Rejecting SSH host key", {"address": address, "state": state, "fingerprint": info.fingerprint})
+            c.reject_hostkey("host key not trusted ({state})")
+
+    def _on_ssh_connect(c: ssh.Client, err: ?str):
+        if _closing:
+            return
+        if err is not None:
+            _fail("SSH connection failed: {err}")
+            return
+        ssh.Channel(c, _on_ch_open, _on_ch_stdout, _on_ch_stderr, _on_ch_exit, _on_ch_close)
+
+    def _on_ssh_close(c: ssh.Client, reason: str):
+        _client = None
+        _channel = None
+        _fail("SSH session closed: {reason}")
+
+    def _on_ch_open(ch: ssh.Channel, err: ?str):
+        if _closing:
+            ch.close()
+            return
+        if err is not None:
+            _fail("SSH channel open failed: {err}")
+            return
+        _channel = ch
+        sub = subsystem
+        cmd = command
+        if sub is not None:
+            ch.request_subsystem(sub)
+        elif cmd is not None:
+            ch.request_exec(cmd)
+        _connected_pending = True
+        _emit_pending()
+
+    def _on_ch_stdout(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            if _has_read_cb and len(_pending_in) == 0 and _pending_err is None and not _connected_pending:
+                await async _read_cb(None, data)
+            else:
+                _pending_in.append(data)
+                _emit_pending()
+        else:
+            _fail("SSH channel EOF")
+
+    def _on_ch_stderr(ch: ssh.Channel, data: ?bytes):
+        if data is not None:
+            _log.debug("SSH channel stderr", {"data": data})
+
+    def _on_ch_exit(ch: ssh.Channel, status: int, signal: ?str):
+        _log.debug("SSH channel exit", {"status": status, "signal": signal})
+
+    def _on_ch_close(ch: ssh.Channel, reason: str):
+        _channel = None
+        _fail("SSH channel closed: {reason}")
+
+    def _ensure_connected():
+        if _client is not None:
+            return
+        _failed = False
+        _client = ssh.Client(connect_cap,
+                             host=address,
+                             username=username,
+                             on_connect=_on_ssh_connect,
+                             on_close=_on_ssh_close,
+                             on_hostkey=_on_hostkey,
+                             password=password,
+                             private_key_file=private_key_file,
+                             private_key_passphrase=private_key_passphrase,
+                             port=u16(port),
+                             known_hosts=known_hosts)
+
+    def write(data: bytes):
+        ch = _channel
+        if ch is not None:
+            ch.write(data)
+        else:
+            raise ValueError("Unable to write, SSH pipe is not connected")
+
+    def read_cb(cb: action(?Exception, ?bytes) -> None):
+        _read_cb = cb
+        _has_read_cb = True
+        _ensure_connected()
+        _emit_pending()
+
+    def close(on_close: ?action() -> None):
+        _closing = True
+        ch = _channel
+        if ch is not None:
+            ch.close()
+        _channel = None
+        c = _client
+        if c is not None:
+            c.close()
+        _client = None
+        if on_close is not None:
+            await async on_close()
+
+    def restart():
+        ch = _channel
+        if ch is not None:
+            ch.close()
+        _channel = None
+        c = _client
+        if c is not None:
+            c.close()
+        _client = None
+        _closing = False
+        _failed = False
+        _connected_pending = False
+        _pending_in = []
+        _pending_err = None
+        _ensure_connected()
+
+
+class SshListenPipe(Pipe):
+    """An accepted SSH server channel as a Pipe."""
+    _endpoint: _SshServerPipeEndpoint
+
+    def __init__(self, endpoint: _SshServerPipeEndpoint):
+        self._endpoint = endpoint
+
+    proc def write(self, data: bytes):
+        self._endpoint.write(data)
+
+    proc def read_cb(self, cb: action(?Exception, ?bytes) -> None):
+        self._endpoint.read_cb(cb)
+
+    proc def close(self, on_close: ?action() -> None):
+        self._endpoint.close(on_close)
+
+    proc def restart(self):
+        raise ValueError("Unable to restart, accepted SSH channel cannot reconnect")
+
+
+actor _SshServerPipeEndpoint(log_handler: ?logging.Handler):
+    _log = logging.Logger(log_handler)
+
+    def _noop_read_cb(error: ?Exception, data: ?bytes):
+        pass
+
+    var _read_cb: action(?Exception, ?bytes) -> None = _noop_read_cb
+    var _has_read_cb = False
+    var _connected_pending = False
+    var _pending_in: list[bytes] = []
+    var _pending_err: ?Exception = None
+    var _channel: ?ssh.ServerChannel = None
+    var _closing = False
+
+    def _emit_pending():
+        if not _has_read_cb:
+            return
+        if _connected_pending:
+            _connected_pending = False
+            await async _read_cb(None, None)
+        while len(_pending_in) > 0:
+            data = _pending_in[0]
+            _pending_in = _pending_in[1:]
+            await async _read_cb(None, data)
+        err = _pending_err
+        if err is not None:
+            _pending_err = None
+            await async _read_cb(err, None)
+
+    def attach(ch: ssh.ServerChannel):
+        _channel = ch
+
+    def mark_connected():
+        _connected_pending = True
+        _emit_pending()
+
+    def on_ssh_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            _pending_in.append(data)
+            _emit_pending()
+        elif not _closing:
+            _pending_err = OSError("SSH channel EOF")
+            _emit_pending()
+
+    def on_ssh_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def on_ssh_close(ch: ssh.ServerChannel, reason: str):
+        _channel = None
+        if not _closing:
+            _pending_err = OSError("SSH channel closed: {reason}")
+            _emit_pending()
+
+    def write(data: bytes):
+        ch = _channel
+        if ch is not None:
+            ch.write(data)
+        else:
+            raise ValueError("Unable to write, SSH channel is closed")
+
+    def read_cb(cb: action(?Exception, ?bytes) -> None):
+        _read_cb = cb
+        _has_read_cb = True
+        _emit_pending()
+
+    def close(on_close: ?action() -> None):
+        _closing = True
+        ch = _channel
+        if ch is not None:
+            ch.close()
+        _channel = None
+        if on_close is not None:
+            await async on_close()
+
+
+actor SshPipeListener(listen_cap: net.TCPListenCap,
+                      address: str,
+                      port: int,
+                      on_listen: action(SshPipeListener, ?Exception) -> None,
+                      on_accept: action(SshPipeListener, SshListenPipe) -> None,
+                      auth_check: proc(str, ?str, ?bytes) -> bool,
+                      subsystem: ?str=None,
+                      host_key_path: ?str=None,
+                      host_key_type: str="ed25519",
+                      log_handler: ?logging.Handler=None):
+    """Accept SSH connections and deliver subsystem channels as Pipes.
+
+    auth_check(user, password, pubkey) decides authentication: password holds
+    the client's password for "password" attempts, pubkey holds the client's
+    public key as an authorized_keys line for (signature-verified) "publickey"
+    attempts. It must be a side-effect free function.
+
+    If subsystem is given, only that subsystem is accepted on incoming
+    channels; otherwise any subsystem request is accepted. Each accepted
+    channel is wrapped in an SshListenPipe and passed to on_accept; the
+    connected signal is emitted on the pipe once the subsystem request is
+    granted.
+    """
+    _log = logging.Logger(log_handler)
+
+    var server: ?ssh.Server = None
+    var _endpoints: list[(channel: ssh.ServerChannel, endpoint: _SshServerPipeEndpoint)] = []
+
+    def _on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            on_listen(self, OSError(err))
+        else:
+            on_listen(self, None)
+
+    def _on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def _on_session(sess: ssh.ServerSession):
+        pass
+
+    def _on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if auth_check(req.user, req.password, req.pubkey):
+            sess.accept_auth()
+        else:
+            sess.reject_auth("authentication failed")
+
+    def _endpoint_for(ch: ssh.ServerChannel) -> ?_SshServerPipeEndpoint:
+        for item in _endpoints:
+            if item.channel is ch:
+                return item.endpoint
+        return None
+
+    def _forget_endpoint(ch: ssh.ServerChannel):
+        remaining: list[(channel: ssh.ServerChannel, endpoint: _SshServerPipeEndpoint)] = []
+        for item in _endpoints:
+            if not (item.channel is ch):
+                remaining.append(item)
+        _endpoints = remaining
+
+    def _on_ch_data(ch: ssh.ServerChannel, data: ?bytes):
+        ep = _endpoint_for(ch)
+        if ep is not None:
+            ep.on_ssh_data(ch, data)
+
+    def _on_ch_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def _on_ch_close(ch: ssh.ServerChannel, reason: str):
+        ep = _endpoint_for(ch)
+        if ep is not None:
+            ep.on_ssh_close(ch, reason)
+            _forget_endpoint(ch)
+
+    def _on_channel_open(sess: ssh.ServerSession):
+        ep = _SshServerPipeEndpoint(log_handler)
+        ch = ssh.ServerChannel(sess, _on_ch_data, _on_ch_stderr, _on_ch_close)
+        _endpoints.append((channel=ch, endpoint=ep))
+        ep.attach(ch)
+        sess.accept_channel(ch)
+
+    def _on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        sub = subsystem
+        if sub is not None and name != sub:
+            ch.reject_request("unsupported subsystem: {name}")
+            return
+        ep = _endpoint_for(ch)
+        if ep is not None:
+            ch.accept_request()
+            ep.mark_connected()
+            await async on_accept(self, SshListenPipe(ep))
+        else:
+            ch.reject_request("internal error: unknown channel")
+
+    def _on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec not supported")
+
+    def _on_session_close(sess: ssh.ServerSession, reason: str):
+        pass
+
+    def bound_port() -> u16:
+        s = server
+        if s is not None:
+            return s.bound_port()
+        raise ValueError("SSH pipe listener is not listening")
+
+    def close():
+        s = server
+        if s is not None:
+            s.close()
+        server = None
+
+    server = ssh.Server(listen_cap,
+                        host=address,
+                        port=u16(port),
+                        on_listen=_on_listen,
+                        on_close=_on_server_close,
+                        on_session=_on_session,
+                        on_auth=_on_auth,
+                        on_channel_open=_on_channel_open,
+                        on_exec=_on_exec,
+                        on_subsystem=_on_subsystem,
+                        on_session_close=_on_session_close,
+                        host_key_path=host_key_path,
+                        host_key_type=host_key_type)

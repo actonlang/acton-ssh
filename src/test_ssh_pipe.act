@@ -1,0 +1,340 @@
+"""Tests for ssh.pipe: SSH channels as byte-stream Pipes, loopback."""
+
+import logging
+import net
+import testing
+
+import ssh.pipe as sshpipe
+
+PIPE_USER = "pipeuser"
+PIPE_PASS = "pipepass"
+
+
+def _auth_pipeuser(user: str, password: ?str, pubkey: ?bytes) -> bool:
+    return user == PIPE_USER and password == PIPE_PASS
+
+
+actor PipeEchoTester(t: testing.EnvT):
+    """SshPipe <-> SshPipeListener loopback: small and 64KiB echo integrity."""
+    log = logging.Logger(t.log_handler)
+    PING = b"ping-over-ssh-pipe"
+    var payload = b""
+    var done = False
+    var phase = 0
+    var client_buf = b""
+    var listener: ?sshpipe.SshPipeListener = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var server_pipe: ?sshpipe.SshListenPipe = None
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError(msg))
+
+    def finish_ok():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.success()
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        sp = server_pipe
+        if sp is not None:
+            sp.close(None)
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_timeout():
+        finish_error("timeout waiting for SSH pipe echo (phase {phase})")
+
+    def _server_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            finish_error("server pipe error: {err}")
+            return
+        if data is not None:
+            sp = server_pipe
+            if sp is not None:
+                sp.write(data)
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        server_pipe = p
+        p.read_cb(_server_read)
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            finish_error("client pipe error: {err}")
+            return
+        if data is None:
+            # connected: start phase 1
+            phase = 1
+            cp = client_pipe
+            if cp is not None:
+                cp.write(PING)
+            return
+        if data is not None:
+            client_buf += data
+        if phase == 1 and client_buf == PING:
+            phase = 2
+            client_buf = b""
+            chunk = b"0123456789abcdef" * 64  # 1 KiB
+            for i in range(64):
+                payload += chunk
+            cp = client_pipe
+            if cp is not None:
+                cp.write(payload)
+        elif phase == 2 and len(client_buf) >= len(payload):
+            if client_buf == payload:
+                log.info("SSH pipe echo completed", {"bytes": len(payload)})
+                finish_ok()
+            else:
+                finish_error("payload corrupted through SSH pipe")
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            finish_error("listen error: {err}")
+            return
+        port = await async l.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_auth_pipeuser,
+        subsystem="echo",
+        log_handler=t.log_handler)
+    after 20.0: on_timeout()
+
+
+actor PipeAuthRejectTester(t: testing.EnvT):
+    """Wrong password is rejected: client pipe reports an error, never connects."""
+    var done = False
+    var connected = False
+    var listener: ?sshpipe.SshPipeListener = None
+    var client_pipe: ?sshpipe.SshPipe = None
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_timeout():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError("timeout waiting for SSH pipe auth reject"))
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            done = True
+            _teardown()
+            if connected:
+                t.failure(ValueError("connected before auth error"))
+            else:
+                t.success()
+        elif data is None:
+            connected = True
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        pass
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            if not done:
+                done = True
+                t.failure(ValueError("listen error: {err}"))
+            return
+        port = await async l.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password="wrong-password",
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_auth_pipeuser,
+        subsystem="echo",
+        log_handler=t.log_handler)
+    after 20.0: on_timeout()
+
+
+actor PipeSubsystemRejectTester(t: testing.EnvT):
+    """Requesting a subsystem the listener does not serve fails the pipe."""
+    var done = False
+    var listener: ?sshpipe.SshPipeListener = None
+    var client_pipe: ?sshpipe.SshPipe = None
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_timeout():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError("timeout waiting for SSH pipe subsystem reject"))
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            # the subsystem request was rejected server-side; the channel fails
+            done = True
+            _teardown()
+            t.success()
+        elif data is not None:
+            done = True
+            _teardown()
+            t.failure(ValueError("unexpected data on rejected subsystem"))
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        if not done:
+            done = True
+            _teardown()
+            t.failure(ValueError("rejected subsystem must not be accepted"))
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            if not done:
+                done = True
+                t.failure(ValueError("listen error: {err}"))
+            return
+        port = await async l.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="not-echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_auth_pipeuser,
+        subsystem="echo",
+        log_handler=t.log_handler)
+    after 20.0: on_timeout()
+
+
+actor PipeStrictHostKeyTester(t: testing.EnvT):
+    """host_key_check=strict rejects an unknown host key: connect fails."""
+    var done = False
+    var listener: ?sshpipe.SshPipeListener = None
+    var client_pipe: ?sshpipe.SshPipe = None
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_timeout():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError("timeout waiting for strict host key reject"))
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            done = True
+            _teardown()
+            t.success()
+        elif data is None:
+            done = True
+            _teardown()
+            t.failure(ValueError("strict host key check must not connect to unknown host"))
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        pass
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            if not done:
+                done = True
+                t.failure(ValueError("listen error: {err}"))
+            return
+        port = await async l.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_STRICT,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_auth_pipeuser,
+        subsystem="echo",
+        log_handler=t.log_handler)
+    after 20.0: on_timeout()
