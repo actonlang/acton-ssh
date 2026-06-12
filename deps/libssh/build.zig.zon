@@ -1,6 +1,6 @@
 .{
     .name = .libssh,
-    .version = "0.11.0",
+    .version = "0.12.0",
     .fingerprint = 0xda35516053c953ab,
     .minimum_zig_version = "0.16.0",
     .dependencies = .{
@@ -9,8 +9,8 @@
         // event-loop hooks are added as extra sources (src/libssh_acton.c)
         // rather than patches, so no fork of libssh is needed.
         .libssh_upstream = .{
-            .url = "https://github.com/actonlang/libssh/archive/82c6ffcea9ab3ae2b61c082d6b6900899af8b655.tar.gz",
-            .hash = "N-V-__8AAOhETABotmEwFsdxaIh9QrKb55e9pRhi4IOlEugd",
+            .url = "https://git.libssh.org/projects/libssh.git/snapshot/libssh-0.12.0.tar.gz",
+            .hash = "N-V-__8AAJQ3YACvCqTRvZk5i48MCnXp0JPImYjVIjw_fEG2",
             .lazy = false,
         },
         // No mbedtls dependency here: libssh compiles against the toolchain's

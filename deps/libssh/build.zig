@@ -46,14 +46,18 @@ pub fn build(b: *std.Build) void {
         },
         .{
             .PACKAGE = "libssh",
-            .VERSION = "0.11.0",
+            .VERSION = "0.12.0",
             .PROJECT_NAME = "libssh",
-            .PROJECT_VERSION = "0.11.0",
+            .PROJECT_VERSION = "0.12.0",
             .SYSCONFDIR = "/etc",
             .BINARYDIR = "/usr/bin",
             .SOURCEDIR = ".",
+            .GLOBAL_CONF_DIR = "/etc/ssh",
+            .USR_GLOBAL_CONF_DIR = "/usr/etc/ssh",
             .GLOBAL_BIND_CONFIG = "/etc/ssh/libssh_server_config",
+            .USR_GLOBAL_BIND_CONFIG = "/usr/etc/ssh/libssh_server_config",
             .GLOBAL_CLIENT_CONFIG = "/etc/ssh/ssh_config",
+            .USR_GLOBAL_CLIENT_CONFIG = "/usr/etc/ssh/ssh_config",
             .HAVE_ARGP_H = true,
             .HAVE_ARPA_INET_H = true,
             .HAVE_IFADDRS_H = (t.os.tag != .windows),
@@ -116,6 +120,18 @@ pub fn build(b: *std.Build) void {
             .HAVE_LIBMBEDCRYPTO = true,
             .HAVE_PTHREAD = has_pthread,
             .HAVE_CMOCKA = false,
+            .HAVE_LIBFIDO2 = false,
+
+            // No native curve25519 in either backend config: use the bundled
+            // reference implementation (external/curve25519_ref.c +
+            // curve25519_fallback.c). Likewise ML-KEM uses the bundled
+            // libcrux code (mlkem_native.c) rather than a crypto backend.
+            .HAVE_MBEDTLS_CURVE25519 = false,
+            .HAVE_GCRYPT_CURVE25519 = false,
+            .HAVE_GCRYPT_MLKEM = false,
+            .HAVE_OPENSSL_MLKEM = false,
+            .HAVE_MLKEM1024 = false,
+            .HAVE_MEMSET_EXPLICIT = false,
 
             .HAVE_GCC_THREAD_LOCAL_STORAGE = false,
             .HAVE_MSC_THREAD_LOCAL_STORAGE = false,
@@ -135,6 +151,7 @@ pub fn build(b: *std.Build) void {
             .HAVE_GCC_BOUNDED_ATTRIBUTE = false,
             .WITH_GSSAPI = false,
             .WITH_ZLIB = false,
+            .WITH_FIDO2 = false,
             .WITH_SFTP = false,
             .WITH_SERVER = with_server,
             .WITH_EXEC = true,
@@ -158,7 +175,7 @@ pub fn build(b: *std.Build) void {
         .include_path = "libssh/libssh_version.h",
     }, .{
         .libssh_VERSION_MAJOR = 0,
-        .libssh_VERSION_MINOR = 11,
+        .libssh_VERSION_MINOR = 12,
         .libssh_VERSION_PATCH = 0,
     });
 
@@ -194,6 +211,8 @@ pub fn build(b: *std.Build) void {
         "src/ecdh.c",
         "src/error.c",
         "src/getpass.c",
+        "src/gzip.c",
+        "src/hybrid_mlkem.c",
         "src/init.c",
         "src/kdf.c",
         "src/kex.c",
@@ -204,6 +223,7 @@ pub fn build(b: *std.Build) void {
         "src/match.c",
         "src/messages.c",
         "src/misc.c",
+        "src/mlkem.c",
         "src/options.c",
         "src/packet.c",
         "src/packet_cb.c",
@@ -211,9 +231,11 @@ pub fn build(b: *std.Build) void {
         "src/pcap.c",
         "src/pki.c",
         "src/pki_container_openssh.c",
+        "src/pki_context.c",
         "src/poll.c",
         "src/session.c",
         "src/scp.c",
+        "src/sntrup761.c",
         "src/socket.c",
         "src/string.c",
         "src/threads.c",
@@ -259,8 +281,16 @@ pub fn build(b: *std.Build) void {
         "src/external/chacha.c",
         "src/external/poly1305.c",
         "src/chachapoly.c",
-        "src/external/curve25519_ref.c",
+        "src/external/sntrup761.c",
         "src/dh-gex.c",
+        // curve25519: no backend-native implementation is enabled
+        // (HAVE_MBEDTLS_CURVE25519=false), so use the bundled reference code.
+        "src/external/curve25519_ref.c",
+        "src/curve25519_fallback.c",
+        // ML-KEM: no backend support (HAVE_MLKEM1024=false), so use the
+        // bundled libcrux implementation.
+        "src/mlkem_native.c",
+        "src/external/libcrux_mlkem768_sha3.c",
     }) catch unreachable;
 
     lib.root_module.addCSourceFiles(.{
