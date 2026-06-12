@@ -18,8 +18,8 @@ an SshListenPipe delivered through on_accept.
 
 import logging
 import net
-import ssh
-from pipe import Pipe
+import lib as ssh
+from pipe.lib import Pipe
 
 # Host key checking policies for SshPipe.
 HOST_KEY_CHECK_NONE = "none"            # accept any host key

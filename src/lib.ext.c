@@ -159,7 +159,7 @@ typedef struct ssh_channel_ctx {
     ssh_channel channel;
     struct ssh_client_ctx *client;
     struct ssh_channel_callbacks_struct *callbacks;
-    sshQ_Channel actor;
+    sshQ_libQ_Channel actor;
     channel_state_t state;
     channel_request_t pending_req;
     int req_submitted;
@@ -195,7 +195,7 @@ typedef struct ssh_channel_ctx {
 } ssh_channel_ctx;
 
 typedef struct ssh_client_ctx {
-    sshQ_Client actor;
+    sshQ_libQ_Client actor;
     ssh_session session;
     uv_poll_t *poll;
     int poll_events;
@@ -271,7 +271,7 @@ typedef struct ssh_server_channel_ctx {
     ssh_channel channel;
     struct ssh_channel_callbacks_struct *callbacks;
     struct ssh_server_session_ctx *session;
-    sshQ_ServerChannel actor;
+    sshQ_libQ_ServerChannel actor;
     schan_state_t state;
     int send_eof;
     int close_requested;
@@ -297,7 +297,7 @@ typedef struct ssh_server_channel_ctx {
 
 typedef struct ssh_server_session_ctx {
     struct ssh_server_session_ctx *next;
-    sshQ_ServerSession actor;
+    sshQ_libQ_ServerSession actor;
     struct ssh_server_ctx *server;
     ssh_session session;
     uv_poll_t *poll;
@@ -332,7 +332,7 @@ typedef struct ssh_server_session_ctx {
 } ssh_server_session_ctx;
 
 typedef struct ssh_server_ctx {
-    sshQ_Server actor;
+    sshQ_libQ_Server actor;
     ssh_bind bind;
     ssh_key hostkey;
     uv_poll_t *poll;
@@ -390,23 +390,23 @@ static void server_poll_close_cb(uv_handle_t *handle);
 static void session_poll_close_cb(uv_handle_t *handle);
 static void session_timer_close_cb(uv_handle_t *handle);
 
-static sshQ_Client client_actor_ref(const ssh_client_ctx *c) {
+static sshQ_libQ_Client client_actor_ref(const ssh_client_ctx *c) {
     return c ? c->actor : NULL;
 }
 
-static sshQ_Channel channel_actor_ref(const ssh_channel_ctx *ch) {
+static sshQ_libQ_Channel channel_actor_ref(const ssh_channel_ctx *ch) {
     return ch ? ch->actor : NULL;
 }
 
-static sshQ_Server server_actor_ref(const ssh_server_ctx *s) {
+static sshQ_libQ_Server server_actor_ref(const ssh_server_ctx *s) {
     return s ? s->actor : NULL;
 }
 
-static sshQ_ServerSession session_actor_ref(const ssh_server_session_ctx *s) {
+static sshQ_libQ_ServerSession session_actor_ref(const ssh_server_session_ctx *s) {
     return s ? s->actor : NULL;
 }
 
-static sshQ_ServerChannel server_channel_actor_ref(const ssh_server_channel_ctx *ch) {
+static sshQ_libQ_ServerChannel server_channel_actor_ref(const ssh_server_channel_ctx *ch) {
     return ch ? ch->actor : NULL;
 }
 
@@ -519,7 +519,7 @@ static const char *hostkey_state_str(enum ssh_known_hosts_e state) {
     }
 }
 
-static ssh_client_ctx *client_from_actor(sshQ_Client self) {
+static ssh_client_ctx *client_from_actor(sshQ_libQ_Client self) {
     if (self == NULL)
         return NULL;
     if (self->_client == 0)
@@ -527,7 +527,7 @@ static ssh_client_ctx *client_from_actor(sshQ_Client self) {
     return (ssh_client_ctx *)(uintptr_t)self->_client;
 }
 
-static ssh_channel_ctx *channel_from_actor(sshQ_Channel channel) {
+static ssh_channel_ctx *channel_from_actor(sshQ_libQ_Channel channel) {
     if (channel == NULL)
         return NULL;
     if (channel->_channel_id == 0)
@@ -535,7 +535,7 @@ static ssh_channel_ctx *channel_from_actor(sshQ_Channel channel) {
     return (ssh_channel_ctx *)(uintptr_t)channel->_channel_id;
 }
 
-static ssh_server_ctx *server_from_actor(sshQ_Server self) {
+static ssh_server_ctx *server_from_actor(sshQ_libQ_Server self) {
     if (self == NULL)
         return NULL;
     if (self->_server == 0)
@@ -557,7 +557,7 @@ static ssh_server_session_ctx *session_from_pending_token(ssh_server_ctx *server
     return NULL;
 }
 
-static ssh_server_session_ctx *session_from_actor(sshQ_ServerSession self) {
+static ssh_server_session_ctx *session_from_actor(sshQ_libQ_ServerSession self) {
     if (self == NULL)
         return NULL;
     if (self->_session_id == 0)
@@ -565,7 +565,7 @@ static ssh_server_session_ctx *session_from_actor(sshQ_ServerSession self) {
     return (ssh_server_session_ctx *)(uintptr_t)self->_session_id;
 }
 
-static ssh_server_channel_ctx *server_channel_from_actor(sshQ_ServerChannel channel) {
+static ssh_server_channel_ctx *server_channel_from_actor(sshQ_libQ_ServerChannel channel) {
     if (channel == NULL)
         return NULL;
     if (channel->_channel_id == 0)
@@ -902,7 +902,7 @@ static void client_notify_connect(ssh_client_ctx *c, const char *err) {
         return;
     if (c->connect_notified)
         return;
-    sshQ_Client actor = client_actor_ref(c);
+    sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_connect) {
         $action2 f = ($action2)c->on_connect;
         f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
@@ -917,7 +917,7 @@ static void client_notify_close(ssh_client_ctx *c, const char *reason) {
         return;
     if (!c->connected_ok)
         return;
-    sshQ_Client actor = client_actor_ref(c);
+    sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_close) {
         $action2 f = ($action2)c->on_close;
         f->$class->__asyn__(f, actor, to$str((char *)reason));
@@ -939,7 +939,7 @@ static void client_fail(ssh_client_ctx *c, const char *msg) {
 static void channel_notify_open(ssh_channel_ctx *ch, const char *err) {
     if (ch->open_notified)
         return;
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_open) {
         $action2 f = ($action2)ch->on_open;
         f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
@@ -956,7 +956,7 @@ static void channel_notify_close(ssh_channel_ctx *ch, const char *reason) {
         ch->close_notified = 1;
         return;
     }
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
         f->$class->__asyn__(f, actor, to$str((char *)reason));
@@ -974,7 +974,7 @@ static void channel_notify_error(ssh_channel_ctx *ch, const char *msg) {
 static void channel_notify_exit(ssh_channel_ctx *ch, int exit_status, B_str signal) {
     if (ch->exit_sent)
         return;
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_exit) {
         $action3 f = ($action3)ch->on_exit;
         f->$class->__asyn__(f, actor, toB_int(exit_status), signal);
@@ -992,7 +992,7 @@ static int client_channel_data_cb(ssh_session session, ssh_channel channel, void
     if (len == 0)
         return 0;
     B_bytes out = to$bytesD_len((char *)data, (size_t)len);
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (is_stderr) {
         if (ch->on_stderr) {
             $action2 f = ($action2)ch->on_stderr;
@@ -1015,7 +1015,7 @@ static void client_channel_eof_cb(ssh_session session, ssh_channel channel, void
         return;
     if (ssh_debug_enabled)
         ssh_debug_log("client channel eof_cb: session=%p ch=%p", (void *)session, (void *)ch);
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (!ch->stdout_eof && ch->on_stdout) {
         $action2 f = ($action2)ch->on_stdout;
         f->$class->__asyn__(f, actor, B_None);
@@ -1078,7 +1078,7 @@ static void channel_notify_eof(ssh_channel_ctx *ch) {
     if (ch->channel == NULL)
         return;
     if (ssh_channel_is_eof(ch->channel)) {
-        sshQ_Channel actor = channel_actor_ref(ch);
+        sshQ_libQ_Channel actor = channel_actor_ref(ch);
         if (!ch->stdout_eof && ch->on_stdout) {
             $action2 f = ($action2)ch->on_stdout;
             f->$class->__asyn__(f, actor, B_None);
@@ -1097,7 +1097,7 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         ssh_debug_log("client channel finalize: session=%p ch=%p state=%d remote_close=%d", c ? (void *)c->session : NULL, (void *)ch, (int)ch->state, ch->remote_close_seen);
     int exit_status = -1;
     B_str exit_signal = B_None;
-    sshQ_Channel actor = channel_actor_ref(ch);
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
 
     while (ch->write_head != NULL) {
         write_chunk_t *chunk = ch->write_head;
@@ -1453,7 +1453,7 @@ static int client_get_hostkey_info(ssh_client_ctx *c, B_str *key_type_out, B_str
 static int client_check_hostkey(ssh_client_ctx *c) {
     enum ssh_known_hosts_e state = SSH_KNOWN_HOSTS_UNKNOWN;
     int use_known_hosts = 0;
-    sshQ_Client actor = client_actor_ref(c);
+    sshQ_libQ_Client actor = client_actor_ref(c);
 
     if (actor != NULL && actor->_known_hosts != NULL)
         use_known_hosts = 1;
@@ -1487,7 +1487,7 @@ static int client_check_hostkey(ssh_client_ctx *c) {
         fingerprint = to$str((char *)"");
     }
 
-    sshQ_HostKeyInfo info = sshQ_HostKeyInfoG_new(key_type, fingerprint);
+    sshQ_libQ_HostKeyInfo info = sshQ_libQ_HostKeyInfoG_new(key_type, fingerprint);
     $action3 f = ($action3)c->on_hostkey;
     f->$class->__asyn__(f, actor, to$str((char *)hostkey_state_str(state)), info);
     return 1;
@@ -1497,7 +1497,7 @@ static int client_check_hostkey(ssh_client_ctx *c) {
  * password. Returns SSH_AUTH_SUCCESS, SSH_AUTH_AGAIN (call again on next
  * event) or SSH_AUTH_ERROR with errmsg filled in. */
 static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen) {
-    sshQ_Client actor = client_actor_ref(c);
+    sshQ_libQ_Client actor = client_actor_ref(c);
     if (actor == NULL) {
         snprintf(errmsg, errlen, "SSH client actor gone during auth");
         return SSH_AUTH_ERROR;
@@ -1903,7 +1903,7 @@ static void client_finalize(ssh_client_ctx *c) {
 
     client_notify_close(c, c->close_reason ? c->close_reason : "closed");
     c->state = CLIENT_STATE_CLOSED;
-    sshQ_Client actor = client_actor_ref(c);
+    sshQ_libQ_Client actor = client_actor_ref(c);
     if (actor)
         actor->_client = 0;
     c->actor = NULL;
@@ -2009,7 +2009,7 @@ static void client_close_internal(ssh_client_ctx *c, const char *reason, int for
     client_drive(c);
 }
 
-void sshQ___ext_init__() {
+void sshQ_libQ___ext_init__() {
     const char *dbg_env = getenv("ACTON_SSH_DEBUG");
     const char *log_env = getenv("ACTON_SSH_LIBSSH_LOG");
     if (dbg_env != NULL && dbg_env[0] != '\0')
@@ -2030,23 +2030,23 @@ void sshQ___ext_init__() {
     }
 }
 
-B_str sshQ_version() {
+B_str sshQ_libQ_version() {
     return to$str((char *)ssh_version(0));
 }
 
-B_NoneType sshQ__debug(B_str msg) {
+B_NoneType sshQ_libQ__debug(B_str msg) {
     if (ssh_debug_enabled) {
         ssh_debug_log("%s", fromB_str(msg));
     }
     return B_None;
 }
 
-$R sshQ_ClientD__pin_affinityG_local(sshQ_Client self, $Cont c$cont) {
+$R sshQ_libQ_ClientD__pin_affinityG_local(sshQ_libQ_Client self, $Cont c$cont) {
     pin_actor_affinity();
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
+$R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     ssh_configure_libssh_logging();
     ssh_client_ctx *c = acton_calloc(1, sizeof(ssh_client_ctx));
     c->actor = self;
@@ -2164,7 +2164,7 @@ $R sshQ_ClientD__initG_local(sshQ_Client self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_accept_hostkeyG_local(sshQ_Client self, $Cont c$cont) {
+$R sshQ_libQ_ClientD_accept_hostkeyG_local(sshQ_libQ_Client self, $Cont c$cont) {
     ssh_client_ctx *c = client_from_actor(self);
     if (c == NULL)
         return $R_CONT(c$cont, B_None);
@@ -2178,7 +2178,7 @@ $R sshQ_ClientD_accept_hostkeyG_local(sshQ_Client self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_reject_hostkeyG_local(sshQ_Client self, $Cont c$cont, B_str reason) {
+$R sshQ_libQ_ClientD_reject_hostkeyG_local(sshQ_libQ_Client self, $Cont c$cont, B_str reason) {
     ssh_client_ctx *c = client_from_actor(self);
     if (c == NULL)
         return $R_CONT(c$cont, B_None);
@@ -2192,7 +2192,7 @@ $R sshQ_ClientD_reject_hostkeyG_local(sshQ_Client self, $Cont c$cont, B_str reas
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_closeG_local(sshQ_Client self, $Cont c$cont) {
+$R sshQ_libQ_ClientD_closeG_local(sshQ_libQ_Client self, $Cont c$cont) {
     ssh_client_ctx *c = client_from_actor(self);
     if (c == NULL)
         return $R_CONT(c$cont, B_None);
@@ -2200,14 +2200,14 @@ $R sshQ_ClientD_closeG_local(sshQ_Client self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD__cleanup_nativeG_local(sshQ_Client self, $Cont c$cont) {
+$R sshQ_libQ_ClientD__cleanup_nativeG_local(sshQ_libQ_Client self, $Cont c$cont) {
     ssh_client_ctx *c = client_from_actor(self);
     if (c != NULL)
         client_close_internal(c, "collected", 1);
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_createG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel,
+$R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel,
                                       $action on_open,
                                       $action on_stdout,
                                       $action on_stderr,
@@ -2278,7 +2278,7 @@ static int channel_validate(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     return 0;
 }
 
-$R sshQ_ClientD_channel_request_execG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str cmd) {
+$R sshQ_libQ_ClientD_channel_request_execG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str cmd) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     int valid = channel_validate(c, ch);
@@ -2304,7 +2304,7 @@ $R sshQ_ClientD_channel_request_execG_local(sshQ_Client self, $Cont c$cont, sshQ
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_request_shellG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, B_bool with_pty) {
+$R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, B_bool with_pty) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     int valid = channel_validate(c, ch);
@@ -2336,7 +2336,7 @@ $R sshQ_ClientD_channel_request_shellG_local(sshQ_Client self, $Cont c$cont, ssh
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_request_subsystemG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_str name) {
+$R sshQ_libQ_ClientD_channel_request_subsystemG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str name) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     int valid = channel_validate(c, ch);
@@ -2362,7 +2362,7 @@ $R sshQ_ClientD_channel_request_subsystemG_local(sshQ_Client self, $Cont c$cont,
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_writeG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel, B_bytes data) {
+$R sshQ_libQ_ClientD_channel_writeG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_bytes data) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     int valid = channel_validate(c, ch);
@@ -2381,7 +2381,7 @@ $R sshQ_ClientD_channel_writeG_local(sshQ_Client self, $Cont c$cont, sshQ_Channe
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_send_eofG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel) {
+$R sshQ_libQ_ClientD_channel_send_eofG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     if (channel_validate(c, ch) != 0)
@@ -2393,7 +2393,7 @@ $R sshQ_ClientD_channel_send_eofG_local(sshQ_Client self, $Cont c$cont, sshQ_Cha
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ClientD_channel_closeG_local(sshQ_Client self, $Cont c$cont, sshQ_Channel channel) {
+$R sshQ_libQ_ClientD_channel_closeG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     if (channel_validate(c, ch) != 0)
@@ -2406,7 +2406,7 @@ $R sshQ_ClientD_channel_closeG_local(sshQ_Client self, $Cont c$cont, sshQ_Channe
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ChannelD__cleanup_nativeG_local(sshQ_Channel self, $Cont c$cont) {
+$R sshQ_libQ_ChannelD__cleanup_nativeG_local(sshQ_libQ_Channel self, $Cont c$cont) {
     ssh_channel_ctx *ch = channel_from_actor(self);
     if (ch == NULL || ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR)
         return $R_CONT(c$cont, B_None);
@@ -2426,7 +2426,7 @@ static void server_notify_listen(ssh_server_ctx *s, const char *err) {
         return;
     if (s->listen_notified)
         return;
-    sshQ_Server actor = server_actor_ref(s);
+    sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_listen) {
         $action2 f = ($action2)s->on_listen;
         f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
@@ -2441,7 +2441,7 @@ static void server_notify_close(ssh_server_ctx *s, const char *reason) {
         return;
     if (!s->listen_ok)
         return;
-    sshQ_Server actor = server_actor_ref(s);
+    sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
         f->$class->__asyn__(f, actor, to$str((char *)reason));
@@ -2452,7 +2452,7 @@ static void server_notify_close(ssh_server_ctx *s, const char *reason) {
 static void session_notify_close(ssh_server_session_ctx *s, const char *reason) {
     if (s->close_notified)
         return;
-    sshQ_ServerSession actor = session_actor_ref(s);
+    sshQ_libQ_ServerSession actor = session_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
         f->$class->__asyn__(f, actor, to$str((char *)reason));
@@ -2463,7 +2463,7 @@ static void session_notify_close(ssh_server_session_ctx *s, const char *reason) 
 static void server_channel_notify_close(ssh_server_channel_ctx *ch, const char *reason) {
     if (ch->close_notified)
         return;
-    sshQ_ServerChannel actor = server_channel_actor_ref(ch);
+    sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
         f->$class->__asyn__(f, actor, to$str((char *)reason));
@@ -2481,7 +2481,7 @@ static int server_channel_data_cb(ssh_session session, ssh_channel channel, void
     if (len == 0)
         return 0;
     B_bytes out = to$bytesD_len((char *)data, (size_t)len);
-    sshQ_ServerChannel actor = server_channel_actor_ref(ch);
+    sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (is_stderr) {
         if (ch->on_stderr) {
             $action2 f = ($action2)ch->on_stderr;
@@ -2502,7 +2502,7 @@ static void server_channel_eof_cb(ssh_session session, ssh_channel channel, void
     (void)channel;
     if (ch == NULL)
         return;
-    sshQ_ServerChannel actor = server_channel_actor_ref(ch);
+    sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (!ch->stdout_eof && ch->on_data) {
         $action2 f = ($action2)ch->on_data;
         f->$class->__asyn__(f, actor, B_None);
@@ -2558,7 +2558,7 @@ static int server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
 static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     if (ssh_debug_enabled)
         ssh_debug_log("server channel finalize ch=%p state=%d remote_close=%d", (void *)ch, (int)ch->state, ch->remote_close_seen);
-    sshQ_ServerChannel actor = server_channel_actor_ref(ch);
+    sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     while (ch->write_head != NULL) {
         server_write_chunk_t *chunk = ch->write_head;
         ch->write_head = chunk->next;
@@ -3146,7 +3146,7 @@ static void session_drive(ssh_server_session_ctx *s) {
 #pragma clang diagnostic pop
 #endif
                 s->pending_auth = msg;
-                sshQ_AuthRequest req = sshQ_AuthRequestG_new(
+                sshQ_libQ_AuthRequest req = sshQ_libQ_AuthRequestG_new(
                     to$str((char *)"password"),
                     to$str((char *)(user ? user : "")),
                     pass ? to$str((char *)(pass)) : B_None,
@@ -3201,7 +3201,7 @@ static void session_drive(ssh_server_session_ctx *s) {
 #endif
                 B_bytes pkbytes = session_pubkey_authkeys_bytes(pubkey);
                 s->pending_auth = msg;
-                sshQ_AuthRequest req = sshQ_AuthRequestG_new(
+                sshQ_libQ_AuthRequest req = sshQ_libQ_AuthRequestG_new(
                     to$str((char *)"publickey"),
                     to$str((char *)(pkuser ? pkuser : "")),
                     B_None,
@@ -3435,7 +3435,7 @@ static void server_accept(ssh_server_ctx *s) {
         sess->state = SESSION_STATE_KEYEX;
         sess->pending_id = alloc_pending_session_id();
         sess->fd = ssh_get_fd(session);
-        sshQ_Server act = server_actor_ref(s);
+        sshQ_libQ_Server act = server_actor_ref(s);
         sess->owner_wt = act ? (int)act->$affinity : 0;
         sess->auth_timeout = act ? act->_auth_timeout : 0.0;
         if (sess->fd < 0) {
@@ -3491,7 +3491,7 @@ static void server_finalize(ssh_server_ctx *s) {
 
     server_notify_close(s, s->close_reason ? s->close_reason : "closed");
     s->state = SERVER_STATE_CLOSED;
-    sshQ_Server actor = server_actor_ref(s);
+    sshQ_libQ_Server actor = server_actor_ref(s);
     if (actor)
         actor->_server = 0;
     s->actor = NULL;
@@ -3517,7 +3517,7 @@ static void session_finalize(ssh_server_session_ctx *s) {
     session_notify_close(s, s->close_reason ? s->close_reason : "closed");
     s->state = SESSION_STATE_CLOSED;
     s->pending_id = 0;
-    sshQ_ServerSession actor = session_actor_ref(s);
+    sshQ_libQ_ServerSession actor = session_actor_ref(s);
     if (actor)
         actor->_session_id = 0;
     s->actor = NULL;
@@ -3687,12 +3687,12 @@ static enum ssh_keytypes_e parse_hostkey_type(const char *type_str, int *param_o
     return SSH_KEYTYPE_UNKNOWN;
 }
 
-$R sshQ_ServerD__pin_affinityG_local(sshQ_Server self, $Cont c$cont) {
+$R sshQ_libQ_ServerD__pin_affinityG_local(sshQ_libQ_Server self, $Cont c$cont) {
     pin_actor_affinity();
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerD__initG_local(sshQ_Server self, $Cont c$cont) {
+$R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
     ssh_configure_libssh_logging();
     ssh_server_ctx *s = acton_calloc(1, sizeof(ssh_server_ctx));
     s->actor = self;
@@ -3823,7 +3823,7 @@ $R sshQ_ServerD__initG_local(sshQ_Server self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerD_closeG_local(sshQ_Server self, $Cont c$cont) {
+$R sshQ_libQ_ServerD_closeG_local(sshQ_libQ_Server self, $Cont c$cont) {
     ssh_server_ctx *s = server_from_actor(self);
     if (s == NULL)
         return $R_CONT(c$cont, B_None);
@@ -3831,7 +3831,7 @@ $R sshQ_ServerD_closeG_local(sshQ_Server self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerD__cleanup_nativeG_local(sshQ_Server self, $Cont c$cont) {
+$R sshQ_libQ_ServerD__cleanup_nativeG_local(sshQ_libQ_Server self, $Cont c$cont) {
     ssh_server_ctx *s = server_from_actor(self);
     if (ssh_debug_enabled)
         ssh_debug_log("server GC cleanup: ctx=%p", (void *)s);
@@ -3840,7 +3840,7 @@ $R sshQ_ServerD__cleanup_nativeG_local(sshQ_Server self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD__pin_affinityG_local(sshQ_ServerSession self, $Cont c$cont) {
+$R sshQ_libQ_ServerSessionD__pin_affinityG_local(sshQ_libQ_ServerSession self, $Cont c$cont) {
     ssh_server_ctx *server = server_from_actor(self->server);
     ssh_server_session_ctx *s = session_from_pending_token(server, self->session_id);
     if (s != NULL && s->owner_wt >= 0) {
@@ -3851,7 +3851,7 @@ $R sshQ_ServerSessionD__pin_affinityG_local(sshQ_ServerSession self, $Cont c$con
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, uint64_t session_id) {
+$R sshQ_libQ_ServerSessionD__attachG_local(sshQ_libQ_ServerSession self, $Cont c$cont, uint64_t session_id) {
     ssh_server_ctx *server = server_from_actor(self->server);
     ssh_server_session_ctx *s = session_from_pending_token(server, session_id);
     if (s == NULL)
@@ -3885,7 +3885,7 @@ $R sshQ_ServerSessionD__attachG_local(sshQ_ServerSession self, $Cont c$cont, uin
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD__drive_attachedG_local(sshQ_ServerSession self, $Cont c$cont) {
+$R sshQ_libQ_ServerSessionD__drive_attachedG_local(sshQ_libQ_ServerSession self, $Cont c$cont) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL || !s->attached)
         return $R_CONT(c$cont, B_None);
@@ -3893,7 +3893,7 @@ $R sshQ_ServerSessionD__drive_attachedG_local(sshQ_ServerSession self, $Cont c$c
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_accept_authG_local(sshQ_ServerSession self, $Cont c$cont) {
+$R sshQ_libQ_ServerSessionD_accept_authG_local(sshQ_libQ_ServerSession self, $Cont c$cont) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL || s->pending_auth == NULL)
         return $R_CONT(c$cont, B_None);
@@ -3911,7 +3911,7 @@ $R sshQ_ServerSessionD_accept_authG_local(sshQ_ServerSession self, $Cont c$cont)
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_reject_authG_local(sshQ_ServerSession self, $Cont c$cont, B_str reason) {
+$R sshQ_libQ_ServerSessionD_reject_authG_local(sshQ_libQ_ServerSession self, $Cont c$cont, B_str reason) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL || s->pending_auth == NULL)
         return $R_CONT(c$cont, B_None);
@@ -3929,7 +3929,7 @@ $R sshQ_ServerSessionD_reject_authG_local(sshQ_ServerSession self, $Cont c$cont,
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel,
+$R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel,
                                                   $action on_data,
                                                   $action on_stderr,
                                                   $action on_close) {
@@ -4001,7 +4001,7 @@ $R sshQ_ServerSessionD_accept_channel_openG_local(sshQ_ServerSession self, $Cont
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_reject_channelG_local(sshQ_ServerSession self, $Cont c$cont, B_str reason) {
+$R sshQ_libQ_ServerSessionD_reject_channelG_local(sshQ_libQ_ServerSession self, $Cont c$cont, B_str reason) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL || s->pending_channel_open == NULL)
         return $R_CONT(c$cont, B_None);
@@ -4016,7 +4016,7 @@ $R sshQ_ServerSessionD_reject_channelG_local(sshQ_ServerSession self, $Cont c$co
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_closeG_local(sshQ_ServerSession self, $Cont c$cont) {
+$R sshQ_libQ_ServerSessionD_closeG_local(sshQ_libQ_ServerSession self, $Cont c$cont) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL)
         return $R_CONT(c$cont, B_None);
@@ -4024,7 +4024,7 @@ $R sshQ_ServerSessionD_closeG_local(sshQ_ServerSession self, $Cont c$cont) {
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD__cleanup_nativeG_local(sshQ_ServerSession self, $Cont c$cont) {
+$R sshQ_libQ_ServerSessionD__cleanup_nativeG_local(sshQ_libQ_ServerSession self, $Cont c$cont) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (ssh_debug_enabled)
         ssh_debug_log("server session GC cleanup: ctx=%p", (void *)s);
@@ -4050,7 +4050,7 @@ static int server_channel_validate(ssh_server_session_ctx *s, ssh_server_channel
     return 0;
 }
 
-$R sshQ_ServerSessionD_channel_accept_requestG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
+$R sshQ_libQ_ServerSessionD_channel_accept_requestG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
@@ -4066,7 +4066,7 @@ $R sshQ_ServerSessionD_channel_accept_requestG_local(sshQ_ServerSession self, $C
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_reject_requestG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_str reason) {
+$R sshQ_libQ_ServerSessionD_channel_reject_requestG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel, B_str reason) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0 || ch->pending_req == NULL)
@@ -4083,7 +4083,7 @@ $R sshQ_ServerSessionD_channel_reject_requestG_local(sshQ_ServerSession self, $C
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_writeG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_bytes data) {
+$R sshQ_libQ_ServerSessionD_channel_writeG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel, B_bytes data) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0)
@@ -4097,7 +4097,7 @@ $R sshQ_ServerSessionD_channel_writeG_local(sshQ_ServerSession self, $Cont c$con
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_write_stderrG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, B_bytes data) {
+$R sshQ_libQ_ServerSessionD_channel_write_stderrG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel, B_bytes data) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0)
@@ -4111,7 +4111,7 @@ $R sshQ_ServerSessionD_channel_write_stderrG_local(sshQ_ServerSession self, $Con
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_send_eofG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
+$R sshQ_libQ_ServerSessionD_channel_send_eofG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0)
@@ -4121,7 +4121,7 @@ $R sshQ_ServerSessionD_channel_send_eofG_local(sshQ_ServerSession self, $Cont c$
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel, int64_t status) {
+$R sshQ_libQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel, int64_t status) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0 || ch->channel == NULL)
@@ -4134,7 +4134,7 @@ $R sshQ_ServerSessionD_channel_send_exit_statusG_local(sshQ_ServerSession self, 
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerSessionD_channel_closeG_local(sshQ_ServerSession self, $Cont c$cont, sshQ_ServerChannel channel) {
+$R sshQ_libQ_ServerSessionD_channel_closeG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel) {
     ssh_server_session_ctx *s = session_from_actor(self);
     ssh_server_channel_ctx *ch = server_channel_from_actor(channel);
     if (server_channel_validate(s, ch) != 0)
@@ -4145,7 +4145,7 @@ $R sshQ_ServerSessionD_channel_closeG_local(sshQ_ServerSession self, $Cont c$con
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_ServerChannelD__cleanup_nativeG_local(sshQ_ServerChannel self, $Cont c$cont) {
+$R sshQ_libQ_ServerChannelD__cleanup_nativeG_local(sshQ_libQ_ServerChannel self, $Cont c$cont) {
     ssh_server_channel_ctx *ch = server_channel_from_actor(self);
     if (ssh_debug_enabled)
         ssh_debug_log("server channel GC cleanup: ctx=%p", (void *)ch);

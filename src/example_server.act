@@ -17,7 +17,7 @@ on_channel_open, on_exec, and the write/exit/close channel lifecycle.
 """
 
 import net
-import ssh
+import lib as ssh
 
 
 actor main(env):

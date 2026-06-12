@@ -1,7 +1,7 @@
 """Standalone echo throughput benchmark (loopback client <-> server)."""
 
 import net
-import ssh
+import lib as ssh
 import time
 
 

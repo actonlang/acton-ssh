@@ -7,8 +7,8 @@
 // source patches, no Acton-specific build files.
 //
 // libssh's crypto backend is mbedtls. We compile against Acton's mbedtls
-// headers — located via the -Dacton_sysdeps build option that the Acton builder
-// injects, pointing at the toolchain's <dist>/deps — but we do NOT link mbedtls
+// headers — located via the -Dacton_sysdeps build option from Build.act,
+// pointing at the toolchain's <dist>/deps — but we do NOT link mbedtls
 // here. The mbedtls objects are provided by Acton's base library at the final
 // executable link; linking them here too would only duplicate symbols. Using
 // the toolchain's own headers guarantees the ABI matches the mbedtls base links.
@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
     const with_server = b.option(bool, "WITH_SERVER", "Enable server-side APIs") orelse false;
     const has_pthread = (t.os.tag != .windows);
     // Absolute path to the Acton toolchain's bundled deps (<dist>/deps), injected
-    // by the Acton builder via {{sysdeps}} substitution. Used to find the mbedtls
+    // by Build.act from the Acton base dependency path. Used to find the mbedtls
     // headers libssh compiles against (must match the mbedtls that base links).
     // Empty only for a standalone `zig build` that does not use the crypto backend.
     const acton_sysdeps = b.option([]const u8, "acton_sysdeps", "Absolute path to the Acton toolchain deps dir (<dist>/deps)") orelse "";

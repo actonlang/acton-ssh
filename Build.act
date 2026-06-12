@@ -3,12 +3,12 @@ fingerprint = 0xee8dcc44255e0a2e
 zig_dependencies = {
     "libssh": (
         path="deps/libssh",
-        options={"WITH_SERVER": "true", "acton_sysdeps": "{{sysdeps}}"},
+        options={"WITH_SERVER": "true", "acton_sysdeps": "actonbase_dep.path(\"../deps\").getPath(b)"},
         artifacts=["ssh"]
     )
 }
 dependencies = {
-  "pipe": (
+  "acton_pipe": (
         repo_url="https://github.com/actonlang/pipe.git",
         url="https://github.com/actonlang/pipe/archive/02c8e23fc7000c114f783dec095c8cd53a46de6f.zip",
         hash="N-V-__8AALYVAACwgCtCTNCXgLmV0uBUW0ZaAF5J2epfQeBo"

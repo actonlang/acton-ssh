@@ -13,7 +13,7 @@ echo subsystem closes only when the client signals EOF, so a piped
 """
 
 import net
-import ssh
+import lib as ssh
 
 
 actor main(env):

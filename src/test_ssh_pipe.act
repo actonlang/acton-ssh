@@ -4,7 +4,7 @@ import logging
 import net
 import testing
 
-import ssh.pipe as sshpipe
+import pipe as sshpipe
 
 PIPE_USER = "pipeuser"
 PIPE_PASS = "pipepass"

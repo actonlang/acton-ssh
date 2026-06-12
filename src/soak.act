@@ -5,7 +5,7 @@ Usage: soak [CYCLES]   (default 2000)
 """
 
 import net
-import ssh
+import lib as ssh
 
 
 actor main(env):

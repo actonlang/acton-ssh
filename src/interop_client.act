@@ -8,7 +8,7 @@ markers and exits with the remote exit status.
 """
 
 import net
-import ssh
+import lib as ssh
 
 
 actor main(env):
