@@ -268,6 +268,15 @@ pub fn build(b: *std.Build) void {
         .files = source_files.items,
         .flags = flags.items,
     });
+    // Acton's event-loop hooks (ssh_session_handle_poll,
+    // ssh_channel_read_buffered): new functions on top of the unmodified
+    // upstream sources, kept local to this wrapper instead of patching the
+    // tarball. Declarations live in include/libssh/libssh_acton.h.
+    lib.root_module.addCSourceFiles(.{
+        .files = &.{"src/libssh_acton.c"},
+        .flags = flags.items,
+    });
+    lib.root_module.addIncludePath(b.path("include"));
     lib.root_module.addIncludePath(upstream.path("include"));
     // mbedtls headers only — the objects are linked via Acton's base at the final
     // executable link (see top-of-file note). acton_sysdeps points at the
@@ -279,6 +288,7 @@ pub fn build(b: *std.Build) void {
 
     lib.installHeadersDirectory(upstream.path("include/libssh"), "libssh", .{});
     lib.installHeader(version_header.getOutputFile(), "libssh/libssh_version.h");
+    lib.installHeader(b.path("include/libssh/libssh_acton.h"), "libssh/libssh_acton.h");
 
     b.installArtifact(lib);
 }

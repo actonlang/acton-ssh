@@ -90,6 +90,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libssh/libssh.h>
+#include <libssh/libssh_acton.h>
 #include <libssh/callbacks.h>
 #include <libssh/server.h>
 #include <poll.h>
