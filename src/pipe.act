@@ -341,17 +341,19 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
                       port: int,
                       on_listen: action(SshPipeListener, ?Exception) -> None,
                       on_accept: action(SshPipeListener, SshListenPipe) -> None,
-                      auth_check: proc(str, ?str, ?bytes) -> bool,
+                      auth_check: action(str, ?str, ?bytes, action(bool) -> None) -> None,
                       subsystem: ?str=None,
                       host_key_path: ?str=None,
                       host_key_type: str="ed25519",
                       log_handler: ?logging.Handler=None):
     """Accept SSH connections and deliver subsystem channels as Pipes.
 
-    auth_check(user, password, pubkey) decides authentication: password holds
-    the client's password for "password" attempts, pubkey holds the client's
-    public key as an authorized_keys line for (signature-verified) "publickey"
-    attempts. It must be a side-effect free function.
+    auth_check(user, password, pubkey, respond) decides authentication: password
+    holds the client's password for "password" attempts, pubkey holds the
+    client's public key as an authorized_keys line for (signature-verified)
+    "publickey" attempts. It calls respond(True) to accept or respond(False) to
+    reject; the call may be deferred across asynchronous work (e.g. querying an
+    external authentication service) before responding.
 
     If subsystem is given, only that subsystem is accepted on incoming
     channels; otherwise any subsystem request is accepted. Each accepted
@@ -377,10 +379,12 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
         pass
 
     def _on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
-        if auth_check(req.user, req.password, req.pubkey):
-            sess.accept_auth()
-        else:
-            sess.reject_auth("authentication failed")
+        def respond(ok: bool):
+            if ok:
+                sess.accept_auth()
+            else:
+                sess.reject_auth("authentication failed")
+        auth_check(req.user, req.password, req.pubkey, respond)
 
     def _endpoint_for(ch: ssh.ServerChannel) -> ?_SshServerPipeEndpoint:
         for item in _endpoints:
