@@ -85,7 +85,7 @@
  * Config & filesystem
  *   - libssh config processing is disabled; known_hosts is only read if
  *     explicitly configured by the Acton API.
- *   - Server host keys are generated in-memory unless a path is provided.
+ *   - Server host keys are generated in-memory unless key material is provided.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -3733,9 +3733,9 @@ $R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
 
-    if (self->_host_key_path != NULL) {
-        const char *path = (const char *)fromB_str(self->_host_key_path);
-        rc = ssh_pki_import_privkey_file(path, NULL, NULL, NULL, &s->hostkey);
+    if (self->_host_key != NULL) {
+        const char *key_pem = (const char *)fromB_str(self->_host_key);
+        rc = ssh_pki_import_privkey_base64(key_pem, NULL, NULL, NULL, &s->hostkey);
         if (rc != SSH_OK) {
             char errmsg[256] = {0};
             snprintf(errmsg, sizeof(errmsg), "Failed to load host key: %s", ssh_get_error(s->bind));

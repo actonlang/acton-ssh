@@ -61,7 +61,7 @@ Notes:
     channel close, half-open connection) escalates to a forced close after
     close_timeout seconds.
   - Timeouts and keepalive are configurable; server host keys are generated
-    in-memory unless host_key_path is set.
+    in-memory unless host_key (PEM/OpenSSH private key material) is provided.
   - Server admission limits are configurable; values <= 0 disable a limit.
   - For debugging, set ACTON_SSH_DEBUG and ACTON_SSH_LIBSSH_LOG.
 """
@@ -393,7 +393,7 @@ actor Server(cap: net.TCPListenCap,
              on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_session_close: ?action(ServerSession, str) -> None=None,
-             host_key_path: ?str=None,
+             host_key: ?str=None,
              host_key_type: str="ed25519",
              host_key_bits: int=2048,
              auth_timeout: float=10.0,
@@ -420,7 +420,7 @@ actor Server(cap: net.TCPListenCap,
     var _bound_port: u16 = 0
     var _host: str = host
     var _port: u16 = port
-    var _host_key_path: ?str = host_key_path
+    var _host_key: ?str = host_key
     var _host_key_type: str = host_key_type
     var _host_key_bits: int = host_key_bits
     var _auth_timeout: float = auth_timeout

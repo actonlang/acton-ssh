@@ -343,7 +343,7 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
                       on_accept: action(SshPipeListener, SshListenPipe) -> None,
                       auth_check: action(str, ?str, ?bytes, action(bool) -> None) -> None,
                       subsystem: ?str=None,
-                      host_key_path: ?str=None,
+                      host_key: ?str=None,
                       host_key_type: str="ed25519",
                       log_handler: ?logging.Handler=None):
     """Accept SSH connections and deliver subsystem channels as Pipes.
@@ -462,5 +462,5 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
                         on_exec=_on_exec,
                         on_subsystem=_on_subsystem,
                         on_session_close=_on_session_close,
-                        host_key_path=host_key_path,
+                        host_key=host_key,
                         host_key_type=host_key_type)
