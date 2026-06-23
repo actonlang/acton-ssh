@@ -203,7 +203,7 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
         if ch is not None:
             ch.write(data)
         else:
-            raise ValueError("Unable to write, SSH pipe is not connected")
+            _fail("Unable to write, SSH pipe is not connected")
 
     def read_cb(cb: action(?Exception, ?bytes) -> None):
         _read_cb = cb
@@ -318,8 +318,9 @@ actor _SshServerPipeEndpoint(log_handler: ?logging.Handler):
         ch = _channel
         if ch is not None:
             ch.write(data)
-        else:
-            raise ValueError("Unable to write, SSH channel is closed")
+        elif not _closing:
+            _pending_err = OSError("Unable to write, SSH channel is closed")
+            _emit_pending()
 
     def read_cb(cb: action(?Exception, ?bytes) -> None):
         _read_cb = cb
