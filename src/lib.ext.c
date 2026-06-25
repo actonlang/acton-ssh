@@ -2056,7 +2056,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     c->connect_timeout = self->_connect_timeout;
     c->auth_timeout = self->_auth_timeout;
     c->keepalive_interval = self->_keepalive_interval;
-    c->keepalive_enabled = fromB_bool(self->_keepalive_enabled) ? 1 : 0;
+    c->keepalive_enabled = self->_keepalive_enabled ? 1 : 0;
     c->close_timeout = self->_close_timeout;
     c->max_write_buffer = self->_max_write_buffer;
 
@@ -2304,7 +2304,7 @@ $R sshQ_libQ_ClientD_channel_request_execG_local(sshQ_libQ_Client self, $Cont c$
     return $R_CONT(c$cont, B_None);
 }
 
-$R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, B_bool with_pty) {
+$R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str term, int64_t cols, int64_t rows, int64_t width_px, int64_t height_px, bool with_pty) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
     int valid = channel_validate(c, ch);
@@ -2328,7 +2328,7 @@ $R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c
     ch->rows = (int)rows;
     ch->width_px = (int)width_px;
     ch->height_px = (int)height_px;
-    ch->pty_pending = fromB_bool(with_pty) ? 1 : 0;
+    ch->pty_pending = with_pty ? 1 : 0;
 
     ch->pending_req = CHAN_REQ_SHELL;
     client_drive(c);
@@ -3876,7 +3876,7 @@ $R sshQ_libQ_ServerSessionD__attachG_local(sshQ_libQ_ServerSession self, $Cont c
     s->on_close = (self->_on_close == NULL) ? NULL : ($action2)self->_on_close;
     s->auth_timeout = self->server->_auth_timeout;
     s->keepalive_interval = self->server->_keepalive_interval;
-    s->keepalive_enabled = fromB_bool(self->server->_keepalive_enabled) ? 1 : 0;
+    s->keepalive_enabled = self->server->_keepalive_enabled ? 1 : 0;
     s->close_timeout = self->server->_close_timeout;
     if (s->state == SESSION_STATE_KEYEX) {
         stop_timer(&s->attach_timer, session_timer_close_cb);
