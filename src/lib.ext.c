@@ -10,8 +10,8 @@
  * Event loop integration
  *   - Each libssh session is created nonblocking.
  *   - We attach a uv_poll watcher to the libssh socket fd.
- *   - On poll events we call ssh_session_handle_poll() (via
- *     session_apply_poll_events), then drive a small state machine
+ *   - On poll events we run a nonblocking libssh event poll, then drive a
+ *     small state machine
  *     (connect/auth/ready for client, keyex/auth/ready for server).
  *   - ssh_get_poll_flags()/ssh_get_status() decide which poll events to arm.
  *
@@ -23,7 +23,7 @@
  *     SSH_READ_PENDING, it means "call again, there is buffered data to
  *     process" even if the fd will not trigger another readable event.
  *   - If we only wait for uv_poll readability, we can deadlock:
- *       1) uv_poll READABLE fires; ssh_session_handle_poll() drains the fd.
+ *       1) uv_poll READABLE fires; ssh_event_dopoll() drains the fd.
  *       2) ssh_connect()/ssh_handle_key_exchange()/ssh_userauth_password()
  *          returns SSH_AGAIN.
  *       3) No more kernel readability events happen, but libssh still has
@@ -40,7 +40,7 @@
  *     process stdio.
  *   - Channels install libssh callbacks for data/extended-data/EOF/close.
  *   - Inbound data always flows through these callbacks. As we drive libssh
- *     (via ssh_session_handle_poll), libssh invokes the registered C callback
+ *     (via ssh_event_dopoll), libssh invokes the registered C callback
  *     functions, and those callbacks call the corresponding Acton action
  *     methods (foo->$class->on_stdout/on_stderr/on_close, etc.). We do not run
  *     manual read loops; libssh owns buffering and read state.
@@ -197,6 +197,7 @@ typedef struct ssh_channel_ctx {
 typedef struct ssh_client_ctx {
     sshQ_libQ_Client actor;
     ssh_session session;
+    ssh_event event;
     uv_poll_t *poll;
     int poll_events;
     uv_timer_t *connect_timer;
@@ -300,6 +301,7 @@ typedef struct ssh_server_session_ctx {
     sshQ_libQ_ServerSession actor;
     struct ssh_server_ctx *server;
     ssh_session session;
+    ssh_event event;
     uv_poll_t *poll;
     int poll_events;
     uv_timer_t *attach_timer;
@@ -479,27 +481,48 @@ static void ssh_configure_libssh_logging(void) {
     ssh_set_log_level(ssh_libssh_log_level);
 }
 
-static int session_apply_poll_events(ssh_session session, int events) {
-    if (session == NULL)
+/* libuv is the outer-loop wakeup. The public libssh event API owns the
+ * session's internal poll handles, so run a second, nonblocking poll to let
+ * libssh dispatch them. The readiness libuv reported is not passed through:
+ * this poll reads its own revents from libssh's event mask, so callers only
+ * use it to decide whether a poll is worth making at all. SSH_AGAIN means
+ * readiness changed between the two polls, which is not an error. */
+static int session_event_poll(ssh_event event) {
+    if (event == NULL)
         return -1;
-    int revents = 0;
-    if (events & UV_READABLE)
-        revents |= POLLIN;
-    if (events & UV_WRITABLE)
-        revents |= POLLOUT;
-#ifdef UV_DISCONNECT
-    if (events & UV_DISCONNECT)
-        revents |= POLLHUP;
-#endif
-#ifdef UV_PRIORITIZED
-    if (events & UV_PRIORITIZED)
-        revents |= POLLPRI;
-#endif
-    if (revents == 0)
-        return 0;
-    if (ssh_session_handle_poll(session, revents) != SSH_OK)
+    if (ssh_event_dopoll(event, 0) == SSH_ERROR)
         return -1;
     return 0;
+}
+
+/* Adopt a session's poll handles into an event of our own.
+ * ssh_event_add_session() moves whatever is in the session's default poll
+ * context at this moment, so libssh must already have created that context
+ * AND put the socket handle in it - which it does from ssh_handle_packets(),
+ * reached via ssh_connect() on the client and ssh_handle_key_exchange() on
+ * the server. Called any earlier it still reports success, having adopted
+ * nothing, and every later poll then fails on an empty context. */
+static int session_event_attach(ssh_session session, ssh_event *event) {
+    if (session == NULL || event == NULL)
+        return -1;
+    ssh_event e = ssh_event_new();
+    if (e == NULL)
+        return -1;
+    if (ssh_event_add_session(e, session) != SSH_OK) {
+        ssh_event_free(e);
+        return -1;
+    }
+    *event = e;
+    return 0;
+}
+
+static void session_event_detach(ssh_session session, ssh_event *event) {
+    if (event == NULL || *event == NULL)
+        return;
+    if (session != NULL)
+        ssh_event_remove_session(*event, session);
+    ssh_event_free(*event);
+    *event = NULL;
 }
 
 static const char *hostkey_state_str(enum ssh_known_hosts_e state) {
@@ -667,8 +690,8 @@ static void format_session_error(ssh_session session, const char *prefix,
         snprintf(buf, buflen, "%s", prefix);
 }
 
-/* Produce the reason string for a session that ssh_session_handle_poll()
- * reported a failure on. A peer that ends the connection with SSH_MSG_DISCONNECT
+/* Produce the reason string for a session whose event poll reported a failure.
+ * A peer that ends the connection with SSH_MSG_DISCONNECT
  * (the normal way a client or server hangs up) lands here too, because libssh
  * moves the session to its error state on DISCONNECT. We recognise it from the
  * libssh error text and report a clean "disconnected by peer" rather than a
@@ -1649,23 +1672,23 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
         client_fail(c, errmsg);
         return;
     }
-    int libssh_events = 0;
+    int ready = 0;
     if ((events & UV_READABLE) && fd_has_data(c->fd)) {
         ssh_set_fd_toread(c->session);
-        libssh_events |= UV_READABLE;
+        ready = 1;
     }
 #ifdef UV_DISCONNECT
     if (events & UV_DISCONNECT) {
         ssh_set_fd_toread(c->session);
-        libssh_events |= UV_DISCONNECT;
+        ready = 1;
     }
 #endif
     if ((events & UV_WRITABLE) && fd_can_write(c->fd)) {
         c->write_ready = 1;
         ssh_set_fd_towrite(c->session);
-        libssh_events |= UV_WRITABLE;
+        ready = 1;
     }
-    if (session_apply_poll_events(c->session, libssh_events) != 0) {
+    if (ready && session_event_poll(c->event) != 0) {
         char errmsg[256] = {0};
         session_failure_reason(c->session, errmsg, sizeof(errmsg));
         client_fail(c, errmsg);
@@ -1725,7 +1748,7 @@ static void client_pump_io(ssh_client_ctx *c) {
         int has_data = fd_has_data(c->fd);
         if (has_data) {
             ssh_set_fd_toread(c->session);
-            if (session_apply_poll_events(c->session, UV_READABLE) != 0) {
+            if (session_event_poll(c->event) != 0) {
                 char errmsg[256] = {0};
                 session_failure_reason(c->session, errmsg, sizeof(errmsg));
                 client_fail(c, errmsg);
@@ -1896,6 +1919,7 @@ static void client_finalize(ssh_client_ctx *c) {
         c->auth_key = NULL;
     }
     if (c->session != NULL) {
+        session_event_detach(c->session, &c->event);
         ssh_disconnect(c->session);
         ssh_free(c->session);
         c->session = NULL;
@@ -2138,6 +2162,11 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     }
     if (c->state != CLIENT_STATE_CONNECTING && fd_set_nonblocking(c->fd) != 0) {
         client_fail(c, "Failed to set SSH session fd nonblocking");
+        return $R_CONT(c$cont, B_None);
+    }
+    /* Only valid after the ssh_connect() above; see session_event_attach(). */
+    if (session_event_attach(c->session, &c->event) != 0) {
+        client_fail(c, "Failed to attach SSH session event");
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2945,6 +2974,17 @@ static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t er
     if (s->poll != NULL)
         return 0;
 
+    /* The public event API can only adopt a session after libssh has created
+     * its default poll context and put the socket handle in it, which the
+     * first key exchange step does. session_drive() runs the remaining steps
+     * from whatever state this leaves behind. */
+    if (session_step_keyex(s, errmsg, errmsg_len) < 0)
+        return -1;
+    if (session_event_attach(s->session, &s->event) != 0) {
+        snprintf(errmsg, errmsg_len, "Failed to attach SSH session event");
+        return -1;
+    }
+
     s->poll = acton_calloc(1, sizeof(uv_poll_t));
     s->poll->data = s;
     int uv_rc = uv_poll_init(get_uv_loop(), s->poll, s->fd);
@@ -3032,7 +3072,7 @@ static void session_pump_io(ssh_server_session_ctx *s) {
         int has_data = fd_has_data(s->fd);
         if (has_data) {
             ssh_set_fd_toread(s->session);
-            if (session_apply_poll_events(s->session, UV_READABLE) != 0) {
+            if (session_event_poll(s->event) != 0) {
                 char errmsg[256] = {0};
                 session_failure_reason(s->session, errmsg, sizeof(errmsg));
                 session_fail(s, errmsg);
@@ -3353,23 +3393,23 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
         session_fail(s, errmsg);
         return;
     }
-    int libssh_events = 0;
+    int ready = 0;
     if ((events & UV_READABLE) && fd_has_data(s->fd)) {
         ssh_set_fd_toread(s->session);
-        libssh_events |= UV_READABLE;
+        ready = 1;
     }
 #ifdef UV_DISCONNECT
     if (events & UV_DISCONNECT) {
         ssh_set_fd_toread(s->session);
-        libssh_events |= UV_DISCONNECT;
+        ready = 1;
     }
 #endif
     if ((events & UV_WRITABLE) && fd_can_write(s->fd)) {
         s->write_ready = 1;
         ssh_set_fd_towrite(s->session);
-        libssh_events |= UV_WRITABLE;
+        ready = 1;
     }
-    if (session_apply_poll_events(s->session, libssh_events) != 0) {
+    if (ready && session_event_poll(s->event) != 0) {
         char errmsg[256] = {0};
         session_failure_reason(s->session, errmsg, sizeof(errmsg));
         session_fail(s, errmsg);
@@ -3521,6 +3561,7 @@ static void session_finalize(ssh_server_session_ctx *s) {
     stop_timer(&s->close_timer, session_timer_close_cb);
 
     if (s->session != NULL) {
+        session_event_detach(s->session, &s->event);
         ssh_disconnect(s->session);
         ssh_free(s->session);
         s->session = NULL;

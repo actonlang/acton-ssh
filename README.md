@@ -26,10 +26,17 @@ Acton server, to OpenSSH `sshd`, or be driven by the OpenSSH `ssh` client.
 
 ## Requirements
 
-This package depends on a fork of libssh that adds the hooks needed for an
-external event loop (`ssh_session_handle_poll`, `ssh_channel_read_buffered`,
-server build) and builds with Zig. The dependency is declared in
-[`Build.act`](Build.act); point it at your checkout of the fork.
+This package builds its pinned libssh source with the Zig wrapper in
+[`deps/libssh`](deps/libssh). libuv supplies readiness notifications and the
+binding advances libssh through its public nonblocking `ssh_event` API. The
+dependency is declared in [`Build.act`](Build.act).
+
+The pin is still the `acton` branch of
+[actonlang/libssh](https://github.com/actonlang/libssh), which is upstream
+libssh plus two patches: a `HAVE_PTHREAD` ifdef placement fix, and an
+`ssh_session_handle_poll` hook for external event loops that this binding no
+longer uses. Nothing here needs a forked libssh any more; the pin has simply
+not moved to an upstream release yet.
 
 libssh and its crypto backend (mbedtls) run on the C library heap with their
 own ownership; only libuv and Acton objects live on the GC heap. See the
