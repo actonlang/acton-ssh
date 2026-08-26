@@ -377,6 +377,7 @@ static void session_maybe_release(ssh_server_session_ctx *s);
 static void session_fail(ssh_server_session_ctx *s, const char *msg);
 static void session_start_attach_timer(ssh_server_session_ctx *s);
 static void session_start_keyex_timer(ssh_server_session_ctx *s);
+static int session_step_keyex(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len);
 static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len);
 static void server_channel_drive(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch);
 static int session_needs_write(ssh_server_session_ctx *s);
@@ -2917,6 +2918,25 @@ static void session_auth_timeout_cb(uv_timer_t *timer) {
     }
 }
 
+/* Advance server key exchange by one step and apply the resulting state
+ * transition. Returns 1 when key exchange completed, 0 when it needs more I/O,
+ * and -1 on failure with errmsg filled in. */
+static int session_step_keyex(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len) {
+    int rc = ssh_handle_key_exchange(s->session);
+    if (rc == SSH_OK) {
+        s->state = SESSION_STATE_AUTH;
+        stop_timer(&s->attach_timer, session_timer_close_cb);
+        session_start_auth_timer(s);
+        ssh_set_auth_methods(s->session,
+                             SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
+        return 1;
+    }
+    if (rc == SSH_AGAIN)
+        return 0;
+    snprintf(errmsg, errmsg_len, "SSH key exchange failed: %s", ssh_get_error(s->session));
+    return -1;
+}
+
 static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t errmsg_len) {
     if (s == NULL || s->session == NULL || s->fd < 0) {
         snprintf(errmsg, errmsg_len, "Failed to start SSH session poll");
@@ -3075,30 +3095,24 @@ static void session_drive(ssh_server_session_ctx *s) {
     int spin = 0;
     while (1) {
         if (s->state == SESSION_STATE_KEYEX) {
-            int rc = ssh_handle_key_exchange(s->session);
-            if (rc == SSH_OK) {
-                s->state = SESSION_STATE_AUTH;
-                stop_timer(&s->attach_timer, session_timer_close_cb);
-                session_start_auth_timer(s);
-                ssh_set_auth_methods(s->session,
-                                     SSH_AUTH_METHOD_PASSWORD | SSH_AUTH_METHOD_PUBLICKEY);
-                spin = 0;
-                continue;
-            } else if (rc == SSH_AGAIN) {
-                int status = ssh_get_status(s->session);
-                if (status & SSH_WRITE_PENDING)
-                    s->write_ready = 0;
-                if ((status & SSH_READ_PENDING) && spin++ < SSH_IO_PUMP_LIMIT) {
-                    continue;
-                }
-                session_update_poll(s);
-                return;
-            } else {
-                char errmsg[256] = {0};
-                snprintf(errmsg, sizeof(errmsg), "SSH key exchange failed: %s", ssh_get_error(s->session));
+            char errmsg[256] = {0};
+            int rc = session_step_keyex(s, errmsg, sizeof(errmsg));
+            if (rc < 0) {
                 session_fail(s, errmsg);
                 return;
             }
+            if (rc > 0) {
+                spin = 0;
+                continue;
+            }
+            int status = ssh_get_status(s->session);
+            if (status & SSH_WRITE_PENDING)
+                s->write_ready = 0;
+            if ((status & SSH_READ_PENDING) && spin++ < SSH_IO_PUMP_LIMIT) {
+                continue;
+            }
+            session_update_poll(s);
+            return;
         }
 
         if (s->state == SESSION_STATE_AUTH) {
