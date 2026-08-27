@@ -445,7 +445,11 @@ actor SshdTester(
     def setup():
         tmp = await async fs.mktmpdir("acton-ssh-sshd")
         sshd_port = random.randint(20000, 39999)
-        _Cmd(proc_cap, ["/bin/sh", "-c", "command -v sshd || echo /usr/sbin/sshd"],
+        # Empty output and exit 1 when no executable sshd exists, so
+        # resolve_done skips instead of failing later on a bad path.
+        _Cmd(proc_cap,
+             ["/bin/sh", "-c",
+              "command -v sshd 2>/dev/null || (test -x /usr/sbin/sshd && echo /usr/sbin/sshd)"],
              resolve_done, setup_fail)
 
     def resolve_done(code: int, out: bytes, err: bytes):
