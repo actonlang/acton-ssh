@@ -83,10 +83,15 @@
  *     actor the app dropped runs __cleanup__ -> _cleanup_native -> close.
  *
  * Config & filesystem
- *   - libssh config processing is disabled; known_hosts is only read if
- *     explicitly configured by the Acton API.
+ *   - libssh config processing is disabled. Private keys, host keys, and
+ *     known_hosts entries are supplied as in-memory values by the Acton API;
+ *     this library never opens those files itself. libssh's own known_hosts
+ *     paths are pinned to /dev/null at session init: left unset, ssh_connect
+ *     would default them to ~/.ssh/known_hosts and /etc/ssh/ssh_known_hosts
+ *     and read both during key exchange to order host key algorithms.
  *   - Server host keys are generated in-memory unless key material is provided.
  */
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libssh/libssh.h>
@@ -219,6 +224,7 @@ typedef struct ssh_client_ctx {
     int close_force;
     int write_ready;
     ssh_key auth_key;
+    size_t auth_key_index;
     int auth_pubkey_done;
     char *close_reason;
     enum ssh_known_hosts_e hostkey_state;
@@ -1472,24 +1478,397 @@ static int client_get_hostkey_info(ssh_client_ctx *c, B_str *key_type_out, B_str
     return 0;
 }
 
+static char *bytes_to_cstring(B_bytes data) {
+    if (data == NULL)
+        return NULL;
+    char *copy = malloc((size_t)data->nbytes + 1);
+    if (copy == NULL)
+        return NULL;
+    memcpy(copy, data->str, (size_t)data->nbytes);
+    copy[data->nbytes] = '\0';
+    return copy;
+}
+
+static void clear_and_free(char *data, size_t len) {
+    if (data == NULL)
+        return;
+    volatile unsigned char *p = (volatile unsigned char *)data;
+    while (len-- > 0)
+        *p++ = 0;
+    free(data);
+}
+
+static int private_key_attach_certificate(ssh_key private_key,
+                                          B_bytes certificate,
+                                          char *errmsg,
+                                          size_t errlen) {
+    if (certificate == NULL)
+        return SSH_OK;
+
+    char *line = bytes_to_cstring(certificate);
+    if (line == NULL) {
+        snprintf(errmsg, errlen, "Unable to copy SSH certificate material");
+        return SSH_ERROR;
+    }
+
+    char *algorithm = line;
+    while (*algorithm == ' ' || *algorithm == '\t')
+        algorithm++;
+    char *algorithm_end = algorithm;
+    while (*algorithm_end != '\0' && *algorithm_end != ' ' && *algorithm_end != '\t')
+        algorithm_end++;
+    if (*algorithm_end == '\0') {
+        free(line);
+        snprintf(errmsg, errlen, "SSH certificate must be an OpenSSH public key line");
+        return SSH_ERROR;
+    }
+    *algorithm_end++ = '\0';
+    while (*algorithm_end == ' ' || *algorithm_end == '\t')
+        algorithm_end++;
+    char *encoded = algorithm_end;
+    while (*algorithm_end != '\0' && *algorithm_end != ' ' &&
+           *algorithm_end != '\t' && *algorithm_end != '\r' && *algorithm_end != '\n')
+        algorithm_end++;
+    *algorithm_end = '\0';
+
+    enum ssh_keytypes_e type = ssh_key_type_from_name(algorithm);
+    ssh_key cert_key = NULL;
+    int rc = SSH_ERROR;
+    if (type != SSH_KEYTYPE_UNKNOWN && encoded[0] != '\0')
+        rc = ssh_pki_import_cert_base64(encoded, type, &cert_key);
+    if (rc == SSH_OK && cert_key != NULL)
+        rc = ssh_pki_copy_cert_to_privkey(cert_key, private_key);
+
+    ssh_key_free(cert_key);
+    free(line);
+    if (rc != SSH_OK) {
+        snprintf(errmsg, errlen, "Failed to import SSH certificate material");
+        return SSH_ERROR;
+    }
+    return SSH_OK;
+}
+
+static int import_private_key(sshQ_libQ_PrivateKey key_value,
+                              ssh_key *key_out,
+                              char *errmsg,
+                              size_t errlen) {
+    if (key_value == NULL || key_value->material == NULL ||
+        key_value->material->nbytes == 0) {
+        snprintf(errmsg, errlen, "SSH private key material is empty");
+        return SSH_ERROR;
+    }
+
+    B_bytes material = key_value->material;
+    char *encoded = bytes_to_cstring(material);
+    if (encoded == NULL) {
+        snprintf(errmsg, errlen, "Unable to copy SSH private key material");
+        return SSH_ERROR;
+    }
+    const char *passphrase = key_value->passphrase != NULL ?
+        (const char *)fromB_str(key_value->passphrase) : NULL;
+    ssh_key key = NULL;
+    int rc = ssh_pki_import_privkey_base64(encoded, passphrase, NULL, NULL, &key);
+    clear_and_free(encoded, (size_t)material->nbytes + 1);
+    if (rc != SSH_OK || key == NULL) {
+        ssh_key_free(key);
+        snprintf(errmsg, errlen, "Failed to import SSH private key material");
+        return SSH_ERROR;
+    }
+
+    rc = private_key_attach_certificate(key, key_value->certificate, errmsg, errlen);
+    if (rc != SSH_OK) {
+        ssh_key_free(key);
+        return SSH_ERROR;
+    }
+    *key_out = key;
+    return SSH_OK;
+}
+
+static int session_set_algorithm(ssh_session session,
+                                 enum ssh_options_e option,
+                                 B_str algorithms,
+                                 const char *label,
+                                 char *errmsg,
+                                 size_t errlen) {
+    if (algorithms == NULL)
+        return SSH_OK;
+    if (ssh_options_set(session, option, fromB_str(algorithms)) == SSH_OK)
+        return SSH_OK;
+    snprintf(errmsg, errlen, "Failed to set SSH %s: %s",
+             label, ssh_get_error(session));
+    return SSH_ERROR;
+}
+
+static int bind_set_algorithm(ssh_bind bind,
+                              enum ssh_bind_options_e option,
+                              B_str algorithms,
+                              const char *label,
+                              char *errmsg,
+                              size_t errlen) {
+    if (algorithms == NULL)
+        return SSH_OK;
+    if (ssh_bind_options_set(bind, option, fromB_str(algorithms)) == SSH_OK)
+        return SSH_OK;
+    snprintf(errmsg, errlen, "Failed to set SSH server %s: %s",
+             label, ssh_get_error(bind));
+    return SSH_ERROR;
+}
+
+static int apply_client_transport(ssh_session session,
+                                  sshQ_libQ_Client actor,
+                                  char *errmsg,
+                                  size_t errlen) {
+    if (session_set_algorithm(session, SSH_OPTIONS_CIPHERS_C_S,
+                              actor->_ciphers, "client-to-server ciphers",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_CIPHERS_S_C,
+                              actor->_ciphers, "server-to-client ciphers",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_HMAC_C_S,
+                              actor->_macs, "client-to-server MACs",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_HMAC_S_C,
+                              actor->_macs, "server-to-client MACs",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_KEY_EXCHANGE,
+                              actor->_key_exchanges, "key exchanges",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_HOSTKEYS,
+                              actor->_host_key_algorithms, "host key algorithms",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_PUBLICKEY_ACCEPTED_TYPES,
+                              actor->_public_key_algorithms,
+                              "public key algorithms", errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_COMPRESSION_C_S,
+                              actor->_compression_algorithms,
+                              "client-to-server compression algorithms",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_COMPRESSION_S_C,
+                              actor->_compression_algorithms,
+                              "server-to-client compression algorithms",
+                              errmsg, errlen) != SSH_OK) {
+        return SSH_ERROR;
+    }
+
+    if (actor->_compression_level > 0) {
+        int level = (int)actor->_compression_level;
+        if (ssh_options_set(session, SSH_OPTIONS_COMPRESSION_LEVEL, &level) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH compression level: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    if (actor->_rekey_after_bytes >= 0) {
+        uint64_t bytes = (uint64_t)actor->_rekey_after_bytes;
+        if (ssh_options_set(session, SSH_OPTIONS_REKEY_DATA, &bytes) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH rekey byte limit: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    if (actor->_rekey_after_seconds >= 0) {
+        uint32_t seconds = (uint32_t)actor->_rekey_after_seconds;
+        if (ssh_options_set(session, SSH_OPTIONS_REKEY_TIME, &seconds) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH rekey time limit: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    if (actor->_minimum_rsa_bits >= 0) {
+        int bits = (int)actor->_minimum_rsa_bits;
+        if (ssh_options_set(session, SSH_OPTIONS_RSA_MIN_SIZE, &bits) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH minimum RSA size: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    return SSH_OK;
+}
+
+static int apply_server_bind_transport(ssh_bind bind,
+                                       sshQ_libQ_Server actor,
+                                       char *errmsg,
+                                       size_t errlen) {
+    if (bind_set_algorithm(bind, SSH_BIND_OPTIONS_CIPHERS_C_S,
+                           actor->_ciphers, "client-to-server ciphers",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_CIPHERS_S_C,
+                           actor->_ciphers, "server-to-client ciphers",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_HMAC_C_S,
+                           actor->_macs, "client-to-server MACs",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_HMAC_S_C,
+                           actor->_macs, "server-to-client MACs",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_KEY_EXCHANGE,
+                           actor->_key_exchanges, "key exchanges",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_HOSTKEY_ALGORITHMS,
+                           actor->_host_key_algorithms, "host key algorithms",
+                           errmsg, errlen) != SSH_OK ||
+        bind_set_algorithm(bind, SSH_BIND_OPTIONS_PUBKEY_ACCEPTED_KEY_TYPES,
+                           actor->_public_key_algorithms,
+                           "public key algorithms", errmsg, errlen) != SSH_OK) {
+        return SSH_ERROR;
+    }
+
+    if (actor->_minimum_rsa_bits >= 0) {
+        int bits = (int)actor->_minimum_rsa_bits;
+        if (ssh_bind_options_set(bind, SSH_BIND_OPTIONS_RSA_MIN_SIZE, &bits) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH server minimum RSA size: %s",
+                     ssh_get_error(bind));
+            return SSH_ERROR;
+        }
+    }
+    return SSH_OK;
+}
+
+static int apply_server_session_transport(ssh_session session,
+                                          sshQ_libQ_Server actor,
+                                          char *errmsg,
+                                          size_t errlen) {
+    if (session_set_algorithm(session, SSH_OPTIONS_COMPRESSION_C_S,
+                              actor->_compression_algorithms,
+                              "client-to-server compression algorithms",
+                              errmsg, errlen) != SSH_OK ||
+        session_set_algorithm(session, SSH_OPTIONS_COMPRESSION_S_C,
+                              actor->_compression_algorithms,
+                              "server-to-client compression algorithms",
+                              errmsg, errlen) != SSH_OK) {
+        return SSH_ERROR;
+    }
+
+    if (actor->_compression_level > 0) {
+        int level = (int)actor->_compression_level;
+        if (ssh_options_set(session, SSH_OPTIONS_COMPRESSION_LEVEL, &level) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH server compression level: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    if (actor->_rekey_after_bytes >= 0) {
+        uint64_t bytes = (uint64_t)actor->_rekey_after_bytes;
+        if (ssh_options_set(session, SSH_OPTIONS_REKEY_DATA, &bytes) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH server rekey byte limit: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    if (actor->_rekey_after_seconds >= 0) {
+        uint32_t seconds = (uint32_t)actor->_rekey_after_seconds;
+        if (ssh_options_set(session, SSH_OPTIONS_REKEY_TIME, &seconds) != SSH_OK) {
+            snprintf(errmsg, errlen, "Failed to set SSH server rekey time limit: %s",
+                     ssh_get_error(session));
+            return SSH_ERROR;
+        }
+    }
+    return SSH_OK;
+}
+
+static enum ssh_known_hosts_e client_known_hosts_state(ssh_client_ctx *c,
+                                                        B_bytes known_hosts) {
+    ssh_key server_key = NULL;
+    if (ssh_get_server_publickey(c->session, &server_key) != SSH_OK || server_key == NULL)
+        return SSH_KNOWN_HOSTS_ERROR;
+
+    sshQ_libQ_Client actor = client_actor_ref(c);
+    const char *host = actor != NULL ? (const char *)fromB_str(actor->_host) : NULL;
+    if (host == NULL) {
+        ssh_key_free(server_key);
+        return SSH_KNOWN_HOSTS_ERROR;
+    }
+
+    char *lookup = NULL;
+    if (actor->port == 22) {
+        lookup = strdup(host);
+    } else {
+        size_t lookup_len = strlen(host) + 32;
+        lookup = malloc(lookup_len);
+        if (lookup != NULL)
+            snprintf(lookup, lookup_len, "[%s]:%u", host, (unsigned int)actor->port);
+    }
+    if (lookup == NULL) {
+        ssh_key_free(server_key);
+        return SSH_KNOWN_HOSTS_ERROR;
+    }
+    /* libssh's match_hostname() requires the host in all lowercase; it
+     * lowercases only the known_hosts pattern side. */
+    for (char *lc = lookup; *lc != '\0'; lc++)
+        *lc = (char)tolower((unsigned char)*lc);
+
+    enum ssh_known_hosts_e found = SSH_KNOWN_HOSTS_UNKNOWN;
+    size_t offset = 0;
+    while (offset < (size_t)known_hosts->nbytes) {
+        size_t end = offset;
+        while (end < (size_t)known_hosts->nbytes && known_hosts->str[end] != '\n')
+            end++;
+        size_t len = end - offset;
+        if (len > 0 && known_hosts->str[offset + len - 1] == '\r')
+            len--;
+
+        size_t first = 0;
+        while (first < len && (known_hosts->str[offset + first] == ' ' ||
+                               known_hosts->str[offset + first] == '\t'))
+            first++;
+        /* Skip @cert-authority / @revoked marker lines like libssh does
+         * ("we do not completely support them anyway", knownhosts.c); a
+         * marker's hostname pattern could otherwise never match, so this
+         * makes the ignore explicit rather than coincidental. */
+        if (first < len && known_hosts->str[offset + first] != '#' &&
+            known_hosts->str[offset + first] != '@') {
+            char *line = malloc(len - first + 1);
+            if (line == NULL) {
+                found = SSH_KNOWN_HOSTS_ERROR;
+                break;
+            }
+            memcpy(line, known_hosts->str + offset + first, len - first);
+            line[len - first] = '\0';
+
+            struct ssh_knownhosts_entry *entry = NULL;
+            int rc = ssh_known_hosts_parse_line(lookup, line, &entry);
+            free(line);
+            if (rc == SSH_OK && entry != NULL) {
+                int cmp = ssh_key_cmp(server_key, entry->publickey, SSH_KEY_CMP_PUBLIC);
+                if (cmp == 0) {
+                    ssh_knownhosts_entry_free(entry);
+                    found = SSH_KNOWN_HOSTS_OK;
+                    break;
+                }
+                if (ssh_key_type(server_key) == ssh_key_type(entry->publickey)) {
+                    found = SSH_KNOWN_HOSTS_CHANGED;
+                } else if (found != SSH_KNOWN_HOSTS_CHANGED) {
+                    found = SSH_KNOWN_HOSTS_OTHER;
+                }
+                ssh_knownhosts_entry_free(entry);
+            } else if (rc == SSH_ERROR) {
+                SSH_KNOWNHOSTS_ENTRY_FREE(entry);
+                found = SSH_KNOWN_HOSTS_ERROR;
+                break;
+            }
+        }
+        offset = end < (size_t)known_hosts->nbytes ? end + 1 : end;
+    }
+
+    free(lookup);
+    ssh_key_free(server_key);
+    return found;
+}
+
 /* Returns 0 = hostkey OK (continue to auth), 1 = waiting for app verdict,
  * -1 = failed (client already failed). */
 static int client_check_hostkey(ssh_client_ctx *c) {
     enum ssh_known_hosts_e state = SSH_KNOWN_HOSTS_UNKNOWN;
-    int use_known_hosts = 0;
     sshQ_libQ_Client actor = client_actor_ref(c);
 
-    if (actor != NULL && actor->_known_hosts != NULL)
-        use_known_hosts = 1;
-
-    if (use_known_hosts) {
-        state = ssh_session_is_known_server(c->session);
+    if (actor != NULL && actor->_known_hosts != NULL) {
+        state = client_known_hosts_state(c, actor->_known_hosts);
         if (state == SSH_KNOWN_HOSTS_OK)
             return 0;
 
         if (state == SSH_KNOWN_HOSTS_ERROR) {
             char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "Host key check error: %s", ssh_get_error(c->session));
+            snprintf(errmsg, sizeof(errmsg), "Unable to parse or check SSH known_hosts data");
             client_fail(c, errmsg);
             return -1;
         }
@@ -1527,30 +1906,27 @@ static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen) {
         return SSH_AUTH_ERROR;
     }
 
-    if (actor->_private_key_file != NULL && !c->auth_pubkey_done) {
-        if (c->auth_key == NULL) {
-            const char *path = (const char *)fromB_str(actor->_private_key_file);
-            const char *passphrase = actor->_private_key_passphrase != NULL ?
-                (const char *)fromB_str(actor->_private_key_passphrase) : NULL;
-            int krc = ssh_pki_import_privkey_file(path, passphrase, NULL, NULL, &c->auth_key);
-            if (krc != SSH_OK || c->auth_key == NULL) {
-                c->auth_key = NULL;
-                snprintf(errmsg, errlen, "Failed to load SSH private key: %s", path);
-                return SSH_AUTH_ERROR;
+    B_list private_keys = actor->_private_keys;
+    if (private_keys != NULL && !c->auth_pubkey_done) {
+        while (c->auth_key_index < (size_t)private_keys->length) {
+            if (c->auth_key == NULL) {
+                sshQ_libQ_PrivateKey key_value =
+                    (sshQ_libQ_PrivateKey)private_keys->data[c->auth_key_index];
+                if (import_private_key(key_value, &c->auth_key, errmsg, errlen) != SSH_OK)
+                    return SSH_AUTH_ERROR;
             }
-        }
-        int rc = ssh_userauth_publickey(c->session, NULL, c->auth_key);
-        if (rc == SSH_AUTH_SUCCESS) {
+            int rc = ssh_userauth_publickey(c->session, NULL, c->auth_key);
+            if (rc == SSH_AUTH_SUCCESS) {
+                ssh_key_free(c->auth_key);
+                c->auth_key = NULL;
+                return SSH_AUTH_SUCCESS;
+            }
+            if (rc == SSH_AUTH_AGAIN)
+                return SSH_AUTH_AGAIN;
             ssh_key_free(c->auth_key);
             c->auth_key = NULL;
-            return SSH_AUTH_SUCCESS;
+            c->auth_key_index++;
         }
-        if (rc == SSH_AUTH_AGAIN)
-            return SSH_AUTH_AGAIN;
-        /* Denied / partial / error: drop the key and optionally fall back to
-         * password auth. */
-        ssh_key_free(c->auth_key);
-        c->auth_key = NULL;
         c->auth_pubkey_done = 1;
         if (actor->_password == NULL) {
             snprintf(errmsg, errlen, "SSH public key auth failed: %s", ssh_get_error(c->session));
@@ -1568,7 +1944,7 @@ static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen) {
         return SSH_AUTH_ERROR;
     }
 
-    snprintf(errmsg, errlen, "No SSH authentication method configured (need password or private_key_file)");
+    snprintf(errmsg, errlen, "No SSH authentication method configured (need password or private_keys)");
     return SSH_AUTH_ERROR;
 }
 
@@ -2104,6 +2480,20 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
 
+    /* Host key verification uses only the in-memory known_hosts data (see
+     * client_check_hostkey). Pin libssh's known_hosts paths to /dev/null;
+     * see the header note. */
+    rc = ssh_options_set(c->session, SSH_OPTIONS_KNOWNHOSTS, "/dev/null");
+    if (rc != SSH_OK) {
+        client_fail(c, "Failed to disable SSH known_hosts files");
+        return $R_CONT(c$cont, B_None);
+    }
+    rc = ssh_options_set(c->session, SSH_OPTIONS_GLOBAL_KNOWNHOSTS, "/dev/null");
+    if (rc != SSH_OK) {
+        client_fail(c, "Failed to disable SSH global known_hosts files");
+        return $R_CONT(c$cont, B_None);
+    }
+
     rc = ssh_options_set(c->session, SSH_OPTIONS_HOST, fromB_str(self->_host));
     if (rc != SSH_OK) {
         client_fail(c, "Failed to set SSH host");
@@ -2119,22 +2509,16 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
         client_fail(c, "Failed to set SSH username");
         return $R_CONT(c$cont, B_None);
     }
-    if (self->_known_hosts != NULL) {
-        const char *known_hosts = (const char *)fromB_str(self->_known_hosts);
-        rc = ssh_options_set(c->session, SSH_OPTIONS_KNOWNHOSTS, known_hosts);
-        if (rc != SSH_OK) {
-            client_fail(c, "Failed to set SSH known_hosts path");
-            return $R_CONT(c$cont, B_None);
-        }
-        rc = ssh_options_set(c->session, SSH_OPTIONS_GLOBAL_KNOWNHOSTS, known_hosts);
-        if (rc != SSH_OK) {
-            client_fail(c, "Failed to set SSH global known_hosts path");
-            return $R_CONT(c$cont, B_None);
-        }
-    }
     rc = ssh_options_set(c->session, SSH_OPTIONS_STRICTHOSTKEYCHECK, &strict);
     if (rc != SSH_OK) {
         client_fail(c, "Failed to set SSH strict host key checking");
+        return $R_CONT(c$cont, B_None);
+    }
+
+    char transport_error[256] = {0};
+    if (apply_client_transport(c->session, self,
+                               transport_error, sizeof(transport_error)) != SSH_OK) {
+        client_fail(c, transport_error);
         return $R_CONT(c$cont, B_None);
     }
 
@@ -3482,6 +3866,20 @@ static void server_accept(ssh_server_ctx *s) {
             continue;
         }
 
+        sshQ_libQ_Server act = server_actor_ref(s);
+        char transport_error[256] = {0};
+        if (act == NULL ||
+            apply_server_session_transport(session, act,
+                                           transport_error,
+                                           sizeof(transport_error)) != SSH_OK) {
+            log_warn("SSH accept: %s",
+                     transport_error[0] != '\0' ? transport_error :
+                     "server actor gone while applying transport configuration");
+            ssh_disconnect(session);
+            ssh_free(session);
+            continue;
+        }
+
         ssh_set_blocking(session, 0);
         ssh_server_session_ctx *sess = acton_calloc(1, sizeof(ssh_server_session_ctx));
         sess->server = s;
@@ -3489,7 +3887,6 @@ static void server_accept(ssh_server_ctx *s) {
         sess->state = SESSION_STATE_KEYEX;
         sess->pending_id = alloc_pending_session_id();
         sess->fd = ssh_get_fd(session);
-        sshQ_libQ_Server act = server_actor_ref(s);
         sess->owner_wt = act ? (int)act->$affinity : 0;
         sess->auth_timeout = act ? act->_auth_timeout : 0.0;
         if (sess->fd < 0) {
@@ -3788,14 +4185,36 @@ $R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
 
-    if (self->_host_key != NULL) {
-        const char *key_pem = (const char *)fromB_str(self->_host_key);
-        rc = ssh_pki_import_privkey_base64(key_pem, NULL, NULL, NULL, &s->hostkey);
-        if (rc != SSH_OK) {
-            char errmsg[256] = {0};
-            snprintf(errmsg, sizeof(errmsg), "Failed to load host key: %s", ssh_get_error(s->bind));
-            server_fail(s, errmsg);
-            return $R_CONT(c$cont, B_None);
+    char transport_error[256] = {0};
+    if (apply_server_bind_transport(s->bind, self,
+                                    transport_error, sizeof(transport_error)) != SSH_OK) {
+        server_fail(s, transport_error);
+        return $R_CONT(c$cont, B_None);
+    }
+
+    if (self->_host_keys != NULL) {
+        B_list host_keys = self->_host_keys;
+        for (size_t i = 0; i < (size_t)host_keys->length; i++) {
+            sshQ_libQ_PrivateKey key_value =
+                (sshQ_libQ_PrivateKey)host_keys->data[i];
+            char key_error[256] = {0};
+            if (import_private_key(key_value, &s->hostkey,
+                                   key_error, sizeof(key_error)) != SSH_OK) {
+                server_fail(s, key_error);
+                return $R_CONT(c$cont, B_None);
+            }
+            rc = ssh_bind_options_set(s->bind,
+                                      SSH_BIND_OPTIONS_IMPORT_KEY,
+                                      s->hostkey);
+            if (rc != SSH_OK) {
+                char errmsg[256] = {0};
+                snprintf(errmsg, sizeof(errmsg), "Failed to set SSH host key: %s",
+                         ssh_get_error(s->bind));
+                server_fail(s, errmsg);
+                return $R_CONT(c$cont, B_None);
+            }
+            /* ssh_bind owns the imported key after a successful set. */
+            s->hostkey = NULL;
         }
     } else {
         const char *type_str = (const char *)fromB_str(self->_host_key_type);
@@ -3816,15 +4235,14 @@ $R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
             server_fail(s, "Failed to generate host key");
             return $R_CONT(c$cont, B_None);
         }
+        rc = ssh_bind_options_set(s->bind, SSH_BIND_OPTIONS_IMPORT_KEY, s->hostkey);
+        if (rc != SSH_OK) {
+            server_fail(s, "Failed to set host key");
+            return $R_CONT(c$cont, B_None);
+        }
+        /* ssh_bind takes ownership of IMPORT_KEY and frees it via ssh_bind_free(). */
+        s->hostkey = NULL;
     }
-
-    rc = ssh_bind_options_set(s->bind, SSH_BIND_OPTIONS_IMPORT_KEY, s->hostkey);
-    if (rc != SSH_OK) {
-        server_fail(s, "Failed to set host key");
-        return $R_CONT(c$cont, B_None);
-    }
-    /* ssh_bind takes ownership of IMPORT_KEY and frees it via ssh_bind_free(). */
-    s->hostkey = NULL;
 
     ssh_bind_set_blocking(s->bind, 0);
 

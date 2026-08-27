@@ -35,7 +35,7 @@ Server authentication:
     so the handler only decides authorization of the (user, key) pair.
 
 Authentication (client):
-  - If private_key_file is set, public key authentication is attempted first.
+  - If private_keys is set, public key authentication is attempted first.
   - If password is set, password authentication is attempted (after pubkey,
     if both are given).
   - If neither is given, the connection fails.
@@ -61,12 +61,472 @@ Notes:
     channel close, half-open connection) escalates to a forced close after
     close_timeout seconds.
   - Timeouts and keepalive are configurable; server host keys are generated
-    in-memory unless host_key (PEM/OpenSSH private key material) is provided.
+    in-memory unless host_keys are provided.
   - Server admission limits are configurable; values <= 0 disable a limit.
   - For debugging, set ACTON_SSH_DEBUG and ACTON_SSH_LIBSSH_LOG.
 """
 
 import net
+
+
+class Algorithm:
+    """An algorithm supported by the bundled libssh build."""
+    _name: str
+    def __init__(self, name: str):
+        self._name = name
+    def __str__(self) -> str:
+        return self._name
+
+
+class Cipher(Algorithm):
+    """A cipher supported by the bundled libssh build."""
+    pass
+
+
+class Mac(Algorithm):
+    """A message authentication code supported by bundled libssh."""
+    pass
+
+
+class KeyExchange(Algorithm):
+    """A key exchange algorithm supported by bundled libssh."""
+    pass
+
+
+class HostKeyAlgorithm(Algorithm):
+    """A server host key algorithm supported by bundled libssh."""
+    pass
+
+
+class PublicKeyAlgorithm(Algorithm):
+    """A public key authentication algorithm supported by bundled libssh."""
+    pass
+
+
+class CompressionAlgorithm(Algorithm):
+    """A compression algorithm supported by bundled libssh."""
+    pass
+
+
+# These catalogs are exhaustive for the pinned libssh build. Keep their order
+# aligned with libssh's supported/default method tables when updating the pin.
+_cipher_chacha20_poly1305 = Cipher("chacha20-poly1305@openssh.com")
+_cipher_aes256_gcm = Cipher("aes256-gcm@openssh.com")
+_cipher_aes128_gcm = Cipher("aes128-gcm@openssh.com")
+_cipher_aes256_ctr = Cipher("aes256-ctr")
+_cipher_aes192_ctr = Cipher("aes192-ctr")
+_cipher_aes128_ctr = Cipher("aes128-ctr")
+_cipher_aes256_cbc = Cipher("aes256-cbc")
+_cipher_aes192_cbc = Cipher("aes192-cbc")
+_cipher_aes128_cbc = Cipher("aes128-cbc")
+_cipher_triple_des_cbc = Cipher("3des-cbc")
+_cipher_none = Cipher("none")
+
+cipher = (
+    chacha20_poly1305=_cipher_chacha20_poly1305,
+    aes256_gcm=_cipher_aes256_gcm,
+    aes128_gcm=_cipher_aes128_gcm,
+    aes256_ctr=_cipher_aes256_ctr,
+    aes192_ctr=_cipher_aes192_ctr,
+    aes128_ctr=_cipher_aes128_ctr,
+    aes256_cbc=_cipher_aes256_cbc,
+    aes192_cbc=_cipher_aes192_cbc,
+    aes128_cbc=_cipher_aes128_cbc,
+    triple_des_cbc=_cipher_triple_des_cbc,
+    none=_cipher_none,
+    default=[_cipher_chacha20_poly1305,
+             _cipher_aes256_gcm, _cipher_aes128_gcm,
+             _cipher_aes256_ctr, _cipher_aes192_ctr, _cipher_aes128_ctr],
+    supported=[_cipher_chacha20_poly1305,
+               _cipher_aes256_gcm, _cipher_aes128_gcm,
+               _cipher_aes256_ctr, _cipher_aes192_ctr, _cipher_aes128_ctr,
+               _cipher_aes256_cbc, _cipher_aes192_cbc, _cipher_aes128_cbc,
+               _cipher_triple_des_cbc, _cipher_none],
+)
+
+_cipher_supported_names = {str(value) for value in cipher.supported}
+
+
+_mac_hmac_sha2_256_etm = Mac("hmac-sha2-256-etm@openssh.com")
+_mac_hmac_sha2_512_etm = Mac("hmac-sha2-512-etm@openssh.com")
+_mac_hmac_sha1_etm = Mac("hmac-sha1-etm@openssh.com")
+_mac_hmac_sha2_256 = Mac("hmac-sha2-256")
+_mac_hmac_sha2_512 = Mac("hmac-sha2-512")
+_mac_hmac_sha1 = Mac("hmac-sha1")
+_mac_none = Mac("none")
+
+mac = (
+    hmac_sha2_256_etm=_mac_hmac_sha2_256_etm,
+    hmac_sha2_512_etm=_mac_hmac_sha2_512_etm,
+    hmac_sha1_etm=_mac_hmac_sha1_etm,
+    hmac_sha2_256=_mac_hmac_sha2_256,
+    hmac_sha2_512=_mac_hmac_sha2_512,
+    hmac_sha1=_mac_hmac_sha1,
+    none=_mac_none,
+    default=[_mac_hmac_sha2_256_etm, _mac_hmac_sha2_512_etm,
+             _mac_hmac_sha2_256, _mac_hmac_sha2_512],
+    supported=[_mac_hmac_sha2_256_etm, _mac_hmac_sha2_512_etm,
+               _mac_hmac_sha1_etm, _mac_hmac_sha2_256,
+               _mac_hmac_sha2_512, _mac_hmac_sha1, _mac_none],
+)
+
+_mac_supported_names = {str(value) for value in mac.supported}
+
+
+_kex_group_exchange_sha1 = KeyExchange("diffie-hellman-group-exchange-sha1")
+_kex_mlkem768x25519_sha256 = KeyExchange("mlkem768x25519-sha256")
+_kex_mlkem768nistp256_sha256 = KeyExchange("mlkem768nistp256-sha256")
+_kex_sntrup761x25519_sha512 = KeyExchange("sntrup761x25519-sha512")
+_kex_sntrup761x25519_sha512_openssh = KeyExchange("sntrup761x25519-sha512@openssh.com")
+_kex_curve25519_sha256 = KeyExchange("curve25519-sha256")
+_kex_curve25519_sha256_libssh = KeyExchange("curve25519-sha256@libssh.org")
+_kex_ecdh_sha2_nistp256 = KeyExchange("ecdh-sha2-nistp256")
+_kex_ecdh_sha2_nistp384 = KeyExchange("ecdh-sha2-nistp384")
+_kex_ecdh_sha2_nistp521 = KeyExchange("ecdh-sha2-nistp521")
+_kex_group18_sha512 = KeyExchange("diffie-hellman-group18-sha512")
+_kex_group16_sha512 = KeyExchange("diffie-hellman-group16-sha512")
+_kex_group_exchange_sha256 = KeyExchange("diffie-hellman-group-exchange-sha256")
+_kex_group14_sha256 = KeyExchange("diffie-hellman-group14-sha256")
+_kex_group14_sha1 = KeyExchange("diffie-hellman-group14-sha1")
+_kex_group1_sha1 = KeyExchange("diffie-hellman-group1-sha1")
+
+kex = (
+    diffie_hellman_group_exchange_sha1=_kex_group_exchange_sha1,
+    mlkem768x25519_sha256=_kex_mlkem768x25519_sha256,
+    mlkem768nistp256_sha256=_kex_mlkem768nistp256_sha256,
+    sntrup761x25519_sha512=_kex_sntrup761x25519_sha512,
+    sntrup761x25519_sha512_openssh=_kex_sntrup761x25519_sha512_openssh,
+    curve25519_sha256=_kex_curve25519_sha256,
+    curve25519_sha256_libssh=_kex_curve25519_sha256_libssh,
+    ecdh_sha2_nistp256=_kex_ecdh_sha2_nistp256,
+    ecdh_sha2_nistp384=_kex_ecdh_sha2_nistp384,
+    ecdh_sha2_nistp521=_kex_ecdh_sha2_nistp521,
+    diffie_hellman_group18_sha512=_kex_group18_sha512,
+    diffie_hellman_group16_sha512=_kex_group16_sha512,
+    diffie_hellman_group_exchange_sha256=_kex_group_exchange_sha256,
+    diffie_hellman_group14_sha256=_kex_group14_sha256,
+    diffie_hellman_group14_sha1=_kex_group14_sha1,
+    diffie_hellman_group1_sha1=_kex_group1_sha1,
+    default=[_kex_mlkem768x25519_sha256, _kex_mlkem768nistp256_sha256,
+             _kex_sntrup761x25519_sha512,
+             _kex_sntrup761x25519_sha512_openssh,
+             _kex_curve25519_sha256, _kex_curve25519_sha256_libssh,
+             _kex_ecdh_sha2_nistp256, _kex_ecdh_sha2_nistp384,
+             _kex_ecdh_sha2_nistp521, _kex_group18_sha512,
+             _kex_group16_sha512, _kex_group_exchange_sha256,
+             _kex_group14_sha256],
+    supported=[_kex_group_exchange_sha1,
+               _kex_mlkem768x25519_sha256, _kex_mlkem768nistp256_sha256,
+               _kex_sntrup761x25519_sha512,
+               _kex_sntrup761x25519_sha512_openssh,
+               _kex_curve25519_sha256, _kex_curve25519_sha256_libssh,
+               _kex_ecdh_sha2_nistp256, _kex_ecdh_sha2_nistp384,
+               _kex_ecdh_sha2_nistp521, _kex_group18_sha512,
+               _kex_group16_sha512, _kex_group_exchange_sha256,
+               _kex_group14_sha256, _kex_group14_sha1, _kex_group1_sha1],
+)
+
+_kex_supported_names = {str(value) for value in kex.supported}
+
+
+_hostkey_ssh_ed25519_cert = HostKeyAlgorithm("ssh-ed25519-cert-v01@openssh.com")
+_hostkey_sk_ssh_ed25519_cert = HostKeyAlgorithm("sk-ssh-ed25519-cert-v01@openssh.com")
+_hostkey_ecdsa_nistp521_cert = HostKeyAlgorithm("ecdsa-sha2-nistp521-cert-v01@openssh.com")
+_hostkey_ecdsa_nistp384_cert = HostKeyAlgorithm("ecdsa-sha2-nistp384-cert-v01@openssh.com")
+_hostkey_ecdsa_nistp256_cert = HostKeyAlgorithm("ecdsa-sha2-nistp256-cert-v01@openssh.com")
+_hostkey_sk_ecdsa_nistp256_cert = HostKeyAlgorithm("sk-ecdsa-sha2-nistp256-cert-v01@openssh.com")
+_hostkey_rsa_sha2_512_cert = HostKeyAlgorithm("rsa-sha2-512-cert-v01@openssh.com")
+_hostkey_rsa_sha2_256_cert = HostKeyAlgorithm("rsa-sha2-256-cert-v01@openssh.com")
+_hostkey_ssh_rsa_cert = HostKeyAlgorithm("ssh-rsa-cert-v01@openssh.com")
+_hostkey_ssh_ed25519 = HostKeyAlgorithm("ssh-ed25519")
+_hostkey_ecdsa_nistp521 = HostKeyAlgorithm("ecdsa-sha2-nistp521")
+_hostkey_ecdsa_nistp384 = HostKeyAlgorithm("ecdsa-sha2-nistp384")
+_hostkey_ecdsa_nistp256 = HostKeyAlgorithm("ecdsa-sha2-nistp256")
+_hostkey_sk_ssh_ed25519 = HostKeyAlgorithm("sk-ssh-ed25519@openssh.com")
+_hostkey_sk_ecdsa_nistp256 = HostKeyAlgorithm("sk-ecdsa-sha2-nistp256@openssh.com")
+_hostkey_rsa_sha2_512 = HostKeyAlgorithm("rsa-sha2-512")
+_hostkey_rsa_sha2_256 = HostKeyAlgorithm("rsa-sha2-256")
+_hostkey_ssh_rsa = HostKeyAlgorithm("ssh-rsa")
+
+hostkey = (
+    ssh_ed25519_cert=_hostkey_ssh_ed25519_cert,
+    sk_ssh_ed25519_cert=_hostkey_sk_ssh_ed25519_cert,
+    ecdsa_sha2_nistp521_cert=_hostkey_ecdsa_nistp521_cert,
+    ecdsa_sha2_nistp384_cert=_hostkey_ecdsa_nistp384_cert,
+    ecdsa_sha2_nistp256_cert=_hostkey_ecdsa_nistp256_cert,
+    sk_ecdsa_sha2_nistp256_cert=_hostkey_sk_ecdsa_nistp256_cert,
+    rsa_sha2_512_cert=_hostkey_rsa_sha2_512_cert,
+    rsa_sha2_256_cert=_hostkey_rsa_sha2_256_cert,
+    ssh_rsa_cert=_hostkey_ssh_rsa_cert,
+    ssh_ed25519=_hostkey_ssh_ed25519,
+    ecdsa_sha2_nistp521=_hostkey_ecdsa_nistp521,
+    ecdsa_sha2_nistp384=_hostkey_ecdsa_nistp384,
+    ecdsa_sha2_nistp256=_hostkey_ecdsa_nistp256,
+    sk_ssh_ed25519=_hostkey_sk_ssh_ed25519,
+    sk_ecdsa_sha2_nistp256=_hostkey_sk_ecdsa_nistp256,
+    rsa_sha2_512=_hostkey_rsa_sha2_512,
+    rsa_sha2_256=_hostkey_rsa_sha2_256,
+    ssh_rsa=_hostkey_ssh_rsa,
+    default=[_hostkey_ssh_ed25519_cert,
+             _hostkey_ecdsa_nistp521_cert, _hostkey_ecdsa_nistp384_cert,
+             _hostkey_ecdsa_nistp256_cert, _hostkey_sk_ecdsa_nistp256_cert,
+             _hostkey_rsa_sha2_512_cert, _hostkey_rsa_sha2_256_cert,
+             _hostkey_ssh_ed25519, _hostkey_ecdsa_nistp521,
+             _hostkey_ecdsa_nistp384, _hostkey_ecdsa_nistp256,
+             _hostkey_sk_ssh_ed25519, _hostkey_sk_ecdsa_nistp256,
+             _hostkey_rsa_sha2_512, _hostkey_rsa_sha2_256],
+    supported=[_hostkey_ssh_ed25519_cert, _hostkey_sk_ssh_ed25519_cert,
+               _hostkey_ecdsa_nistp521_cert, _hostkey_ecdsa_nistp384_cert,
+               _hostkey_ecdsa_nistp256_cert, _hostkey_sk_ecdsa_nistp256_cert,
+               _hostkey_rsa_sha2_512_cert, _hostkey_rsa_sha2_256_cert,
+               _hostkey_ssh_rsa_cert, _hostkey_ssh_ed25519,
+               _hostkey_ecdsa_nistp521, _hostkey_ecdsa_nistp384,
+               _hostkey_ecdsa_nistp256, _hostkey_sk_ssh_ed25519,
+               _hostkey_sk_ecdsa_nistp256, _hostkey_rsa_sha2_512,
+               _hostkey_rsa_sha2_256, _hostkey_ssh_rsa],
+)
+
+_hostkey_supported_names = {str(value) for value in hostkey.supported}
+
+
+_pubkey_ssh_ed25519_cert = PublicKeyAlgorithm("ssh-ed25519-cert-v01@openssh.com")
+_pubkey_sk_ssh_ed25519_cert = PublicKeyAlgorithm("sk-ssh-ed25519-cert-v01@openssh.com")
+_pubkey_ecdsa_nistp521_cert = PublicKeyAlgorithm("ecdsa-sha2-nistp521-cert-v01@openssh.com")
+_pubkey_ecdsa_nistp384_cert = PublicKeyAlgorithm("ecdsa-sha2-nistp384-cert-v01@openssh.com")
+_pubkey_ecdsa_nistp256_cert = PublicKeyAlgorithm("ecdsa-sha2-nistp256-cert-v01@openssh.com")
+_pubkey_sk_ecdsa_nistp256_cert = PublicKeyAlgorithm("sk-ecdsa-sha2-nistp256-cert-v01@openssh.com")
+_pubkey_rsa_sha2_512_cert = PublicKeyAlgorithm("rsa-sha2-512-cert-v01@openssh.com")
+_pubkey_rsa_sha2_256_cert = PublicKeyAlgorithm("rsa-sha2-256-cert-v01@openssh.com")
+_pubkey_ssh_rsa_cert = PublicKeyAlgorithm("ssh-rsa-cert-v01@openssh.com")
+_pubkey_ssh_ed25519 = PublicKeyAlgorithm("ssh-ed25519")
+_pubkey_ecdsa_nistp521 = PublicKeyAlgorithm("ecdsa-sha2-nistp521")
+_pubkey_ecdsa_nistp384 = PublicKeyAlgorithm("ecdsa-sha2-nistp384")
+_pubkey_ecdsa_nistp256 = PublicKeyAlgorithm("ecdsa-sha2-nistp256")
+_pubkey_sk_ssh_ed25519 = PublicKeyAlgorithm("sk-ssh-ed25519@openssh.com")
+_pubkey_sk_ecdsa_nistp256 = PublicKeyAlgorithm("sk-ecdsa-sha2-nistp256@openssh.com")
+_pubkey_rsa_sha2_512 = PublicKeyAlgorithm("rsa-sha2-512")
+_pubkey_rsa_sha2_256 = PublicKeyAlgorithm("rsa-sha2-256")
+_pubkey_ssh_rsa = PublicKeyAlgorithm("ssh-rsa")
+
+pubkey = (
+    ssh_ed25519_cert=_pubkey_ssh_ed25519_cert,
+    sk_ssh_ed25519_cert=_pubkey_sk_ssh_ed25519_cert,
+    ecdsa_sha2_nistp521_cert=_pubkey_ecdsa_nistp521_cert,
+    ecdsa_sha2_nistp384_cert=_pubkey_ecdsa_nistp384_cert,
+    ecdsa_sha2_nistp256_cert=_pubkey_ecdsa_nistp256_cert,
+    sk_ecdsa_sha2_nistp256_cert=_pubkey_sk_ecdsa_nistp256_cert,
+    rsa_sha2_512_cert=_pubkey_rsa_sha2_512_cert,
+    rsa_sha2_256_cert=_pubkey_rsa_sha2_256_cert,
+    ssh_rsa_cert=_pubkey_ssh_rsa_cert,
+    ssh_ed25519=_pubkey_ssh_ed25519,
+    ecdsa_sha2_nistp521=_pubkey_ecdsa_nistp521,
+    ecdsa_sha2_nistp384=_pubkey_ecdsa_nistp384,
+    ecdsa_sha2_nistp256=_pubkey_ecdsa_nistp256,
+    sk_ssh_ed25519=_pubkey_sk_ssh_ed25519,
+    sk_ecdsa_sha2_nistp256=_pubkey_sk_ecdsa_nistp256,
+    rsa_sha2_512=_pubkey_rsa_sha2_512,
+    rsa_sha2_256=_pubkey_rsa_sha2_256,
+    ssh_rsa=_pubkey_ssh_rsa,
+    default=[_pubkey_ssh_ed25519_cert,
+             _pubkey_ecdsa_nistp521_cert, _pubkey_ecdsa_nistp384_cert,
+             _pubkey_ecdsa_nistp256_cert, _pubkey_sk_ecdsa_nistp256_cert,
+             _pubkey_rsa_sha2_512_cert, _pubkey_rsa_sha2_256_cert,
+             _pubkey_ssh_ed25519, _pubkey_ecdsa_nistp521,
+             _pubkey_ecdsa_nistp384, _pubkey_ecdsa_nistp256,
+             _pubkey_sk_ssh_ed25519, _pubkey_sk_ecdsa_nistp256,
+             _pubkey_rsa_sha2_512, _pubkey_rsa_sha2_256],
+    supported=[_pubkey_ssh_ed25519_cert, _pubkey_sk_ssh_ed25519_cert,
+               _pubkey_ecdsa_nistp521_cert, _pubkey_ecdsa_nistp384_cert,
+               _pubkey_ecdsa_nistp256_cert, _pubkey_sk_ecdsa_nistp256_cert,
+               _pubkey_rsa_sha2_512_cert, _pubkey_rsa_sha2_256_cert,
+               _pubkey_ssh_rsa_cert, _pubkey_ssh_ed25519,
+               _pubkey_ecdsa_nistp521, _pubkey_ecdsa_nistp384,
+               _pubkey_ecdsa_nistp256, _pubkey_sk_ssh_ed25519,
+               _pubkey_sk_ecdsa_nistp256, _pubkey_rsa_sha2_512,
+               _pubkey_rsa_sha2_256, _pubkey_ssh_rsa],
+)
+
+_pubkey_supported_names = {str(value) for value in pubkey.supported}
+
+
+_compression_none = CompressionAlgorithm("none")
+_compression_zlib_openssh = CompressionAlgorithm("zlib@openssh.com")
+_compression_zlib = CompressionAlgorithm("zlib")
+
+compression = (
+    none=_compression_none,
+    zlib_openssh=_compression_zlib_openssh,
+    zlib=_compression_zlib,
+    default=[_compression_none, _compression_zlib_openssh],
+    supported=[_compression_none, _compression_zlib_openssh, _compression_zlib],
+)
+
+_compression_supported_names = {str(value) for value in compression.supported}
+
+
+def _validated_algorithm_names(names: list[str], supported: set[str], kind: str) -> str:
+    if not names:
+        raise ValueError(f"TransportConfig {kind} cannot be empty")
+    seen: set[str] = set()
+    for name in names:
+        if name not in supported:
+            raise ValueError(f"Unsupported SSH {kind}: {name}")
+        if name in seen:
+            raise ValueError(f"Duplicate SSH {kind}: {name}")
+        seen.add(name)
+    return ",".join(names)
+
+
+class TransportConfig(object):
+    """Shared client/server SSH negotiation and rekey configuration.
+
+    Each algorithm list is the exact ordered preference list for both
+    directions and defaults to the library default (ssh.cipher.default and
+    friends). minimum_rsa_bits defaults to 1024, the lowest supported.
+    rekey_after_bytes None rekeys at the negotiated cipher's RFC 4344
+    volume limit; a set value can only lower that limit, not raise it.
+    rekey_after_seconds None disables time-based rekeying.
+    """
+    ciphers: list[Cipher]
+    macs: list[Mac]
+    key_exchanges: list[KeyExchange]
+    host_key_algorithms: list[HostKeyAlgorithm]
+    public_key_algorithms: list[PublicKeyAlgorithm]
+    compression_algorithms: list[CompressionAlgorithm]
+    compression_level: int
+    rekey_after_bytes: ?int
+    rekey_after_seconds: ?int
+    minimum_rsa_bits: int
+
+    def __init__(self,
+                 ciphers: ?list[Cipher]=None,
+                 macs: ?list[Mac]=None,
+                 key_exchanges: ?list[KeyExchange]=None,
+                 host_key_algorithms: ?list[HostKeyAlgorithm]=None,
+                 public_key_algorithms: ?list[PublicKeyAlgorithm]=None,
+                 compression_algorithms: ?list[CompressionAlgorithm]=None,
+                 compression_level: int=7,
+                 rekey_after_bytes: ?int=None,
+                 rekey_after_seconds: ?int=None,
+                 minimum_rsa_bits: int=1024):
+        self.ciphers = list(ciphers) if ciphers is not None else list(cipher.default)
+        self.macs = list(macs) if macs is not None else list(mac.default)
+        self.key_exchanges = list(key_exchanges) if key_exchanges is not None else list(kex.default)
+        self.host_key_algorithms = list(host_key_algorithms) if host_key_algorithms is not None else list(hostkey.default)
+        self.public_key_algorithms = list(public_key_algorithms) if public_key_algorithms is not None else list(pubkey.default)
+        self.compression_algorithms = list(compression_algorithms) if compression_algorithms is not None else list(compression.default)
+        self.compression_level = compression_level
+        self.rekey_after_bytes = rekey_after_bytes
+        self.rekey_after_seconds = rekey_after_seconds
+        self.minimum_rsa_bits = minimum_rsa_bits
+        self._native_snapshot()
+
+    def _native_snapshot(self):
+        ciphers = self._ciphers_csv()
+        macs = self._macs_csv()
+        key_exchanges = self._key_exchanges_csv()
+        host_key_algorithms = self._host_key_algorithms_csv()
+        public_key_algorithms = self._public_key_algorithms_csv()
+        compression_algorithms = self._compression_algorithms_csv()
+        level = self.compression_level
+        if level < 1 or level > 9:
+            raise ValueError("SSH compression_level must be between 1 and 9")
+        rekey_bytes = self.rekey_after_bytes
+        if rekey_bytes is not None and rekey_bytes < 0:
+            raise ValueError("SSH rekey_after_bytes cannot be negative")
+        rekey_seconds = self.rekey_after_seconds
+        if rekey_seconds is not None:
+            if rekey_seconds < 0:
+                raise ValueError("SSH rekey_after_seconds cannot be negative")
+            if rekey_seconds > 4294967:
+                raise ValueError("SSH rekey_after_seconds cannot exceed 4294967")
+        rsa_bits = self.minimum_rsa_bits
+        if rsa_bits < 1024:
+            raise ValueError("SSH minimum_rsa_bits must be at least 1024")
+        if rsa_bits > 2147483647:
+            raise ValueError("SSH minimum_rsa_bits cannot exceed 2147483647")
+        return (
+            ciphers=ciphers,
+            macs=macs,
+            key_exchanges=key_exchanges,
+            host_key_algorithms=host_key_algorithms,
+            public_key_algorithms=public_key_algorithms,
+            compression_algorithms=compression_algorithms,
+            compression_level=level,
+            rekey_after_bytes=rekey_bytes if rekey_bytes is not None else -1,
+            rekey_after_seconds=rekey_seconds if rekey_seconds is not None else -1,
+            minimum_rsa_bits=rsa_bits,
+        )
+
+    def _ciphers_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.ciphers],
+            _cipher_supported_names,
+            "cipher",
+        )
+
+    def _macs_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.macs],
+            _mac_supported_names,
+            "MAC",
+        )
+
+    def _key_exchanges_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.key_exchanges],
+            _kex_supported_names,
+            "key exchange algorithm",
+        )
+
+    def _host_key_algorithms_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.host_key_algorithms],
+            _hostkey_supported_names,
+            "host key algorithm",
+        )
+
+    def _public_key_algorithms_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.public_key_algorithms],
+            _pubkey_supported_names,
+            "public key algorithm",
+        )
+
+    def _compression_algorithms_csv(self) -> str:
+        return _validated_algorithm_names(
+            [str(value) for value in self.compression_algorithms],
+            _compression_supported_names,
+            "compression algorithm",
+        )
+
+
+def _native_transport_snapshot(transport: ?TransportConfig):
+    """Snapshot the supplied config, or the default configuration."""
+    t = transport if transport is not None else TransportConfig()
+    return t._native_snapshot()
+
+
+class PrivateKey(object):
+    """In-memory OpenSSH/PEM private key and optional OpenSSH certificate."""
+    material: bytes
+    passphrase: ?str
+    certificate: ?bytes
+
+    def __init__(self, material: bytes, passphrase: ?str=None, certificate: ?bytes=None):
+        if len(material) == 0:
+            raise ValueError("SSH private key material cannot be empty")
+        if material.find(b"\x00") >= 0:
+            raise ValueError("SSH private key material cannot contain NUL bytes")
+        if passphrase is not None and passphrase.find("\x00") >= 0:
+            raise ValueError("SSH private key passphrase cannot contain NUL characters")
+        if certificate is not None and len(certificate) == 0:
+            raise ValueError("SSH certificate material cannot be empty")
+        if certificate is not None and certificate.find(b"\x00") >= 0:
+            raise ValueError("SSH certificate material cannot contain NUL bytes")
+        self.material = material
+        self.passphrase = passphrase
+        self.certificate = certificate
 
 
 def version() -> str:
@@ -131,10 +591,10 @@ actor Client(cap: net.TCPConnectCap,
              on_close: action(Client, str) -> None,
              on_hostkey: ?action(Client, str, HostKeyInfo) -> None=None,
              password: ?str=None,
-             private_key_file: ?str=None,
-             private_key_passphrase: ?str=None,
+             private_keys: ?list[PrivateKey]=None,
              port: u16=22,
-             known_hosts: ?str=None,
+             known_hosts: ?bytes=None,
+             transport: ?TransportConfig=None,
              connect_timeout: float=10.0,
              auth_timeout: float=10.0,
              keepalive_interval: float=30.0,
@@ -148,18 +608,37 @@ actor Client(cap: net.TCPConnectCap,
     err is None on success, otherwise a description of the failure.
     on_close(reason) fires exactly once after a successful connect when the
     session ends. on_hostkey is invoked for host key verification when the
-    key is not already trusted via known_hosts; respond with accept_hostkey()
-    or reject_hostkey(reason).
+    key is not already trusted via the in-memory known_hosts data; respond
+    with accept_hostkey() or reject_hostkey(reason). known_hosts does not
+    influence which host key type is negotiated; set
+    transport.host_key_algorithms to pin one. @cert-authority and @revoked
+    marker lines are ignored, as in libssh itself. private_keys are tried in
+    order. transport contains only shared negotiation and rekey settings.
     """
 
     # Pointer to the native client context (opaque)
     var _client: u64 = 0
     var _host: str = host
     var _username: str = username
+    if private_keys is not None and len(private_keys) == 0:
+        raise ValueError("SSH private_keys cannot be empty")
+    if known_hosts is not None and known_hosts.find(b"\x00") >= 0:
+        raise ValueError("SSH known_hosts data cannot contain NUL bytes")
+    transport_snapshot = _native_transport_snapshot(transport)
+
     var _password: ?str = password
-    var _private_key_file: ?str = private_key_file
-    var _private_key_passphrase: ?str = private_key_passphrase
-    var _known_hosts: ?str = known_hosts
+    var _private_keys: ?list[PrivateKey] = list(private_keys) if private_keys is not None else None
+    var _known_hosts: ?bytes = known_hosts
+    var _ciphers: ?str = transport_snapshot.ciphers
+    var _macs: ?str = transport_snapshot.macs
+    var _key_exchanges: ?str = transport_snapshot.key_exchanges
+    var _host_key_algorithms: ?str = transport_snapshot.host_key_algorithms
+    var _public_key_algorithms: ?str = transport_snapshot.public_key_algorithms
+    var _compression_algorithms: ?str = transport_snapshot.compression_algorithms
+    var _compression_level: int = transport_snapshot.compression_level
+    var _rekey_after_bytes: int = transport_snapshot.rekey_after_bytes
+    var _rekey_after_seconds: int = transport_snapshot.rekey_after_seconds
+    var _minimum_rsa_bits: int = transport_snapshot.minimum_rsa_bits
     var _connect_timeout: float = connect_timeout
     var _auth_timeout: float = auth_timeout
     var _keepalive_interval: float = keepalive_interval
@@ -393,9 +872,10 @@ actor Server(cap: net.TCPListenCap,
              on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_session_close: ?action(ServerSession, str) -> None=None,
-             host_key: ?str=None,
+             host_keys: ?list[PrivateKey]=None,
              host_key_type: str="ed25519",
              host_key_bits: int=2048,
+             transport: ?TransportConfig=None,
              auth_timeout: float=10.0,
              keepalive_interval: float=30.0,
              keepalive_enabled: bool=True,
@@ -414,15 +894,32 @@ actor Server(cap: net.TCPListenCap,
     session.reject_auth(reason). Channel opens are delivered via
     on_channel_open(session); respond with
     session.accept_channel(ServerChannel(...)) or session.reject_channel().
+    host_keys are in-memory keys offered by key type; when omitted, one
+    ephemeral key is generated from host_key_type/host_key_bits. transport
+    contains the same shared negotiation and rekey settings used by Client.
     """
 
     var _server: u64 = 0
     var _bound_port: u16 = 0
     var _host: str = host
+    if host_keys is not None and len(host_keys) == 0:
+        raise ValueError("SSH host_keys cannot be empty")
+    transport_snapshot = _native_transport_snapshot(transport)
+
     var _port: u16 = port
-    var _host_key: ?str = host_key
+    var _host_keys: ?list[PrivateKey] = list(host_keys) if host_keys is not None else None
     var _host_key_type: str = host_key_type
     var _host_key_bits: int = host_key_bits
+    var _ciphers: ?str = transport_snapshot.ciphers
+    var _macs: ?str = transport_snapshot.macs
+    var _key_exchanges: ?str = transport_snapshot.key_exchanges
+    var _host_key_algorithms: ?str = transport_snapshot.host_key_algorithms
+    var _public_key_algorithms: ?str = transport_snapshot.public_key_algorithms
+    var _compression_algorithms: ?str = transport_snapshot.compression_algorithms
+    var _compression_level: int = transport_snapshot.compression_level
+    var _rekey_after_bytes: int = transport_snapshot.rekey_after_bytes
+    var _rekey_after_seconds: int = transport_snapshot.rekey_after_seconds
+    var _minimum_rsa_bits: int = transport_snapshot.minimum_rsa_bits
     var _auth_timeout: float = auth_timeout
     var _keepalive_interval: float = keepalive_interval
     var _keepalive_enabled: bool = keepalive_enabled
