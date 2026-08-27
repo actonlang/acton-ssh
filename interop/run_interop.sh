@@ -104,6 +104,19 @@ else
         sed -n 1,10p "$TMP/sshA2.err"
     fi
 
+    # compression: the client asks for it, so zlib@openssh.com must be
+    # negotiated in both directions and the channel must still round-trip.
+    out=$(ssh_to_acton "$TMP/askpass-good" -vv -o Compression=yes \
+              interop@127.0.0.1 ping 2>"$TMP/sshA6.err")
+    rc=$?
+    negotiated=$(grep -c "compression: zlib@openssh.com" "$TMP/sshA6.err")
+    if [ $rc -eq 0 ] && [ "$out" = "pong" ] && [ "$negotiated" -eq 2 ]; then
+        ok "compression negotiated zlib@openssh.com both ways, exec still works"
+    else
+        bad "compression (rc=$rc out=$out zlib_directions=$negotiated)"
+        grep -E "compression: " "$TMP/sshA6.err" | sed -n 1,4p
+    fi
+
     # wrong password: must fail
     out=$(ssh_to_acton "$TMP/askpass-bad" interop@127.0.0.1 ping 2>"$TMP/sshA3.err")
     rc=$?

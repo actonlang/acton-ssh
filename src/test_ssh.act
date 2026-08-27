@@ -13,7 +13,7 @@ import testing
 
 
 def _test_version():
-    testing.assertEqual("0.12.2/mbedtls", ssh.version())
+    testing.assertEqual("0.12.2/mbedtls/zlib", ssh.version())
 
 
 TEST_USER = "testuser"
