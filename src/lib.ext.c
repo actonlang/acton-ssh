@@ -493,10 +493,13 @@ static void ssh_configure_libssh_logging(void) {
  * this poll reads its own revents from libssh's event mask, so callers only
  * use it to decide whether a poll is worth making at all. SSH_AGAIN means
  * readiness changed between the two polls, which is not an error. */
-static int session_event_poll(ssh_event event) {
-    if (event == NULL)
+static int session_event_poll(ssh_session session, ssh_event event) {
+    if (session == NULL || event == NULL)
         return -1;
+    int pre_fatal = ssh_get_error_code(session) == SSH_FATAL;
     if (ssh_event_dopoll(event, 0) == SSH_ERROR)
+        return -1;
+    if (!pre_fatal && ssh_get_error_code(session) == SSH_FATAL)
         return -1;
     return 0;
 }
@@ -2064,7 +2067,7 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_towrite(c->session);
         ready = 1;
     }
-    if (ready && session_event_poll(c->event) != 0) {
+    if (ready && session_event_poll(c->session, c->event) != 0) {
         char errmsg[256] = {0};
         session_failure_reason(c->session, errmsg, sizeof(errmsg));
         client_fail(c, errmsg);
@@ -2124,7 +2127,7 @@ static void client_pump_io(ssh_client_ctx *c) {
         int has_data = fd_has_data(c->fd);
         if (has_data) {
             ssh_set_fd_toread(c->session);
-            if (session_event_poll(c->event) != 0) {
+            if (session_event_poll(c->session, c->event) != 0) {
                 char errmsg[256] = {0};
                 session_failure_reason(c->session, errmsg, sizeof(errmsg));
                 client_fail(c, errmsg);
@@ -3456,7 +3459,7 @@ static void session_pump_io(ssh_server_session_ctx *s) {
         int has_data = fd_has_data(s->fd);
         if (has_data) {
             ssh_set_fd_toread(s->session);
-            if (session_event_poll(s->event) != 0) {
+            if (session_event_poll(s->session, s->event) != 0) {
                 char errmsg[256] = {0};
                 session_failure_reason(s->session, errmsg, sizeof(errmsg));
                 session_fail(s, errmsg);
@@ -3793,7 +3796,7 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
         ssh_set_fd_towrite(s->session);
         ready = 1;
     }
-    if (ready && session_event_poll(s->event) != 0) {
+    if (ready && session_event_poll(s->session, s->event) != 0) {
         char errmsg[256] = {0};
         session_failure_reason(s->session, errmsg, sizeof(errmsg));
         session_fail(s, errmsg);
