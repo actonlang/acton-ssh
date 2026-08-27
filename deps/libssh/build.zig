@@ -11,9 +11,18 @@
 // here. The mbedtls objects are provided by Acton's base library at the final
 // executable link; linking them here too would only duplicate symbols. Using
 // the toolchain's own headers guarantees the ABI matches the mbedtls base links.
+//
+// zlib, which libssh needs for the zlib@openssh.com / zlib compression methods,
+// follows the same split with the acton-zlib package as the supplier: this
+// project depends on acton_zlib (see Build.act), whose ActonProject archive
+// carries the zlib objects to the final executable link.
+// We compile against the headers of the exact zlib source acton-zlib pins,
+// reached through its wrapper's own dependency and injected as the
+// -Dacton_zlib_src build option, so the zlib version is pinned in one place.
 
 const builtin = @import("builtin");
 const std = @import("std");
+
 
 pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
@@ -26,6 +35,10 @@ pub fn build(b: *std.Build) void {
     // headers libssh compiles against (must match the mbedtls that base links).
     // Empty only for a standalone `zig build` that does not use the crypto backend.
     const acton_sysdeps = b.option([]const u8, "acton_sysdeps", "Absolute path to the Acton toolchain deps dir (<dist>/deps)") orelse "";
+    // Absolute path to the zlib source tree pinned by the acton-zlib package,
+    // injected by Build.act. Headers only — the objects come from acton_zlib's
+    // ActonProject at the final link (see top-of-file note).
+    const acton_zlib_src = b.option([]const u8, "acton_zlib_src", "Absolute path to the zlib source tree pinned by acton-zlib") orelse "";
 
     const upstream = b.dependency("libssh_upstream", .{});
 
@@ -147,7 +160,7 @@ pub fn build(b: *std.Build) void {
 
             .HAVE_GCC_BOUNDED_ATTRIBUTE = false,
             .WITH_GSSAPI = false,
-            .WITH_ZLIB = false,
+            .WITH_ZLIB = true,
             .WITH_FIDO2 = false,
             .WITH_SFTP = false,
             .WITH_SERVER = with_server,
@@ -297,6 +310,9 @@ pub fn build(b: *std.Build) void {
     // toolchain's <dist>/deps; mbedtls headers live under mbedtls/include.
     if (acton_sysdeps.len > 0) {
         lib.root_module.addIncludePath(.{ .cwd_relative = b.pathJoin(&.{ acton_sysdeps, "mbedtls", "include" }) });
+    }
+    if (acton_zlib_src.len > 0) {
+        lib.root_module.addIncludePath(.{ .cwd_relative = acton_zlib_src });
     }
     lib.root_module.link_libc = true;
 

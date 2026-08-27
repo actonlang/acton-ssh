@@ -19,6 +19,9 @@ Acton server, to OpenSSH `sshd`, or be driven by the OpenSSH `ssh` client.
 - **Server**: password and public-key auth callbacks, `exec`/`subsystem`
   dispatch, per-channel data streaming, ephemeral-port binding, in-memory or
   file-based host keys, and admission limits (max sessions / channels).
+- **Compression**: `zlib@openssh.com` and `zlib` are compiled in and offered
+  during key exchange, so a peer that asks for compression gets it. libssh
+  proposes `none` first, so it is never used unless the peer prefers it.
 - **Hardened**: bounded teardown (a stalled peer can't wedge a close),
   per-channel write-buffer limits, an accept loop that survives
   per-connection failures, and no use-after-free under load (validated with
@@ -30,6 +33,14 @@ This package builds an unmodified upstream libssh release with the Zig wrapper
 in [`deps/libssh`](deps/libssh). libuv supplies readiness notifications and the
 binding advances libssh through its public nonblocking `ssh_event` API. The
 dependency is declared in [`Build.act`](Build.act).
+
+libssh's compression methods use zlib from the
+[acton-zlib](https://github.com/actonlang/acton-zlib) package: the wrapper
+compiles against the headers of the exact zlib source acton-zlib pins, and the
+zlib objects reach the final executable link through the package dependency —
+the same headers-here/objects-there split used for mbedtls. The zlib version is
+pinned in one place (acton-zlib), and an executable that also uses the Acton
+`zlib` package links a single copy.
 
 libssh and its crypto backend (mbedtls) run on the C library heap with their
 own ownership; only libuv and Acton objects live on the GC heap. See the

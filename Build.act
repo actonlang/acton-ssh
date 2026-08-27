@@ -3,11 +3,20 @@ fingerprint = 0xee8dcc44255e0a2e
 zig_dependencies = {
     "libssh": (
         path="deps/libssh",
-        options={"WITH_SERVER": "true", "acton_sysdeps": "actonbase_dep.path(\"../deps\").getPath(b)"},
+        options={
+            "WITH_SERVER": "true",
+            "acton_sysdeps": "actonbase_dep.path(\"../deps\").getPath(b)",
+            "acton_zlib_src": "actdep_acton_zlib.builder.dependency(\"acton_zig_zlib\", .{{}}).builder.dependency(\"zlib_upstream\", .{{}}).path(\".\").getPath(b)"
+        },
         artifacts=["ssh"]
     )
 }
 dependencies = {
+    "acton_zlib": (
+        repo_url="https://github.com/actonlang/acton-zlib.git",
+        url="https://github.com/actonlang/acton-zlib/archive/aad0c3fd2dab64b3c4728ac96cd9362c793fb932.zip",
+        hash="N-V-__8AAF8XAAAaNtxndtX1uIB1vN-tsG6h7ZIPoDoCQ226"
+    ),
     "acton_pipe": (
         repo_url="https://github.com/actonlang/pipe.git",
         url="https://github.com/actonlang/pipe/archive/21a42ed57263c1d5c10ea733b03ae731b9efabd1.zip",
