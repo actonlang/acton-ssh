@@ -1,0 +1,691 @@
+"""OpenSSH interop tests: real OpenSSH tools against the Acton ssh binding.
+
+Direction A: OpenSSH `ssh` client -> in-process ssh.Server
+  - exec request + exit status (ping -> pong, unknown -> 127 + stderr)
+  - compression negotiation (zlib@openssh.com, both directions)
+  - password auth (right and wrong password)
+  - publickey auth (authorized and unauthorized key)
+  - subsystem channel data round-trip (small and 1000-line payload)
+Direction B: in-process ssh.Client -> OpenSSH `sshd`
+  - publickey auth + exec output
+  - remote exit status propagation
+  - wrong key rejected
+
+These spawn the host's OpenSSH tools (`ssh`, `sshd`, `ssh-keygen`), so they
+are gated on the "openssh" capability tag and skipped by default:
+
+    acton test --tag openssh
+
+`ssh` must be >= 8.4 (SSH_ASKPASS_REQUIRE).
+"""
+
+import file
+import net
+import process
+import random
+import lib as ssh
+import testing
+
+INTEROP_USER = "interop"
+INTEROP_PASS = "interop-pass"
+
+
+actor _Cmd(cap: process.ProcessCap,
+           cmd: list[str],
+           on_done: action(int, bytes, bytes) -> None,
+           on_fail: action(str) -> None,
+           stdin_data: ?bytes = None,
+           env: ?dict[str, str] = None):
+    """Run one short-lived command to completion, buffering its output.
+
+    on_done(exit_code, stdout, stderr) on exit; on_fail(msg) on spawn error.
+    stdin is written (if given) and closed immediately.
+    """
+    var out_buf = b""
+    var err_buf = b""
+
+    def _out(p: process.Process, data: ?bytes):
+        if data is not None:
+            out_buf += data
+
+    def _err(p: process.Process, data: ?bytes):
+        if data is not None:
+            err_buf += data
+
+    def _exit(p: process.Process, exit_code: int, term_signal: int):
+        on_done(exit_code, out_buf, err_buf)
+
+    def _error(p: process.Process, error: str):
+        on_fail(" ".join(cmd) + ": " + error)
+
+    _p = process.Process(cap, cmd, _out, _err, _exit, _error, None, env)
+    sd = stdin_data
+    if sd is not None:
+        _p.write(sd)
+    _p.done_writing()
+
+
+actor OpensshClientTester(
+        t: testing.EnvT,
+        auth: str,                        # "password" | "password-bad" | "pubkey" | "pubkey-wrong"
+        command: str,                     # exec command, or subsystem name
+        subsystem: bool = False,
+        extra_args: ?list[str] = None,
+        stdin_data: ?bytes = None,
+        expect_rc: int = 0,
+        expect_failure: bool = False,     # expect any nonzero exit instead of expect_rc
+        expect_out: ?bytes = None,        # exact stdout match when set
+        expect_err_contains: ?str = None,
+        expect_err_pattern: ?str = None,  # must occur exactly expect_err_count times
+        expect_err_count: int = 0):
+    """Drive the OpenSSH `ssh` client against an in-process ssh.Server.
+
+    The server mirrors interop_server.act: password and publickey auth for
+    INTEROP_USER, exec "ping" -> "pong\\n" exit 0, exec anything else ->
+    stderr + exit 127, subsystem "echo" -> echo until client EOF.
+    """
+    fs = file.FS(file.FileCap(t.env.cap))
+    proc_cap = process.ProcessCap(t.env.cap)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var tmp = ""
+    var askpass = ""
+    var keypath = ""
+    var wrong_keypath = ""
+    var auth_key = b""
+    var out_buf = b""
+    var err_buf = b""
+
+    # Per-channel mode/EOF bookkeeping, copied from interop_server.act: libssh
+    # delivers channel data/EOF callbacks before the subsystem request is
+    # dequeued, so an echo channel's EOF can arrive while its mode is still
+    # "pending"; record it and close once the subsystem handler runs.
+    var modes: list[(ssh.ServerChannel, str)] = []
+    var eofed: list[ssh.ServerChannel] = []
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        s = server
+        if s is not None:
+            s.close()
+        t.error(Exception(msg))
+
+    def finish_ok():
+        if done:
+            return
+        done = True
+        s = server
+        if s is not None:
+            s.close()
+        t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for ssh client (stderr: " + err_buf.decode() + ")")
+
+    # --- server side (mirrors interop_server.act)
+
+    def set_mode(ch: ssh.ServerChannel, mode: str):
+        modes.append((ch, mode))
+
+    def mode_of(ch: ssh.ServerChannel) -> str:
+        for (k, v) in modes:
+            if k is ch:
+                return v
+        return "pending"
+
+    def mark_eof(ch: ssh.ServerChannel):
+        eofed.append(ch)
+
+    def saw_eof(ch: ssh.ServerChannel) -> bool:
+        for k in eofed:
+            if k is ch:
+                return True
+        return False
+
+    def close_echo(ch: ssh.ServerChannel):
+        ch.send_exit_status(0)
+        ch.close()
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        run_ssh(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "publickey":
+            pk = req.pubkey
+            if len(auth_key) > 0 and pk is not None and req.user == INTEROP_USER and pk == auth_key:
+                sess.accept_auth()
+            else:
+                sess.reject_auth("unauthorized key")
+            return
+        if req.method == "password" and req.user == INTEROP_USER and req.password == INTEROP_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if mode_of(ch) == "exec":
+            return
+        if data is not None:
+            ch.write(data)
+        else:
+            mark_eof(ch)
+            if mode_of(ch) == "echo":
+                close_echo(ch)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        set_mode(ch, "exec")
+        ch.accept_request()
+        if cmd == "ping":
+            ch.write(b"pong\n")
+            ch.send_exit_status(0)
+        else:
+            ch.write_stderr(b"unknown command\n")
+            ch.send_exit_status(127)
+        ch.close()
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            set_mode(ch, "echo")
+            ch.accept_request()
+            if saw_eof(ch):
+                close_echo(ch)
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def start_server():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+        )
+
+    # --- ssh client side
+
+    def ssh_out(p: process.Process, data: ?bytes):
+        if data is not None:
+            out_buf += data
+
+    def ssh_err(p: process.Process, data: ?bytes):
+        if data is not None:
+            err_buf += data
+
+    def ssh_error(p: process.Process, error: str):
+        finish_error("failed to spawn ssh: " + error)
+
+    def ssh_exit(p: process.Process, exit_code: int, term_signal: int):
+        if expect_failure:
+            if exit_code == 0:
+                finish_error("ssh unexpectedly succeeded")
+                return
+        elif exit_code != expect_rc:
+            finish_error("ssh exit " + str(exit_code) + ", want " + str(expect_rc) +
+                         " (stderr: " + err_buf.decode() + ")")
+            return
+        eo = expect_out
+        if eo is not None and out_buf != eo:
+            finish_error("unexpected stdout: " + str(out_buf))
+            return
+        err_text = err_buf.decode()
+        ec = expect_err_contains
+        if ec is not None and err_text.find(ec, None, None) < 0:
+            finish_error("stderr does not contain '" + ec + "': " + err_text)
+            return
+        ep = expect_err_pattern
+        if ep is not None:
+            n = err_text.count(ep, None, None)
+            if n != expect_err_count:
+                finish_error("stderr has " + str(n) + " of '" + ep + "', want " +
+                             str(expect_err_count))
+                return
+        finish_ok()
+
+    def run_ssh(port: u16):
+        argv = ["ssh",
+                "-p", str(port),
+                "-F", "/dev/null",
+                "-o", "StrictHostKeyChecking=no",
+                "-o", "UserKnownHostsFile=" + tmp + "/known_hosts",
+                "-o", "GlobalKnownHostsFile=/dev/null"]
+        env: ?dict[str, str] = None
+        if auth == "password" or auth == "password-bad":
+            argv += ["-o", "PreferredAuthentications=password",
+                     "-o", "PubkeyAuthentication=no",
+                     "-o", "NumberOfPasswordPrompts=1"]
+            env = {"SSH_ASKPASS_REQUIRE": "force",
+                   "SSH_ASKPASS": askpass,
+                   "DISPLAY": "none"}
+        else:
+            argv += ["-o", "PreferredAuthentications=publickey",
+                     "-o", "PasswordAuthentication=no",
+                     "-o", "IdentitiesOnly=yes",
+                     "-o", "NumberOfPasswordPrompts=0",
+                     "-i", wrong_keypath if auth == "pubkey-wrong" else keypath]
+        ea = extra_args
+        if ea is not None:
+            argv += ea
+        if subsystem:
+            argv += ["-s"]
+        argv += [INTEROP_USER + "@127.0.0.1", command]
+        p = process.Process(proc_cap, argv, ssh_out, ssh_err, ssh_exit, ssh_error, None, env)
+        sd = stdin_data
+        if sd is not None:
+            p.write(sd)
+        p.done_writing()
+
+    # --- setup chain
+
+    def keygen(path: str, cont: action(int, bytes, bytes) -> None):
+        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", path, "-C", ""],
+             cont, setup_fail)
+
+    def setup_fail(msg: str):
+        finish_error("setup: " + msg)
+
+    def chmod_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: chmod failed: " + err.decode())
+            return
+        start_server()
+
+    def keygen_wrong_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: ssh-keygen failed: " + err.decode())
+            return
+        read_authorized_key()
+
+    def keygen_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: ssh-keygen failed: " + err.decode())
+            return
+        if auth == "pubkey-wrong":
+            keygen(wrong_keypath, keygen_wrong_done)
+        else:
+            read_authorized_key()
+
+    def read_authorized_key():
+        rf = file.ReadFile(file.ReadFileCap(file.FileCap(t.env.cap)), keypath + ".pub")
+        data = await async rf.read()
+        await async rf.close()
+        parts = data.decode().strip(None).split(" ", None)
+        if len(parts) < 2:
+            finish_error("setup: unparseable public key: " + data.decode())
+            return
+        auth_key = (parts[0] + " " + parts[1]).encode()
+        start_server()
+
+    def setup():
+        tmp = await async fs.mktmpdir("acton-ssh-interop")
+        if auth == "password" or auth == "password-bad":
+            askpass = tmp + "/askpass"
+            password = INTEROP_PASS if auth == "password" else "wrong-pass"
+            wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), askpass)
+            await async wf.write(("#!/bin/sh\necho " + password + "\n").encode())
+            await async wf.close()
+            _Cmd(proc_cap, ["chmod", "+x", askpass], chmod_done, setup_fail)
+        else:
+            keypath = tmp + "/client_key"
+            wrong_keypath = tmp + "/wrong_key"
+            keygen(keypath, keygen_done)
+
+    after 0: setup()
+    after 30.0: on_timeout()
+
+
+actor SshdTester(
+        t: testing.EnvT,
+        remote_cmd: str,
+        use_wrong_key: bool,
+        expect_exit: int,
+        expect_out_contains: ?str,
+        expect_connect_error: bool):
+    """Drive the in-process ssh.Client against a freshly spawned OpenSSH sshd.
+
+    sshd runs as the current user on an ephemeral config: ed25519 host key,
+    publickey-only auth against a generated client key. Mirrors direction B
+    of the old interop script, including the UsePAM config retry.
+    """
+    fs = file.FS(file.FileCap(t.env.cap))
+    proc_cap = process.ProcessCap(t.env.cap)
+
+    var done = False
+    var client: ?ssh.Client = None
+    var sshd_proc: ?process.Process = None
+    var sshd_started = False
+    var tmp = ""
+    var sshd_path = ""
+    var sshd_port = 0
+    var username = ""
+    var sshd_err = b""
+
+    def stop_sshd():
+        sp = sshd_proc
+        if sp is not None:
+            sp.signal(15)
+            sshd_proc = None
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        c = client
+        if c is not None:
+            c.close()
+        stop_sshd()
+        t.error(Exception(msg))
+
+    def finish_ok():
+        if done:
+            return
+        done = True
+        c = client
+        if c is not None:
+            c.close()
+        stop_sshd()
+        t.success()
+
+    def on_timeout():
+        finish_error("timeout waiting for sshd test (sshd stderr: " + sshd_err.decode() + ")")
+
+    def setup_fail(msg: str):
+        finish_error("setup: " + msg)
+
+    def config_path() -> str:
+        return tmp + "/sshd_config"
+
+    def config_lines() -> list[str]:
+        return ["Port " + str(sshd_port),
+                "ListenAddress 127.0.0.1",
+                "HostKey " + tmp + "/host_ed25519",
+                "PidFile " + tmp + "/sshd.pid",
+                "AuthorizedKeysFile " + tmp + "/authorized_keys",
+                "PasswordAuthentication no",
+                "KbdInteractiveAuthentication no",
+                "PubkeyAuthentication yes",
+                "StrictModes no",
+                "UsePAM no",
+                "LogLevel ERROR"]
+
+    def write_config(lines: list[str], cont: action() -> None):
+        wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), config_path())
+        await async wf.write(("\n".join(lines) + "\n").encode())
+        await async wf.close()
+        cont()
+
+    # --- setup chain: resolve sshd -> username -> keys -> config -> spawn
+
+    def setup():
+        tmp = await async fs.mktmpdir("acton-ssh-sshd")
+        sshd_port = random.randint(20000, 39999)
+        # Empty output and exit 1 when no executable sshd exists, so
+        # resolve_done skips instead of failing later on a bad path.
+        _Cmd(proc_cap,
+             ["/bin/sh", "-c",
+              "command -v sshd 2>/dev/null || (test -x /usr/sbin/sshd && echo /usr/sbin/sshd)"],
+             resolve_done, setup_fail)
+
+    def resolve_done(code: int, out: bytes, err: bytes):
+        sshd_path = out.decode().strip(None)
+        if code != 0 or len(sshd_path) == 0:
+            skip("sshd not found")
+            return
+        _Cmd(proc_cap, ["id", "-un"], user_done, setup_fail)
+
+    def user_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: id -un failed")
+            return
+        username = out.decode().strip(None)
+        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/host_ed25519"],
+             hostkey_done, setup_fail)
+
+    def hostkey_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: host keygen failed: " + err.decode())
+            return
+        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/client_ed25519"],
+             clientkey_done, setup_fail)
+
+    def clientkey_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: client keygen failed: " + err.decode())
+            return
+        if use_wrong_key:
+            _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/wrong_key"],
+                 wrongkey_done, setup_fail)
+        else:
+            install_authorized_key()
+
+    def wrongkey_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: wrong keygen failed: " + err.decode())
+            return
+        install_authorized_key()
+
+    def install_authorized_key():
+        await async fs.copyfile(tmp + "/client_ed25519.pub", tmp + "/authorized_keys")
+        write_config(config_lines(), check_config)
+
+    def check_config():
+        _Cmd(proc_cap, [sshd_path, "-t", "-f", config_path()], config_checked, setup_fail)
+
+    def config_checked(code: int, out: bytes, err: bytes):
+        if code != 0:
+            # UsePAM is illegal on some platforms when not root; retry without
+            lines = []
+            for l in config_lines():
+                if not l.startswith("UsePAM"):
+                    lines.append(l)
+            write_config(lines, start_sshd)
+        else:
+            start_sshd()
+
+    # --- sshd process
+
+    def sshd_out(p: process.Process, data: ?bytes):
+        pass
+
+    def sshd_stderr(p: process.Process, data: ?bytes):
+        if data is not None:
+            sshd_err += data
+
+    def sshd_exit(p: process.Process, exit_code: int, term_signal: int):
+        if done:
+            return
+        if not sshd_started:
+            skip("sshd failed to start: " + sshd_err.decode())
+        else:
+            finish_error("sshd exited early: " + sshd_err.decode())
+
+    def sshd_error(p: process.Process, error: str):
+        skip("cannot spawn sshd: " + error)
+
+    def skip(reason: str):
+        if done:
+            return
+        done = True
+        c = client
+        if c is not None:
+            c.close()
+        stop_sshd()
+        try:
+            t.skip(reason)
+        except testing.AbortTest:
+            pass
+
+    def start_sshd():
+        sshd_proc = process.Process(proc_cap, [sshd_path, "-D", "-e", "-f", config_path()],
+                                    sshd_out, sshd_stderr, sshd_exit, sshd_error)
+        after 1.0: sshd_ready()
+
+    def sshd_ready():
+        if done:
+            return
+        sshd_started = True
+        run_client()
+
+    # --- Acton ssh client side
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if err is not None:
+            if expect_connect_error:
+                finish_ok()
+            else:
+                finish_error("client connect error: " + err +
+                             " (sshd stderr: " + sshd_err.decode() + ")")
+            return
+        if expect_connect_error:
+            finish_error("client unexpectedly connected")
+            return
+        ssh.RunCommand(c, remote_cmd, on_run_exit, timeout=15.0)
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err_out: bytes, error: ?str):
+        if error is not None:
+            finish_error("run error: " + error)
+            return
+        if code != expect_exit:
+            finish_error("remote exit " + str(code) + ", want " + str(expect_exit))
+            return
+        eo = expect_out_contains
+        if eo is not None and out.decode().find(eo, None, None) < 0:
+            finish_error("stdout does not contain '" + eo + "': " + out.decode())
+            return
+        finish_ok()
+
+    def run_client():
+        keyfile = tmp + ("/wrong_key" if use_wrong_key else "/client_ed25519")
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            username,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            private_key_file=keyfile,
+            port=u16(sshd_port),
+            connect_timeout=10.0,
+            auth_timeout=10.0,
+        )
+
+    after 0: setup()
+    after 30.0: on_timeout()
+
+
+def _payload_1000_lines() -> bytes:
+    lines = []
+    i = 1
+    while i <= 1000:
+        lines.append(str(i))
+        i += 1
+    return ("\n".join(lines) + "\n").encode()
+
+
+# --- Test entry points.
+#
+# Tests are discovered at compile time: the compiler generates a _test_<Actor>
+# wrapper for every actor whose only parameter is testing.EnvT and registers
+# it in the module's test binary. Each thin actor below is one interop case;
+# t.require("openssh") skips it unless `acton test --tag openssh` is given,
+# since these need the host's OpenSSH tools.
+
+# Direction A: OpenSSH ssh client -> Acton ssh.Server
+
+actor InteropExecPingTester(t: testing.EnvT):
+    """OpenSSH client: exec 'ping' -> pong, exit 0"""
+    t.require("openssh")
+    OpensshClientTester(t, "password", "ping", expect_out=b"pong\n")
+
+actor InteropExecUnknownTester(t: testing.EnvT):
+    """OpenSSH client: unknown exec command -> exit 127 with stderr"""
+    t.require("openssh")
+    OpensshClientTester(t, "password", "bogus", expect_rc=127,
+                        expect_err_contains="unknown command")
+
+actor InteropCompressionTester(t: testing.EnvT):
+    """OpenSSH client asks for compression: zlib@openssh.com negotiated both ways"""
+    t.require("openssh")
+    OpensshClientTester(t, "password", "ping",
+                        extra_args=["-vv", "-o", "Compression=yes"],
+                        expect_out=b"pong\n",
+                        expect_err_pattern="compression: zlib@openssh.com",
+                        expect_err_count=2)
+
+actor InteropWrongPasswordTester(t: testing.EnvT):
+    """OpenSSH client: wrong password is rejected"""
+    t.require("openssh")
+    OpensshClientTester(t, "password-bad", "ping", expect_failure=True)
+
+actor InteropPubkeyAuthTester(t: testing.EnvT):
+    """OpenSSH client: authorized public key is accepted"""
+    t.require("openssh")
+    OpensshClientTester(t, "pubkey", "ping", expect_out=b"pong\n")
+
+actor InteropPubkeyWrongKeyTester(t: testing.EnvT):
+    """OpenSSH client: unauthorized public key is rejected"""
+    t.require("openssh")
+    OpensshClientTester(t, "pubkey-wrong", "ping", expect_failure=True)
+
+actor InteropSubsystemEchoTester(t: testing.EnvT):
+    """OpenSSH client: subsystem 'echo' round-trips data, exit 0"""
+    t.require("openssh")
+    OpensshClientTester(t, "password", "echo", subsystem=True,
+                        stdin_data=b"marco\n", expect_out=b"marco\n")
+
+actor InteropSubsystemPayloadTester(t: testing.EnvT):
+    """OpenSSH client: subsystem 'echo' 1000-line payload integrity"""
+    t.require("openssh")
+    payload = _payload_1000_lines()
+    OpensshClientTester(t, "password", "echo", subsystem=True,
+                        stdin_data=payload, expect_out=payload)
+
+
+# Direction B: Acton ssh.Client -> OpenSSH sshd
+
+actor InteropSshdExecTester(t: testing.EnvT):
+    """Acton client: pubkey auth + exec against OpenSSH sshd"""
+    t.require("openssh")
+    SshdTester(t, "echo interop-ok", False, 0, "interop-ok", False)
+
+actor InteropSshdExitStatusTester(t: testing.EnvT):
+    """Acton client: remote exit status propagates from OpenSSH sshd"""
+    t.require("openssh")
+    SshdTester(t, "exit 42", False, 42, None, False)
+
+actor InteropSshdWrongKeyTester(t: testing.EnvT):
+    """Acton client: wrong key is rejected by OpenSSH sshd"""
+    t.require("openssh")
+    SshdTester(t, "echo nope", True, 0, None, True)

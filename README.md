@@ -175,8 +175,12 @@ and [`src/example_server.act`](src/example_server.act):
 ```sh
 acton test                       # loopback client<->server suite
 acton test stress                # concurrent churn (race/lifetime fuzzing)
-./interop/run_interop.sh         # interop with the OpenSSH ssh client and sshd
+acton test --tag openssh         # also run interop with the OpenSSH ssh client and sshd
 ```
+
+The interop tests (`src/test_interop.act`) spawn the host's OpenSSH tools
+(`ssh` >= 8.4, `sshd`, `ssh-keygen`), so they are gated on the `openssh` tag
+and skipped by default.
 
 `src/bench_echo.act` measures echo throughput; `src/soak.act` runs many
 connect→exec→close cycles for leak checking.
