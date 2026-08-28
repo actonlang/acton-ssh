@@ -7,6 +7,7 @@ fallback PASSWORD), runs CMD, prints its stdout between OUT-BEGIN/OUT-END
 markers and exits with the remote exit status.
 """
 
+import file
 import net
 import lib as ssh
 
@@ -26,6 +27,12 @@ actor main(env):
         keyfile = env.argv[5]
     if len(env.argv) > 6:
         password = env.argv[6]
+
+    var private_keys: ?list[ssh.PrivateKey] = None
+    if keyfile is not None:
+        reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), keyfile)
+        private_keys = [ssh.PrivateKey(reader.read())]
+        reader.close()
 
     var client: ?ssh.Client = None
 
@@ -69,7 +76,7 @@ actor main(env):
         on_close,
         on_hostkey,
         password=password,
-        private_key_file=keyfile,
+        private_keys=private_keys,
         port=port,
         connect_timeout=10.0,
         auth_timeout=10.0,

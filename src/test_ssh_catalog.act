@@ -1,0 +1,47 @@
+"""Consistency test for the typed SSH algorithm catalogs."""
+
+import lib as ssh
+import testing
+
+
+_LIBSSH_KEX = 0
+_LIBSSH_HOSTKEY = 1
+_LIBSSH_CIPHER = 2
+_LIBSSH_MAC = 4
+_LIBSSH_COMPRESSION = 6
+
+
+def _libssh_supported_algorithms(method: int) -> str:
+    NotImplemented
+
+
+def _libssh_default_algorithms(method: int) -> str:
+    NotImplemented
+
+
+def _test_transport_catalogs():
+    """The typed catalogs must exactly match the pinned libssh tables."""
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_CIPHER),
+                        ",".join([str(value) for value in ssh.cipher.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_CIPHER),
+                        ",".join([str(value) for value in ssh.cipher.default]))
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_MAC),
+                        ",".join([str(value) for value in ssh.mac.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_MAC),
+                        ",".join([str(value) for value in ssh.mac.default]))
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_KEX),
+                        ",".join([str(value) for value in ssh.kex.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_KEX),
+                        ",".join([str(value) for value in ssh.kex.default]))
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_HOSTKEY),
+                        ",".join([str(value) for value in ssh.hostkey.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_HOSTKEY),
+                        ",".join([str(value) for value in ssh.hostkey.default]))
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_HOSTKEY),
+                        ",".join([str(value) for value in ssh.pubkey.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_HOSTKEY),
+                        ",".join([str(value) for value in ssh.pubkey.default]))
+    testing.assertEqual(_libssh_supported_algorithms(_LIBSSH_COMPRESSION),
+                        ",".join([str(value) for value in ssh.compression.supported]))
+    testing.assertEqual(_libssh_default_algorithms(_LIBSSH_COMPRESSION),
+                        ",".join([str(value) for value in ssh.compression.default]))

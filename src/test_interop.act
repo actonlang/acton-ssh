@@ -588,6 +588,9 @@ actor SshdTester(
 
     def run_client():
         keyfile = tmp + ("/wrong_key" if use_wrong_key else "/client_ed25519")
+        reader = file.ReadFile(file.ReadFileCap(file.FileCap(t.env.cap)), keyfile)
+        private_key = await async reader.read()
+        await async reader.close()
         client = ssh.Client(
             net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -595,7 +598,7 @@ actor SshdTester(
             on_connect,
             on_client_close,
             on_hostkey,
-            private_key_file=keyfile,
+            private_keys=[ssh.PrivateKey(private_key)],
             port=u16(sshd_port),
             connect_timeout=10.0,
             auth_timeout=10.0,

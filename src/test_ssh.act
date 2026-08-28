@@ -5,7 +5,6 @@ connects an ssh.Client to it over 127.0.0.1. Ephemeral ports make the tests
 safe to run concurrently (acton test stress).
 """
 
-import file
 import logging
 import net
 import lib as ssh
@@ -16,8 +15,127 @@ def _test_version():
     testing.assertEqual("0.12.2/mbedtls/zlib", ssh.version())
 
 
+def _test_transport_config_validation():
+    """TransportConfig snapshots inputs and rejects ambiguous values."""
+    values = [ssh.cipher.aes128_ctr]
+    config = ssh.TransportConfig(ciphers=values)
+    values.append(ssh.cipher.aes256_ctr)
+    stored = config.ciphers
+    testing.assertNotNone(stored)
+    if stored is not None:
+        testing.assertEqual(1, len(stored))
+
+    empty: list[ssh.Cipher] = []
+    rejected_empty = False
+    try:
+        ssh.TransportConfig(ciphers=empty)
+    except ValueError:
+        rejected_empty = True
+    testing.assertTrue(rejected_empty)
+
+    rejected_duplicate = False
+    try:
+        ssh.TransportConfig(macs=[ssh.mac.hmac_sha2_256,
+                                  ssh.mac.hmac_sha2_256])
+    except ValueError:
+        rejected_duplicate = True
+    testing.assertTrue(rejected_duplicate)
+
+    rejected_unsupported = False
+    try:
+        ssh.TransportConfig(macs=[ssh.Mac("unsupported")])
+    except ValueError:
+        rejected_unsupported = True
+    testing.assertTrue(rejected_unsupported)
+
+    ssh.TransportConfig(macs=[ssh.Mac("hmac-sha2-256")])
+
+    rejected_rsa_floor = False
+    try:
+        ssh.TransportConfig(minimum_rsa_bits=1023)
+    except ValueError:
+        rejected_rsa_floor = True
+    testing.assertTrue(rejected_rsa_floor)
+
+    ssh.TransportConfig(minimum_rsa_bits=1024)
+
+    # A default-constructed config materializes the library defaults.
+    defaults = ssh.TransportConfig()
+    testing.assertEqual([str(v) for v in defaults.ciphers],
+                        [str(v) for v in ssh.cipher.default])
+    testing.assertEqual([str(v) for v in defaults.macs],
+                        [str(v) for v in ssh.mac.default])
+    testing.assertEqual([str(v) for v in defaults.key_exchanges],
+                        [str(v) for v in ssh.kex.default])
+    testing.assertEqual([str(v) for v in defaults.host_key_algorithms],
+                        [str(v) for v in ssh.hostkey.default])
+    testing.assertEqual([str(v) for v in defaults.public_key_algorithms],
+                        [str(v) for v in ssh.pubkey.default])
+    testing.assertEqual([str(v) for v in defaults.compression_algorithms],
+                        [str(v) for v in ssh.compression.default])
+    testing.assertEqual(defaults.compression_level, 7)
+    testing.assertEqual(defaults.minimum_rsa_bits, 1024)
+
+    rejected_level = False
+    try:
+        ssh.TransportConfig(compression_level=10)
+    except ValueError:
+        rejected_level = True
+    testing.assertTrue(rejected_level)
+
+    # Zero volume rekeying keeps the cipher's RFC 4344 limit; zero seconds
+    # disables time-based rekeying.
+    ssh.TransportConfig(rekey_after_bytes=0,
+                        rekey_after_seconds=0)
+
+
+def _test_private_key_validation():
+    """Private key material stays in memory and must be C-string safe."""
+    rejected_empty = False
+    try:
+        ssh.PrivateKey(b"")
+    except ValueError:
+        rejected_empty = True
+    testing.assertTrue(rejected_empty)
+
+    rejected_material_nul = False
+    try:
+        ssh.PrivateKey(b"key\x00material")
+    except ValueError:
+        rejected_material_nul = True
+    testing.assertTrue(rejected_material_nul)
+
+    rejected_passphrase_nul = False
+    try:
+        ssh.PrivateKey(b"key", passphrase="secret\x00suffix")
+    except ValueError:
+        rejected_passphrase_nul = True
+    testing.assertTrue(rejected_passphrase_nul)
+
+    rejected_empty_certificate = False
+    try:
+        ssh.PrivateKey(b"key", certificate=b"")
+    except ValueError:
+        rejected_empty_certificate = True
+    testing.assertTrue(rejected_empty_certificate)
+
+
 TEST_USER = "testuser"
 TEST_PASS = "testpass"
+
+def configured_transport() -> ssh.TransportConfig:
+    return ssh.TransportConfig(
+        ciphers=[ssh.cipher.aes128_ctr],
+        macs=[ssh.mac.hmac_sha2_256],
+        key_exchanges=[ssh.kex.curve25519_sha256],
+        host_key_algorithms=[ssh.hostkey.ssh_ed25519],
+        public_key_algorithms=[ssh.pubkey.ssh_ed25519],
+        compression_algorithms=[ssh.compression.zlib],
+        compression_level=6,
+        rekey_after_bytes=1048576,
+        rekey_after_seconds=3600,
+        minimum_rsa_bits=3072,
+    )
 
 
 actor ExecTester(t: testing.EnvT):
@@ -141,6 +259,7 @@ actor ExecTester(t: testing.EnvT):
             on_hostkey,
             password=TEST_PASS,
             port=port,
+            transport=configured_transport(),
         )
 
     server = ssh.Server(
@@ -153,6 +272,7 @@ actor ExecTester(t: testing.EnvT):
         on_auth,
         on_channel_open,
         on_exec,
+        transport=configured_transport(),
     )
     after 10.0: on_timeout()
 
@@ -1062,8 +1182,8 @@ def _test_connect_refused(t: testing.EnvT):
     ConnectRefusedTester(t)
 
 
-# A throwaway ed25519 keypair generated for tests only. The private key is
-# written to a temp file for the client; the server authorizes the matching
+# A throwaway ed25519 keypair generated for tests only. The client and server
+# both receive it as in-memory material; the server authorizes the matching
 # public key (authorized_keys "<type> <base64>" form, no comment).
 TEST_PRIVKEY = b"-----BEGIN OPENSSH PRIVATE KEY-----\n" + \
     b"b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n" + \
@@ -1083,12 +1203,9 @@ actor PubkeyAuthTester(t: testing.EnvT):
     and the presented key in authorized_keys form.
     """
     log = logging.Logger(t.log_handler)
-    fs = file.FS(file.FileCap(t.env.cap))
-
     var done = False
     var server: ?ssh.Server = None
     var client: ?ssh.Client = None
-    var keypath = ""
     var auth_calls = 0
     var pubkey_seen = False
     var run_ok = False
@@ -1162,7 +1279,7 @@ actor PubkeyAuthTester(t: testing.EnvT):
 
     # --- client side
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
-        c.accept_hostkey()
+        finish_error("in-memory known_hosts did not accept the server key: " + state)
 
     def on_connect(c: ssh.Client, err: ?str):
         if err is not None:
@@ -1189,6 +1306,10 @@ actor PubkeyAuthTester(t: testing.EnvT):
         maybe_finish()
 
     def start_client(port: u16):
+        # The marker line must be ignored (as in libssh); the entry after it
+        # must still verify the host key.
+        known_hosts = b"@cert-authority [127.0.0.1]:" + str(port).encode() + b" " + TEST_PUBKEY + b"\n"
+        known_hosts += ("[127.0.0.1]:" + str(port) + " ").encode() + TEST_PUBKEY + b"\n"
         client = ssh.Client(
             net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -1196,8 +1317,9 @@ actor PubkeyAuthTester(t: testing.EnvT):
             on_connect,
             on_client_close,
             on_hostkey,
-            private_key_file=keypath,
+            private_keys=[ssh.PrivateKey(TEST_PRIVKEY)],
             port=port,
+            known_hosts=known_hosts,
         )
 
     def start_server():
@@ -1211,17 +1333,10 @@ actor PubkeyAuthTester(t: testing.EnvT):
             on_auth,
             on_channel_open,
             on_exec,
+            host_keys=[ssh.PrivateKey(TEST_PRIVKEY)],
         )
 
-    def setup():
-        dir = await async fs.mktmpdir("acton-ssh-pktest")
-        keypath = dir + "/id_ed25519"
-        wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), keypath)
-        await async wf.write(TEST_PRIVKEY)
-        await async wf.close()
-        start_server()
-
-    after 0: setup()
+    start_server()
     after 10.0: on_timeout()
 
 

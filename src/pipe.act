@@ -41,12 +41,12 @@ class SshPipe(Pipe):
                  port: int,
                  username: str,
                  password: ?str=None,
-                 private_key_file: ?str=None,
-                 private_key_passphrase: ?str=None,
+                 private_keys: ?list[ssh.PrivateKey]=None,
                  subsystem: ?str=None,
                  command: ?str=None,
                  host_key_check: str=HOST_KEY_CHECK_ACCEPT_NEW,
-                 known_hosts: ?str=None,
+                 known_hosts: ?bytes=None,
+                 transport: ?ssh.TransportConfig=None,
                  log_handler: ?logging.Handler=None):
         if subsystem is None and command is None:
             raise ValueError("SshPipe requires a subsystem or a command")
@@ -54,10 +54,10 @@ class SshPipe(Pipe):
             raise ValueError("SshPipe takes either a subsystem or a command, not both")
         self._endpoint = _SshClientPipeEndpoint(connect_cap, address, port,
                                                 username, password,
-                                                private_key_file,
-                                                private_key_passphrase,
+                                                private_keys,
                                                 subsystem, command,
                                                 host_key_check, known_hosts,
+                                                transport,
                                                 log_handler)
 
     proc def write(self, data: bytes):
@@ -78,12 +78,12 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                              port: int,
                              username: str,
                              password: ?str,
-                             private_key_file: ?str,
-                             private_key_passphrase: ?str,
+                             private_keys: ?list[ssh.PrivateKey],
                              subsystem: ?str,
                              command: ?str,
                              host_key_check: str,
-                             known_hosts: ?str,
+                             known_hosts: ?bytes,
+                             transport: ?ssh.TransportConfig,
                              log_handler: ?logging.Handler):
     _log = logging.Logger(log_handler)
 
@@ -193,10 +193,10 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                              on_close=_on_ssh_close,
                              on_hostkey=_on_hostkey,
                              password=password,
-                             private_key_file=private_key_file,
-                             private_key_passphrase=private_key_passphrase,
+                             private_keys=private_keys,
                              port=u16(port),
-                             known_hosts=known_hosts)
+                             known_hosts=known_hosts,
+                             transport=transport)
 
     def write(data: bytes):
         ch = _channel
@@ -344,8 +344,9 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
                       on_accept: action(SshPipeListener, SshListenPipe) -> None,
                       auth_check: action(str, ?str, ?bytes, action(bool) -> None) -> None,
                       subsystem: ?str=None,
-                      host_key: ?str=None,
+                      host_keys: ?list[ssh.PrivateKey]=None,
                       host_key_type: str="ed25519",
+                      transport: ?ssh.TransportConfig=None,
                       log_handler: ?logging.Handler=None):
     """Accept SSH connections and deliver subsystem channels as Pipes.
 
@@ -463,5 +464,6 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
                         on_exec=_on_exec,
                         on_subsystem=_on_subsystem,
                         on_session_close=_on_session_close,
-                        host_key=host_key,
-                        host_key_type=host_key_type)
+                        host_keys=host_keys,
+                        host_key_type=host_key_type,
+                        transport=transport)

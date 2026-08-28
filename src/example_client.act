@@ -3,8 +3,8 @@
 Build:  acton build
 Run:    ./out/bin/example_client HOST USER CMD [PORT] [PASSWORD]
 
-  - With PASSWORD, authenticates by password; otherwise by the private key
-    in KEYFILE (default ~/.ssh/id_ed25519).
+  - With PASSWORD, authenticates by password; otherwise the application reads
+    ~/.ssh/id_ed25519 and passes its bytes to ssh.PrivateKey.
   - Host key checking here is permissive (accepts any key) so the example
     works against an unknown server. A real client must verify the host key
     against known_hosts or a pinned fingerprint.
@@ -14,6 +14,7 @@ Examples:
   ./out/bin/example_client example.com alice uptime
 """
 
+import file
 import net
 import lib as ssh
 
@@ -38,6 +39,12 @@ actor main(env):
         home = env.getenv("HOME")
         if home is not None:
             key_file = home + "/.ssh/id_ed25519"
+
+    var private_keys: ?list[ssh.PrivateKey] = None
+    if key_file is not None:
+        reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), key_file)
+        private_keys = [ssh.PrivateKey(reader.read())]
+        reader.close()
 
     var client: ?ssh.Client = None
 
@@ -80,6 +87,6 @@ actor main(env):
         on_close,
         on_hostkey,
         password=password,
-        private_key_file=key_file,
+        private_keys=private_keys,
         port=port,
     )
