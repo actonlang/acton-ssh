@@ -97,8 +97,25 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
     var _pending_err: ?Exception = None
     var _client: ?ssh.Client = None
     var _channel: ?ssh.Channel = None
+    var _channel_open = False
     var _closing = False
     var _failed = False
+
+    def _is_current_client(c: ssh.Client) -> bool:
+        """Check that the callback belongs to the current client.
+
+        The old client can still send callbacks after restart().
+        """
+        cur = _client
+        return cur is not None and c is cur!
+
+    def _is_current_channel(ch: ssh.Channel) -> bool:
+        """Check that the callback belongs to the current channel.
+
+        Old data and close events must not affect the new connection.
+        """
+        cur = _channel
+        return cur is not None and ch is cur!
 
     def _emit_pending():
         if not _has_read_cb:
@@ -123,6 +140,8 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
         _emit_pending()
 
     def _on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        if not _is_current_client(c):
+            return
         if host_key_check == HOST_KEY_CHECK_NONE:
             c.accept_hostkey()
         elif host_key_check == HOST_KEY_CHECK_ACCEPT_NEW and state == "unknown":
@@ -132,26 +151,32 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
             c.reject_hostkey("host key not trusted ({state})")
 
     def _on_ssh_connect(c: ssh.Client, err: ?str):
-        if _closing:
+        if _closing or not _is_current_client(c):
             return
         if err is not None:
             _fail("SSH connection failed: {err}")
             return
-        ssh.Channel(c, _on_ch_open, _on_ch_stdout, _on_ch_stderr, _on_ch_exit, _on_ch_close)
+        # Track the channel from creation, not from on_open: its EOF can arrive
+        # before on_open, and a channel the peer closes while it is still
+        # opening never gets on_open at all.
+        _channel = ssh.Channel(c, _on_ch_open, _on_ch_stdout, _on_ch_stderr, _on_ch_exit, _on_ch_close)
 
     def _on_ssh_close(c: ssh.Client, reason: str):
+        if not _is_current_client(c):
+            return
         _client = None
         _channel = None
+        _channel_open = False
         _fail("SSH session closed: {reason}")
 
     def _on_ch_open(ch: ssh.Channel, err: ?str):
-        if _closing:
+        if _closing or not _is_current_channel(ch):
             ch.close()
             return
         if err is not None:
             _fail("SSH channel open failed: {err}")
             return
-        _channel = ch
+        _channel_open = True
         sub = subsystem
         cmd = command
         if sub is not None:
@@ -162,6 +187,8 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
         _emit_pending()
 
     def _on_ch_stdout(ch: ssh.Channel, data: ?bytes):
+        if not _is_current_channel(ch):
+            return
         if data is not None:
             if _has_read_cb and len(_pending_in) == 0 and _pending_err is None and not _connected_pending:
                 await async _read_cb(None, data)
@@ -169,17 +196,28 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                 _pending_in.append(data)
                 _emit_pending()
         else:
+            if not _channel_open:
+                # The channel ended before it opened. Drop it, so that its late
+                # on_open cannot report the pipe as connected after this error.
+                _channel = None
             _fail("SSH channel EOF")
 
     def _on_ch_stderr(ch: ssh.Channel, data: ?bytes):
+        if not _is_current_channel(ch):
+            return
         if data is not None:
             _log.debug("SSH channel stderr", {"data": data})
 
     def _on_ch_exit(ch: ssh.Channel, status: int, signal: ?str):
+        if not _is_current_channel(ch):
+            return
         _log.debug("SSH channel exit", {"status": status, "signal": signal})
 
     def _on_ch_close(ch: ssh.Channel, reason: str):
+        if not _is_current_channel(ch):
+            return
         _channel = None
+        _channel_open = False
         _fail("SSH channel closed: {reason}")
 
     def _ensure_connected():
@@ -200,7 +238,7 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
 
     def write(data: bytes):
         ch = _channel
-        if ch is not None:
+        if ch is not None and _channel_open:
             ch.write(data)
         else:
             _fail("Unable to write, SSH pipe is not connected")
@@ -217,6 +255,7 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
         if ch is not None:
             ch.close()
         _channel = None
+        _channel_open = False
         c = _client
         if c is not None:
             c.close()
@@ -229,6 +268,7 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
         if ch is not None:
             ch.close()
         _channel = None
+        _channel_open = False
         c = _client
         if c is not None:
             c.close()

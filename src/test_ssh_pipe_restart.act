@@ -1,0 +1,628 @@
+"""Tests for SshPipe.restart(), loopback.
+
+Callbacks from the replaced SSH client and channel must not reach the new
+connection: no stale errors or data on the new session, and close() after a
+restart must still close the new SSH session.
+"""
+
+import net
+import random
+import lib as ssh
+import testing
+
+import pipe as sshpipe
+
+R_USER = "restartuser"
+R_PASS = "restartpass"
+
+
+actor PipeRestartTester(t: testing.EnvT, restart_early: bool, strict: bool):
+    """Echo over a pipe, restart it, echo over the new session, then close.
+
+    restart_early restarts right after read_cb, before the first connect
+    completes. Without strict, errors after the restart are only recorded, so
+    that close() after a restart is checked on its own.
+    """
+    var done = False
+    var server: ?ssh.Server = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var live: list[ssh.ServerSession] = []
+    var sessions_opened = 0
+    var phase = 0
+    var restarted = False
+    var client_buf = b""
+    var errors: list[str] = []
+
+    def finish(err: ?str):
+        if done:
+            return
+        done = True
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        s = server
+        if s is not None:
+            s.close()
+        if err is not None:
+            t.failure(ValueError(err))
+        else:
+            t.success()
+
+    def on_timeout():
+        finish("timeout in phase {phase} (opened={sessions_opened}, live={len(live)}, errors={errors})")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish("listen error: {err}")
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        remaining: list[ssh.ServerSession] = []
+        for x in live:
+            if not (x is sess):
+                remaining.append(x)
+        live = remaining
+        check_closed()
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == R_USER and req.password == R_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            ch.write(data)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        live.append(sess)
+        sessions_opened += 1
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    # --- client side
+    def pipe_write(data: bytes):
+        cp = client_pipe
+        if cp is not None:
+            cp.write(data)
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            errors.append(str(err))
+            if strict or not restarted:
+                finish("pipe error in phase {phase}: {err}")
+            return
+        if data is None:
+            if not restarted:
+                phase = 1
+                pipe_write(b"one")
+            else:
+                phase = 3
+                client_buf = b""
+                pipe_write(b"two")
+            return
+        if data is not None:
+            client_buf += data
+        if phase == 1:
+            if client_buf == b"one":
+                phase = 2
+                restarted = True
+                cp = client_pipe
+                if cp is not None:
+                    cp.restart()
+            elif len(client_buf) >= 3:
+                finish("corrupt echo on the first session: {client_buf}")
+        elif phase == 3:
+            if client_buf == b"two":
+                phase = 4
+                # Give callbacks from the replaced client time to arrive.
+                after 0.5: close_pipe()
+            elif len(client_buf) >= 3:
+                finish("corrupt echo on the new session: {client_buf}")
+        else:
+            finish("unexpected data in phase {phase}: {client_buf}")
+
+    def close_pipe():
+        if done:
+            return
+        if len(live) > 1:
+            # The replaced session must be gone on the server first.
+            after 0.02: close_pipe()
+            return
+        if len(live) != 1:
+            finish("expected one live server session before close, got {len(live)} (opened={sessions_opened}, errors={errors})")
+            return
+        phase = 5
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        after 1.5: close_deadline()
+
+    def close_deadline():
+        if not done:
+            finish("close() after restart left {len(live)} server session(s) open (opened={sessions_opened}, errors={errors})")
+
+    def check_closed():
+        if not done and phase == 5 and len(live) == 0:
+            finish(None)
+
+    def start_client(port: u16):
+        cp = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=R_USER,
+            password=R_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        client_pipe = cp
+        cp.read_cb(_client_read)
+        if restart_early:
+            restarted = True
+            phase = 2
+            cp.restart()
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 10.0: on_timeout()
+
+
+def _test_pipe_restart_after_connect(t: testing.EnvT):
+    """Restart an established pipe: no stale errors or data, the new session echoes and closes."""
+    PipeRestartTester(t, False, True)
+
+
+def _test_pipe_restart_before_connect(t: testing.EnvT):
+    """Restart before the first connect completes: the old client's connect error is ignored."""
+    PipeRestartTester(t, True, True)
+
+
+def _test_pipe_restart_then_close(t: testing.EnvT):
+    """close() after a restart closes the new SSH session (errors are not checked)."""
+    PipeRestartTester(t, False, False)
+
+
+actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
+    """Restart repeatedly at random points of connection setup (TCP connect,
+    key exchange, auth, channel open, subsystem request), then use the final
+    session.
+
+    No error may be reported at any point, the final session must echo
+    correctly, and after close() no SSH session may be left open on the server
+    (no leaked client).
+    """
+    var done = False
+    var server: ?ssh.Server = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var live: list[ssh.ServerSession] = []
+    var sessions_opened = 0
+    var restarts = random.randint(3, 10)
+    var issued = 0
+    var phase = 0
+    var client_buf = b""
+
+    def finish(err: ?str):
+        if done:
+            return
+        done = True
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        s = server
+        if s is not None:
+            s.close()
+        if err is not None:
+            t.failure(ValueError(err))
+        else:
+            t.success()
+
+    def on_timeout():
+        finish("timeout in phase {phase} (restarts={restarts}, issued={issued}, opened={sessions_opened}, live={len(live)})")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish("listen error: {err}")
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        remaining: list[ssh.ServerSession] = []
+        for x in live:
+            if not (x is sess):
+                remaining.append(x)
+        live = remaining
+        check_closed()
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == R_USER and req.password == R_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            ch.write(data)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        live.append(sess)
+        sessions_opened += 1
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    # --- client side
+    def _client_read(err: ?Exception, data: ?bytes):
+        # Sessions before the final restart may connect, but must not fail
+        # and must not deliver data.
+        if done:
+            return
+        if err is not None:
+            finish("pipe error before the final restart (restarts={restarts}, issued={issued}): {err}")
+        elif data is not None:
+            finish("unexpected data before the final restart: {data}")
+
+    def _final_read(err: ?Exception, data: ?bytes):
+        # Installed after the final restart. The pipe handles our calls in
+        # order, so everything delivered here belongs to the final session.
+        if done:
+            return
+        if err is not None:
+            finish("pipe error on the final session (phase {phase}, restarts={restarts}): {err}")
+            return
+        if data is None:
+            if phase != 0:
+                finish("second connected signal on the final session")
+                return
+            phase = 1
+            cp = client_pipe
+            if cp is not None:
+                cp.write(b"final")
+            return
+        if data is not None:
+            client_buf += data
+        if client_buf == b"final":
+            phase = 2
+            after 0.2: close_pipe()
+        elif len(client_buf) >= 5:
+            finish("corrupt echo on the final session: {client_buf}")
+
+    def next_restart():
+        if done:
+            return
+        issued += 1
+        cp = client_pipe
+        if cp is not None:
+            cp.restart()
+            if issued >= restarts:
+                cp.read_cb(_final_read)
+        if issued < restarts:
+            after float(random.randint(0, max_delay_ms)) / 1000.0: next_restart()
+
+    def close_pipe():
+        if done:
+            return
+        if len(live) > 1:
+            # Replaced sessions must be gone on the server first.
+            after 0.02: close_pipe()
+            return
+        if len(live) != 1:
+            finish("expected one live server session before close, got {len(live)}")
+            return
+        phase = 3
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        after 1.5: close_deadline()
+
+    def close_deadline():
+        if not done:
+            finish("close() after {issued} restarts left {len(live)} server session(s) open (opened={sessions_opened})")
+
+    def check_closed():
+        if not done and phase == 3 and len(live) == 0:
+            finish(None)
+
+    def start_client(port: u16):
+        cp = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=R_USER,
+            password=R_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        client_pipe = cp
+        cp.read_cb(_client_read)
+        after float(random.randint(0, max_delay_ms)) / 1000.0: next_restart()
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 10.0: on_timeout()
+
+
+def _test_pipe_restart_storm(t: testing.EnvT):
+    """Restart repeatedly during connection setup: the final session works, nothing leaks."""
+    PipeRestartStormTester(t, 40)
+
+
+def _test_pipe_restart_storm_fast(t: testing.EnvT):
+    """Restart in quick succession, mostly during TCP connect and key exchange."""
+    PipeRestartStormTester(t, 5)
+
+
+actor PipeRestartDuringChannelOpenTester(t: testing.EnvT):
+    """restart() lands after the old client connected but before its channel
+    open completed: the old channel's late on_open must not be adopted.
+
+    The server calls restart() when the first session asks for a channel and
+    confirms that channel only once the new client has authenticated, so the
+    old channel's on_open(None) reaches the pipe after the new client has been
+    stored. The new session's channel is confirmed only after the old channel
+    has closed, so the new channel is still opening when that happens.
+    """
+    var done = False
+    var server: ?ssh.Server = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var live: list[ssh.ServerSession] = []
+    var sessions_opened = 0
+    var pending_old: ?ssh.ServerSession = None
+    var old_channel: ?ssh.ServerChannel = None
+    var old_channel_closed = False
+    var pending_new: ?ssh.ServerSession = None
+    var connected = 0
+    var phase = 0
+    var client_buf = b""
+
+    def finish(err: ?str):
+        if done:
+            return
+        done = True
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        s = server
+        if s is not None:
+            s.close()
+        if err is not None:
+            t.failure(ValueError(err))
+        else:
+            t.success()
+
+    def on_timeout():
+        finish("timeout in phase {phase} (opened={sessions_opened}, live={len(live)}, connected={connected}, old_channel_closed={old_channel_closed})")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish("listen error: {err}")
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        remaining: list[ssh.ServerSession] = []
+        for x in live:
+            if not (x is sess):
+                remaining.append(x)
+        live = remaining
+        check_closed()
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == R_USER and req.password == R_PASS:
+            sess.accept_auth()
+            # A second session means the pipe has processed restart(), so the
+            # old client's channel open may complete now.
+            old = pending_old
+            if old is not None:
+                if not (old is sess):
+                    pending_old = None
+                    old_channel = accept(old)
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            ch.write(data)
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        old = old_channel
+        if old is not None:
+            if ch is old:
+                old_channel_closed = True
+                waiting = pending_new
+                if waiting is not None:
+                    pending_new = None
+                    accept(waiting)
+
+    def accept(sess: ssh.ServerSession) -> ssh.ServerChannel:
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        sess.accept_channel(ch)
+        return ch
+
+    def on_channel_open(sess: ssh.ServerSession):
+        live.append(sess)
+        sessions_opened += 1
+        if sessions_opened == 1:
+            pending_old = sess
+            cp = client_pipe
+            if cp is not None:
+                cp.restart()
+        elif old_channel_closed:
+            accept(sess)
+        else:
+            pending_new = sess
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            ch.accept_request()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    # --- client side
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            finish("pipe error in phase {phase} (connected={connected}): {err}")
+            return
+        if data is None:
+            connected += 1
+            if connected > 1:
+                finish("more than one connected signal: the old channel was adopted")
+                return
+            phase = 1
+            # Leave time for a wrongly adopted old channel to fail.
+            after 0.2: first_write()
+            return
+        if data is not None:
+            client_buf += data
+        if phase == 2 and client_buf == b"two":
+            phase = 3
+            after 0.3: close_pipe()
+        elif len(client_buf) >= 3:
+            finish("unexpected data in phase {phase}: {client_buf}")
+
+    def first_write():
+        if done:
+            return
+        phase = 2
+        cp = client_pipe
+        if cp is not None:
+            cp.write(b"two")
+
+    def close_pipe():
+        if done:
+            return
+        if len(live) > 1:
+            # The replaced session must be gone on the server first.
+            after 0.02: close_pipe()
+            return
+        if len(live) != 1:
+            finish("expected one live server session before close, got {len(live)} (opened={sessions_opened})")
+            return
+        phase = 4
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        after 1.5: close_deadline()
+
+    def close_deadline():
+        if not done:
+            finish("close() left {len(live)} server session(s) open (opened={sessions_opened})")
+
+    def check_closed():
+        if not done and phase == 4 and len(live) == 0:
+            if sessions_opened != 2:
+                finish("expected 2 sessions, got {sessions_opened}")
+                return
+            finish(None)
+
+    def start_client(port: u16):
+        cp = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=R_USER,
+            password=R_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        client_pipe = cp
+        cp.read_cb(_client_read)
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 10.0: on_timeout()
