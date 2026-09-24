@@ -2,6 +2,7 @@
 
 import logging
 import net
+import lib as ssh
 import testing
 
 import pipe as sshpipe
@@ -339,3 +340,287 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
         subsystem="echo",
         log_handler=t.log_handler)
     after 20.0: on_timeout()
+
+
+actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
+    """The server confirms each session channel and closes it right away.
+
+    Such a pipe can never become usable, so every session must end in an
+    error, not a hang, and must not report connected after its error.
+    Depending on how the packets are batched, the channel's EOF can reach the
+    pipe before on_open, or the channel is finalized without any on_open at
+    all. The test therefore runs several sessions, restarting the pipe after
+    each error and giving each session its own read callback.
+    """
+    SESSIONS = 8
+    var done = False
+    var server: ?ssh.Server = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var session = 0
+    var session_failed = False
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        s = server
+        if s is not None:
+            s.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError(msg))
+
+    def on_timeout():
+        finish_error("timeout in session {session}")
+
+    def watchdog(k: int):
+        if k == session and not session_failed:
+            finish_error("pipe hung in session {k}: no error after the server closed the channel")
+
+    def _session_read(k: int, err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if data is not None:
+            finish_error("unexpected data in session {k}")
+        elif k != session or session_failed:
+            what = "connected" if err is None else "a second error"
+            finish_error("session {k} reported {what} after its error")
+        elif err is not None:
+            # Connected before the error is fine: the channel can open before
+            # its EOF arrives.
+            session_failed = True
+            next_session()
+
+    def next_session():
+        if done:
+            return
+        if session == SESSIONS:
+            done = True
+            _teardown()
+            t.success()
+            return
+        session += 1
+        session_failed = False
+        k = session
+        cp = client_pipe
+        if cp is not None:
+            if k > 1:
+                cp.restart()
+            cp.read_cb(lambda e, d: _session_read(k, e, d))
+        after 1.5: watchdog(k)
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("listen error: {err}")
+            return
+        port = await async s.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        next_session()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == PIPE_USER and req.password == PIPE_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        ch = ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close)
+        # Both go through the channel actor in order, so the session sends the
+        # open confirmation immediately followed by EOF and CLOSE.
+        ch.accept_open()
+        ch.close()
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        ch.reject_request("channel is closing")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 20.0: on_timeout()
+
+
+actor PipeWriteWhileOpeningTester(t: testing.EnvT):
+    """A write while the channel is still opening fails and is never sent.
+
+    The server holds the channel open request and makes the client write, so
+    the write reaches the pipe after its channel was created but before the
+    channel has opened. The pipe must report that it is not connected. Once
+    the channel opens, the first data the server receives must be a later
+    write, not the early one.
+    """
+    var done = False
+    var phase = 0
+    var server: ?ssh.Server = None
+    var client_pipe: ?sshpipe.SshPipe = None
+    var held: ?ssh.ServerSession = None
+    var client_buf = b""
+    var server_buf = b""
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        s = server
+        if s is not None:
+            s.close()
+
+    def finish(err: ?str):
+        if done:
+            return
+        done = True
+        _teardown()
+        if err is not None:
+            t.failure(ValueError(err))
+        else:
+            t.success()
+
+    def on_timeout():
+        if phase == 0:
+            finish("timeout: a write while the channel was opening did not fail")
+        else:
+            finish("timeout in phase {phase}")
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            if phase == 0 and str(err).find("not connected") >= 0:
+                phase = 1
+                sess = held
+                if sess is not None:
+                    sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+            else:
+                finish("unexpected pipe error in phase {phase}: {err}")
+            return
+        if data is not None:
+            # The server writes b"ping" once the subsystem is running.
+            client_buf += data
+            if phase == 1 and client_buf == b"ping":
+                phase = 2
+                cp = client_pipe
+                if cp is not None:
+                    cp.write(b"late")
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish("listen error: {err}")
+            return
+        port = await async s.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_session_close(sess: ssh.ServerSession, reason: str):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == PIPE_USER and req.password == PIPE_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            server_buf += data
+            if len(server_buf) >= 4:
+                if server_buf == b"late":
+                    finish(None)
+                else:
+                    finish("the write made while the channel was opening was sent: {server_buf}")
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        # Hold the channel open request: the client's channel now exists but
+        # has not opened.
+        held = sess
+        cp = client_pipe
+        if cp is not None:
+            cp.write(b"early")
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "echo":
+            ch.accept_request()
+            ch.write(b"ping")
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+        on_session_close,
+    )
+    after 2.5: on_timeout()
