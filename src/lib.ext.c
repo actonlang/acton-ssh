@@ -2016,6 +2016,7 @@ static void client_start_connect_timer(ssh_client_ctx *c) {
 }
 
 static void client_start_auth_timer(ssh_client_ctx *c) {
+    stop_timer(&c->connect_timer, client_timer_close_cb);
     if (c->auth_timeout <= 0.0 || c->auth_timer != NULL)
         return;
     c->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
@@ -2206,7 +2207,6 @@ static void client_drive(ssh_client_ctx *c) {
         if (c->state == CLIENT_STATE_CONNECTING) {
             int rc = ssh_connect(c->session);
             if (rc == SSH_OK) {
-                stop_timer(&c->connect_timer, client_timer_close_cb);
                 if (fd_set_nonblocking(c->fd) != 0) {
                     client_fail(c, "Failed to restore SSH session fd nonblocking");
                     return;

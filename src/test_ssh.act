@@ -1490,3 +1490,106 @@ actor WriteBufferLimitTester(t: testing.EnvT):
 def _test_write_buffer_limit(t: testing.EnvT):
     """A write exceeding max_write_buffer fails the channel."""
     WriteBufferLimitTester(t)
+
+
+actor HostkeyStallTester(t: testing.EnvT):
+    """a client stalled in CLIENT_STATE_HOSTKEY_WAIT must still be bounded by connect_timeout.
+
+    on_hostkey deliberately never calls accept_hostkey()/reject_hostkey(), so
+    the client parks in CLIENT_STATE_HOSTKEY_WAIT. connect_timeout is 1s and the
+    watchdog is 2s. If the connect timer still covered CLIENT_STATE_HOSTKEY_WAIT (as
+    connect_timeout_cb claims to), on_connect fires with "SSH connect timeout"
+    at ~2s and the test passes. With the bug, the connect timer was stopped at
+    the CONNECTING->HOSTKEY transition, nothing fires, and the watchdog trips
+    -> test fails, reproducing the hang."""
+    log = logging.Logger(t.log_handler)
+
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+    var reached_hostkey = False
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        # Reached only if on_connect never fired -> the bug.
+        if reached_hostkey:
+            finish_error("client hung in CLIENT_STATE_HOSTKEY_WAIT past connect_timeout (issue #1)")
+        else:
+            finish_error("timeout before host key was ever presented")
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        start_client(port)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.reject_channel("no channels")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # The stall: intentionally neither accept nor reject.
+        reached_hostkey = True
+
+    def on_connect(c: ssh.Client, err: ?str):
+        if done:
+            return
+        if err is None:
+            finish_error("connect unexpectedly succeeded")
+            return
+        # Expected once the timer bug is fixed: connect_timeout fires here.
+        done = True
+        if server is not None:
+            server.close()
+        t.success()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def start_client(port: u16):
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+            connect_timeout=1.0,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+    )
+    after 2.0: on_timeout()
+
+
+def _test_hostkey_stall(t: testing.EnvT):
+    """A stalled host-key handler must be cut off by connect_timeout, not hang."""
+    HostkeyStallTester(t)
