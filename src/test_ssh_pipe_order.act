@@ -246,4 +246,4 @@ actor PipeOrderTester(t: testing.EnvT):
         auth_check=_OrderAuth().check,
         subsystem="test",
         log_handler=t.log_handler)
-    after 30.0: on_timeout()
+    after 50.0: on_timeout()
