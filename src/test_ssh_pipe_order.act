@@ -14,6 +14,7 @@ import logging
 import net
 import lib as ssh
 import testing
+import time
 
 import pipe as sshpipe
 
@@ -137,7 +138,8 @@ actor _ServerEnd(p: sshpipe.SshListenPipe, fill: bytes, on_error: action(str) ->
 
 
 actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
-                 on_done: action(int) -> None, on_error: action(str) -> None):
+                 on_connected: action(int) -> None, on_done: action(int) -> None,
+                 on_error: action(str) -> None):
     var sent = 0
     var acked = 0
     var connected = False
@@ -174,6 +176,7 @@ actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
             _pump()
         else:
             connected = True
+            on_connected(pid)
             p = cp
             if p is not None:
                 p.write((str(pid) + "\n").encode())
@@ -195,11 +198,16 @@ actor PipeOrderTester(t: testing.EnvT):
     """Pipelined framed traffic over several pipes keeps every byte in order."""
     log = logging.Logger(t.log_handler)
     fill = _fill()
+    t0 = time.monotonic_ns()
     var finished = False
     var done_pipes = 0
     var listener: ?sshpipe.SshPipeListener = None
     var clients: list[_ClientEnd] = []
     var servers: list[_ServerEnd] = []
+
+    def _note(what: str):
+        # acton test shows a test's output only when it fails or times out
+        print("pipe order: {what} after {(time.monotonic_ns() - t0) // 1000000} ms")
 
     def _teardown():
         for c in clients:
@@ -215,15 +223,20 @@ actor PipeOrderTester(t: testing.EnvT):
         _teardown()
         t.failure(ValueError(msg))
 
+    def on_connected(pid: int):
+        _note("pipe {pid} connected")
+
     def on_done(pid: int):
         done_pipes += 1
+        _note("pipe {pid} done")
         if done_pipes == N_PIPES and not finished:
+            _note("all {N_PIPES} pipes done")
             finished = True
             _teardown()
             t.success()
 
     def on_timeout():
-        on_error("timeout: {done_pipes} of {N_PIPES} pipes done")
+        on_error("timeout after {(time.monotonic_ns() - t0) // 1000000} ms: {done_pipes} of {N_PIPES} pipes done")
 
     def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
         servers.append(_ServerEnd(p, fill, on_error))
@@ -232,10 +245,11 @@ actor PipeOrderTester(t: testing.EnvT):
         if err is not None:
             on_error("listen failed: {err}")
             return
+        _note("listening")
         port = int(await async l.bound_port())
         cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
         for pid in range(N_PIPES):
-            clients.append(_ClientEnd(cap, port, pid, fill, on_done, on_error))
+            clients.append(_ClientEnd(cap, port, pid, fill, on_connected, on_done, on_error))
 
     listener = sshpipe.SshPipeListener(
         net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
