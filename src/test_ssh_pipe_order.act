@@ -1,0 +1,249 @@
+"""Byte order of SSH pipes under load.
+
+libssh raises channel events inside actor methods too: a channel write ends
+with a flush that reads and dispatches incoming packets. Those events must
+reach the pipe in the order libssh raised them, also when the event loop
+raises later ones before the actor method's message has completed.
+
+Each pipe pipelines framed messages in both directions, each frame written
+as three writes (header, payload, end marker), and both ends check every
+byte of what they receive.
+"""
+
+import logging
+import net
+import lib as ssh
+import testing
+
+import pipe as sshpipe
+
+ORDER_USER = "orderuser"
+ORDER_PASS = "orderpass"
+N_PIPES = 8
+N_MSGS = 500
+WINDOW = 64
+END = b"\n##\n"
+
+
+def _len(kind: str, pid: int, seq: int) -> int:
+    if seq % 97 == 5:
+        return 70000 + (seq * 31 + pid) % 4096
+    if kind == "q":
+        return 600 + (seq * 7 + pid) % 100
+    return 150 + (seq * 13 + pid) % 120
+
+
+def _frame(kind: str, pid: int, seq: int, fill: bytes) -> list[bytes]:
+    n = _len(kind, pid, seq)
+    head = ("<" + kind + " p=" + str(pid) + " s=" + str(seq) + ">").encode()
+    tail = ("</" + kind + " s=" + str(seq) + ">").encode()
+    off = (seq + pid) % 26
+    payload = head + fill[off:off + n - len(head) - len(tail)] + tail
+    return [("\n#" + str(len(payload)) + "\n").encode(), payload, END]
+
+
+def _fill() -> bytes:
+    f = b"abcdefghijklmnopqrstuvwxyz"
+    while len(f) < 80000:
+        f = f + f
+    return f
+
+
+class _Checker(object):
+    """Compares a received stream with the frames the peer sends."""
+    kind: str
+    pid: int
+    fill: bytes
+    expected: bytes
+    next_seq: int
+    done: int
+    error: ?str
+
+    def __init__(self, kind: str, pid: int, fill: bytes):
+        self.kind = kind
+        self.pid = pid
+        self.fill = fill
+        self.expected = b""
+        self.next_seq = 0
+        self.done = 0
+        self.error = None
+
+    def feed(self, data: bytes) -> int:
+        """Check data; return the number of frames it completed."""
+        if self.error is not None:
+            return 0
+        i = 0
+        completed = 0
+        while i < len(data):
+            if len(self.expected) == 0:
+                parts = _frame(self.kind, self.pid, self.next_seq, self.fill)
+                self.expected = parts[0] + parts[1] + parts[2]
+                self.next_seq += 1
+            n = len(data) - i
+            if len(self.expected) < n:
+                n = len(self.expected)
+            if data[i:i + n] != self.expected[:n]:
+                self.error = ("pipe {self.pid} {self.kind}: frame {self.next_seq - 1} " +
+                              "differs, got {data[i:i + 40]}")
+                return completed
+            self.expected = self.expected[n:]
+            i += n
+            if len(self.expected) == 0:
+                self.done += 1
+                completed += 1
+        return completed
+
+
+actor _OrderAuth():
+    def check(user: str, password: ?str, pubkey: ?bytes, respond: action(bool) -> None):
+        respond(user == ORDER_USER and password == ORDER_PASS)
+
+
+actor _ServerEnd(p: sshpipe.SshListenPipe, fill: bytes, on_error: action(str) -> None):
+    var pid = -1
+    var hello = b""
+    var checker: ?_Checker = None
+    var replied = 0
+
+    def _read(err: ?Exception, data: ?bytes):
+        if err is not None:
+            return
+        if data is not None:
+            _on_data(data)
+
+    def _on_data(data: bytes):
+        body = data
+        if pid < 0:
+            hello += data
+            idx = hello.find(b"\n")
+            if idx < 0:
+                return
+            pid = int(hello[:idx].decode())
+            checker = _Checker("q", pid, fill)
+            body = hello[idx + 1:]
+        c = checker
+        if c is not None:
+            n = c.feed(body)
+            err = c.error
+            if err is not None:
+                on_error(err)
+                return
+            for _ in range(n):
+                for part in _frame("r", pid, replied, fill):
+                    p.write(part)
+                replied += 1
+
+    p.read_cb(_read)
+
+
+actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
+                 on_done: action(int) -> None, on_error: action(str) -> None):
+    var sent = 0
+    var acked = 0
+    var connected = False
+    var finished = False
+    var checker = _Checker("r", pid, fill)
+    var cp: ?sshpipe.SshPipe = None
+
+    def _pump():
+        p = cp
+        if p is not None:
+            while connected and sent < N_MSGS and sent - acked < WINDOW:
+                for part in _frame("q", pid, sent, fill):
+                    p.write(part)
+                sent += 1
+
+    def _read(err: ?Exception, data: ?bytes):
+        if finished:
+            return
+        if err is not None:
+            finished = True
+            on_error("client pipe {pid} error: {err}")
+            return
+        if data is not None:
+            acked += checker.feed(data)
+            e = checker.error
+            if e is not None:
+                finished = True
+                on_error(e)
+                return
+            if acked == N_MSGS:
+                finished = True
+                on_done(pid)
+                return
+            _pump()
+        else:
+            connected = True
+            p = cp
+            if p is not None:
+                p.write((str(pid) + "\n").encode())
+            _pump()
+
+    def close():
+        p = cp
+        if p is not None:
+            p.close(None)
+
+    sp = sshpipe.SshPipe(cap, address="127.0.0.1", port=port, username=ORDER_USER,
+                         password=ORDER_PASS, subsystem="test",
+                         host_key_check=sshpipe.HOST_KEY_CHECK_NONE)
+    cp = sp
+    sp.read_cb(_read)
+
+
+actor PipeOrderTester(t: testing.EnvT):
+    """Pipelined framed traffic over several pipes keeps every byte in order."""
+    log = logging.Logger(t.log_handler)
+    fill = _fill()
+    var finished = False
+    var done_pipes = 0
+    var listener: ?sshpipe.SshPipeListener = None
+    var clients: list[_ClientEnd] = []
+    var servers: list[_ServerEnd] = []
+
+    def _teardown():
+        for c in clients:
+            c.close()
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_error(msg: str):
+        if finished:
+            return
+        finished = True
+        _teardown()
+        t.failure(ValueError(msg))
+
+    def on_done(pid: int):
+        done_pipes += 1
+        if done_pipes == N_PIPES and not finished:
+            finished = True
+            _teardown()
+            t.success()
+
+    def on_timeout():
+        on_error("timeout: {done_pipes} of {N_PIPES} pipes done")
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        servers.append(_ServerEnd(p, fill, on_error))
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            on_error("listen failed: {err}")
+            return
+        port = int(await async l.bound_port())
+        cap = net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap)))
+        for pid in range(N_PIPES):
+            clients.append(_ClientEnd(cap, port, pid, fill, on_done, on_error))
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_OrderAuth().check,
+        subsystem="test",
+        log_handler=t.log_handler)
+    after 30.0: on_timeout()
