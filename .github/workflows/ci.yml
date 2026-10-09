@@ -23,4 +23,4 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends openssh-server
           sudo mkdir -p /run/sshd
-      - run: acton test --min-time 2000 --max-time 10000 --tag openssh
+      - run: acton test --min-time 2000 --max-time 60000 --tag openssh

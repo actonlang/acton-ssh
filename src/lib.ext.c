@@ -57,6 +57,10 @@
  *     worker thread. Channel actors invoke action methods on their owning
  *     Client/ServerSession actor for all operations; there is no hidden
  *     cross-actor C magic.
+ *   - Callbacks into Acton (data, EOF, open, close, auth, ...) are sent with
+ *     no current actor (SSH_DELIVER), also when libssh raises them inside an
+ *     actor method, so each is appended to its receiver's mailbox when libssh
+ *     raises it, in libssh's order.
  *   - Memory model: two heaps with strict boundary rules.
  *       GC heap   - actors, ctx structs, B_bytes/B_str, uv handles/timers.
  *       libc heap - everything allocated inside libssh and mbedtls (their
@@ -358,6 +362,33 @@ typedef struct ssh_server_ctx {
     $action2 on_listen;
     $action2 on_close;
 } ssh_server_ctx;
+
+/* Deliver an event from the native layer to Acton.
+ *
+ * libssh dispatches inbound packets whenever one of its calls polls the
+ * socket, and calls we make inside Client and ServerSession methods do: on
+ * the server, session_drive's ssh_message_get polls on every call; on both
+ * sides, ssh_channel_write's flush polls when a send left bytes buffered. So
+ * channel events are raised both from libuv callbacks, with no current actor,
+ * and from inside those methods, with the session actor current.
+ *
+ * $ASYNC handles the two differently. With no current actor it appends the
+ * message to the receiver's mailbox before it returns. With a current actor
+ * it holds the message in that actor's outbox until the actor's message
+ * completes, one or more scheduler steps later, and a libuv callback that
+ * runs in between can append newer events first.
+ *
+ * SSH_DELIVER clears the current actor for the send, so every event takes
+ * the first path. All libssh calls for a session run on the thread that owns
+ * it, so each receiver's mailbox gets the events in the order libssh raised
+ * them. The receiver still runs whenever it is scheduled. */
+#define SSH_DELIVER(f, ...)                              \
+    do {                                                 \
+        $Actor ssh_deliver_self_ = GET_SELF();           \
+        SET_SELF(NULL);                                  \
+        (f)->$class->__asyn__((f), __VA_ARGS__);         \
+        SET_SELF(ssh_deliver_self_);                     \
+    } while (0)
 
 static void client_drive(ssh_client_ctx *c);
 static void client_update_poll(ssh_client_ctx *c);
@@ -935,7 +966,7 @@ static void client_notify_connect(ssh_client_ctx *c, const char *err) {
     sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_connect) {
         $action2 f = ($action2)c->on_connect;
-        f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
     }
     c->connect_notified = 1;
     if (err == NULL)
@@ -950,7 +981,7 @@ static void client_notify_close(ssh_client_ctx *c, const char *reason) {
     sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_close) {
         $action2 f = ($action2)c->on_close;
-        f->$class->__asyn__(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, to$str((char *)reason));
     }
     c->close_notified = 1;
 }
@@ -972,7 +1003,7 @@ static void channel_notify_open(ssh_channel_ctx *ch, const char *err) {
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_open) {
         $action2 f = ($action2)ch->on_open;
-        f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
     }
     ch->open_notified = 1;
     if (err == NULL)
@@ -989,7 +1020,7 @@ static void channel_notify_close(ssh_channel_ctx *ch, const char *reason) {
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
-        f->$class->__asyn__(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, to$str((char *)reason));
     }
     ch->close_notified = 1;
 }
@@ -1007,7 +1038,7 @@ static void channel_notify_exit(ssh_channel_ctx *ch, int exit_status, B_str sign
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_exit) {
         $action3 f = ($action3)ch->on_exit;
-        f->$class->__asyn__(f, actor, toB_int(exit_status), signal);
+        SSH_DELIVER(f, actor, toB_int(exit_status), signal);
     }
     ch->exit_sent = 1;
 }
@@ -1026,12 +1057,12 @@ static int client_channel_data_cb(ssh_session session, ssh_channel channel, void
     if (is_stderr) {
         if (ch->on_stderr) {
             $action2 f = ($action2)ch->on_stderr;
-            f->$class->__asyn__(f, actor, out);
+            SSH_DELIVER(f, actor, out);
         }
     } else {
         if (ch->on_stdout) {
             $action2 f = ($action2)ch->on_stdout;
-            f->$class->__asyn__(f, actor, out);
+            SSH_DELIVER(f, actor, out);
         }
     }
     return (int)len;
@@ -1048,12 +1079,12 @@ static void client_channel_eof_cb(ssh_session session, ssh_channel channel, void
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (!ch->stdout_eof && ch->on_stdout) {
         $action2 f = ($action2)ch->on_stdout;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stdout_eof = 1;
     }
     if (!ch->stderr_eof && ch->on_stderr) {
         $action2 f = ($action2)ch->on_stderr;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stderr_eof = 1;
     }
 }
@@ -1111,12 +1142,12 @@ static void channel_notify_eof(ssh_channel_ctx *ch) {
         sshQ_libQ_Channel actor = channel_actor_ref(ch);
         if (!ch->stdout_eof && ch->on_stdout) {
             $action2 f = ($action2)ch->on_stdout;
-            f->$class->__asyn__(f, actor, B_None);
+            SSH_DELIVER(f, actor, B_None);
             ch->stdout_eof = 1;
         }
         if (!ch->stderr_eof && ch->on_stderr) {
             $action2 f = ($action2)ch->on_stderr;
-            f->$class->__asyn__(f, actor, B_None);
+            SSH_DELIVER(f, actor, B_None);
             ch->stderr_eof = 1;
         }
     }
@@ -1172,12 +1203,12 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     channel_notify_exit(ch, exit_status, exit_signal);
     if (!ch->stdout_eof && ch->on_stdout) {
         $action2 f = ($action2)ch->on_stdout;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stdout_eof = 1;
     }
     if (!ch->stderr_eof && ch->on_stderr) {
         $action2 f = ($action2)ch->on_stderr;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stderr_eof = 1;
     }
     channel_notify_close(ch, "closed");
@@ -1892,7 +1923,7 @@ static int client_check_hostkey(ssh_client_ctx *c) {
 
     sshQ_libQ_HostKeyInfo info = sshQ_libQ_HostKeyInfoG_new(key_type, fingerprint);
     $action3 f = ($action3)c->on_hostkey;
-    f->$class->__asyn__(f, actor, to$str((char *)hostkey_state_str(state)), info);
+    SSH_DELIVER(f, actor, to$str((char *)hostkey_state_str(state)), info);
     return 1;
 }
 
@@ -2631,7 +2662,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
     if (c == NULL) {
         if (on_open) {
             $action2 f = ($action2)on_open;
-            f->$class->__asyn__(f, channel, to$str((char *)"Client not initialized"));
+            SSH_DELIVER(f, channel, to$str((char *)"Client not initialized"));
         }
         return $R_CONT(c$cont, B_None);
     }
@@ -2639,7 +2670,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
         c->state == CLIENT_STATE_ERROR) {
         if (on_open) {
             $action2 f = ($action2)on_open;
-            f->$class->__asyn__(f, channel, to$str((char *)"Client is closed"));
+            SSH_DELIVER(f, channel, to$str((char *)"Client is closed"));
         }
         return $R_CONT(c$cont, B_None);
     }
@@ -2843,7 +2874,7 @@ static void server_notify_listen(ssh_server_ctx *s, const char *err) {
     sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_listen) {
         $action2 f = ($action2)s->on_listen;
-        f->$class->__asyn__(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
     }
     s->listen_notified = 1;
     if (err == NULL)
@@ -2858,7 +2889,7 @@ static void server_notify_close(ssh_server_ctx *s, const char *reason) {
     sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
-        f->$class->__asyn__(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, to$str((char *)reason));
     }
     s->close_notified = 1;
 }
@@ -2869,7 +2900,7 @@ static void session_notify_close(ssh_server_session_ctx *s, const char *reason) 
     sshQ_libQ_ServerSession actor = session_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
-        f->$class->__asyn__(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, to$str((char *)reason));
     }
     s->close_notified = 1;
 }
@@ -2880,7 +2911,7 @@ static void server_channel_notify_close(ssh_server_channel_ctx *ch, const char *
     sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
-        f->$class->__asyn__(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, to$str((char *)reason));
     }
     ch->close_notified = 1;
 }
@@ -2899,12 +2930,12 @@ static int server_channel_data_cb(ssh_session session, ssh_channel channel, void
     if (is_stderr) {
         if (ch->on_stderr) {
             $action2 f = ($action2)ch->on_stderr;
-            f->$class->__asyn__(f, actor, out);
+            SSH_DELIVER(f, actor, out);
         }
     } else {
         if (ch->on_data) {
             $action2 f = ($action2)ch->on_data;
-            f->$class->__asyn__(f, actor, out);
+            SSH_DELIVER(f, actor, out);
         }
     }
     return (int)len;
@@ -2919,12 +2950,12 @@ static void server_channel_eof_cb(ssh_session session, ssh_channel channel, void
     sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (!ch->stdout_eof && ch->on_data) {
         $action2 f = ($action2)ch->on_data;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stdout_eof = 1;
     }
     if (!ch->stderr_eof && ch->on_stderr) {
         $action2 f = ($action2)ch->on_stderr;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stderr_eof = 1;
     }
 }
@@ -3000,12 +3031,12 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
         actor->_channel_id = 0;
     if (!ch->stdout_eof && ch->on_data) {
         $action2 f = ($action2)ch->on_data;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stdout_eof = 1;
     }
     if (!ch->stderr_eof && ch->on_stderr) {
         $action2 f = ($action2)ch->on_stderr;
-        f->$class->__asyn__(f, actor, B_None);
+        SSH_DELIVER(f, actor, B_None);
         ch->stderr_eof = 1;
     }
     server_channel_notify_close(ch, "closed");
@@ -3590,7 +3621,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                     pass ? to$str((char *)(pass)) : B_None,
                     B_None);
                 $action2 f = ($action2)s->on_auth;
-                f->$class->__asyn__(f, session_actor_ref(s), req);
+                SSH_DELIVER(f, session_actor_ref(s), req);
                 session_update_poll(s);
                 return;
             }
@@ -3645,7 +3676,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                     B_None,
                     pkbytes);
                 $action2 f = ($action2)s->on_auth;
-                f->$class->__asyn__(f, session_actor_ref(s), req);
+                SSH_DELIVER(f, session_actor_ref(s), req);
                 session_update_poll(s);
                 return;
             }
@@ -3691,7 +3722,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                     } else {
                         s->pending_channel_open = msg;
                         $action f = ($action)s->on_channel_open;
-                        f->$class->__asyn__(f, session_actor_ref(s));
+                        SSH_DELIVER(f, session_actor_ref(s));
                         break;
                     }
                 } else if (type == SSH_REQUEST_CHANNEL) {
@@ -3713,7 +3744,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                             ch->pending_req = msg;
                             ch->pending_req_type = SCHAN_REQ_EXEC;
                             $action3 f = ($action3)s->on_exec;
-                            f->$class->__asyn__(f, session_actor_ref(s), server_channel_actor_ref(ch),
+                            SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
                                                to$str((char *)(cmd ? cmd : "")));
                             break;
                         }
@@ -3728,7 +3759,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                             ch->pending_req = msg;
                             ch->pending_req_type = SCHAN_REQ_SUBSYSTEM;
                             $action3 f = ($action3)s->on_subsystem;
-                            f->$class->__asyn__(f, session_actor_ref(s), server_channel_actor_ref(ch),
+                            SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
                                                to$str((char *)(name ? name : "")));
                             break;
                         }
@@ -4417,7 +4448,7 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
         s->pending_channel_open = NULL;
         if (on_close) {
             $action2 f = ($action2)on_close;
-            f->$class->__asyn__(f, channel, to$str((char *)"Failed to accept channel open"));
+            SSH_DELIVER(f, channel, to$str((char *)"Failed to accept channel open"));
         }
         if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
             return $R_CONT(c$cont, B_None);
@@ -4432,7 +4463,7 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
         s->pending_channel_open = NULL;
         if (on_close) {
             $action2 f = ($action2)on_close;
-            f->$class->__asyn__(f, channel, to$str((char *)"Failed to accept channel open"));
+            SSH_DELIVER(f, channel, to$str((char *)"Failed to accept channel open"));
         }
         if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
             return $R_CONT(c$cont, B_None);
