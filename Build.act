@@ -5,8 +5,8 @@ zig_dependencies = {
         path="deps/libssh",
         options={
             "WITH_SERVER": "true",
-            "acton_sysdeps": "actonbase_dep.path(\"../deps\").getPath(b)",
-            "acton_zlib_src": "actdep_acton_zlib.builder.dependency(\"acton_zig_zlib\", .{{}}).builder.dependency(\"zlib_upstream\", .{{}}).path(\".\").getPath(b)"
+            "acton_sysdeps": "actonbase_dep.path(\"../deps\")",
+            "acton_zlib_src": "actdep_acton_zlib.builder.dependency(\"acton_zig_zlib\", .{{}}).builder.dependency(\"zlib_upstream\", .{{}}).path(\".\")"
         },
         artifacts=["ssh"]
     )
@@ -14,8 +14,8 @@ zig_dependencies = {
 dependencies = {
     "acton_zlib": (
         repo_url="https://github.com/actonlang/acton-zlib.git",
-        url="https://github.com/actonlang/acton-zlib/archive/aad0c3fd2dab64b3c4728ac96cd9362c793fb932.zip",
-        hash="N-V-__8AAF8XAAAaNtxndtX1uIB1vN-tsG6h7ZIPoDoCQ226"
+        url="https://github.com/actonlang/acton-zlib/archive/ef6fa1c75631b92ebee3cf01e9b6ace326a2db47.tar.gz",
+        hash="N-V-__8AANAWAADerAg0qsvk6lkPK5j6I59zQv_vbZ2WAOvy"
     ),
     "acton_pipe": (
         repo_url="https://github.com/actonlang/pipe.git",
