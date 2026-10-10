@@ -196,6 +196,8 @@ actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
 
 actor PipeOrderTester(t: testing.EnvT):
     """Pipelined framed traffic over several pipes keeps every byte in order."""
+    # A run takes several seconds on slow machines.
+    t.timeout(60.0)
     log = logging.Logger(t.log_handler)
     fill = _fill()
     t0 = time.monotonic_ns()
