@@ -256,12 +256,12 @@ actor OpensshClientTester(
             return
         err_text = err_buf.decode()
         ec = expect_err_contains
-        if ec is not None and err_text.find(ec, None, None) < 0:
+        if ec is not None and err_text.find(ec) < 0:
             finish_error("stderr does not contain '" + ec + "': " + err_text)
             return
         ep = expect_err_pattern
         if ep is not None:
-            n = err_text.count(ep, None, None)
+            n = err_text.count(ep)
             if n != expect_err_count:
                 finish_error("stderr has " + str(n) + " of '" + ep + "', want " +
                              str(expect_err_count))
@@ -581,7 +581,7 @@ actor SshdTester(
             finish_error("remote exit " + str(code) + ", want " + str(expect_exit))
             return
         eo = expect_out_contains
-        if eo is not None and out.decode().find(eo, None, None) < 0:
+        if eo is not None and out.decode().find(eo) < 0:
             finish_error("stdout does not contain '" + eo + "': " + out.decode())
             return
         finish_ok()
