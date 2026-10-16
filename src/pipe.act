@@ -5,11 +5,11 @@ protocols that run over a byte stream (NETCONF, etc.) can use SSH as a
 transport without depending on the ssh module API directly.
 
 Client side: SshPipe connects to an SSH server, authenticates, opens a session
-channel and requests a subsystem (or executes a command); the channel's
-stdin/stdout is the pipe. The connection is established lazily when the first
-read callback is installed (mirroring the other Pipe implementations). The
-connected signal is read_cb(None, None); data is read_cb(None, data); errors
-(including channel EOF/close) are read_cb(err, None).
+channel and requests a subsystem, executes a command or requests an interactive
+shell; the channel's stdin/stdout is the pipe. The connection is established
+lazily when the first read callback is installed (mirroring the other Pipe
+implementations). The connected signal is read_cb(None, None); data is
+read_cb(None, data); errors (including channel EOF/close) are read_cb(err, None).
 
 Server side: SshPipeListener accepts SSH sessions, authenticates them via a
 caller-supplied check function, and turns each accepted subsystem channel into
@@ -30,13 +30,12 @@ HOST_KEY_CHECK_STRICT = "strict"        # reject any key not trusted via known_h
 class SshPipe(Pipe):
     """SSH client channel as a Pipe.
 
-    Exactly one of subsystem/command must be given; it determines what is
+    Exactly one of subsystem/command/shell must be given; it determines what is
     requested on the session channel once the SSH connection is authenticated.
-    connect_timeout and auth_timeout are passed to Client, where
-    connect_timeout bounds the TCP connect, key exchange and host key decision
-    and auth_timeout then bounds authentication; a value <= 0 disables the
-    limit. Neither times out opening the session channel or the
-    subsystem/command request.
+    connect_timeout and auth_timeout are passed to Client, where connect_timeout
+    bounds the TCP connect, key exchange and host key decision and auth_timeout
+    then bounds authentication; a value <= 0 disables the limit. Neither times
+    out opening the session channel or the subsystem/command/shell request.
     """
     _endpoint: _SshClientPipeEndpoint
 
@@ -49,20 +48,34 @@ class SshPipe(Pipe):
                  private_keys: ?list[ssh.PrivateKey]=None,
                  subsystem: ?str=None,
                  command: ?str=None,
+                 shell: bool=False,
+                 term: str="xterm-256color",
+                 cols: int=80,
+                 rows: int=24,
+                 with_pty: bool=True,
                  host_key_check: str=HOST_KEY_CHECK_ACCEPT_NEW,
                  known_hosts: ?bytes=None,
                  transport: ?ssh.TransportConfig=None,
                  connect_timeout: float=10.0,
                  auth_timeout: float=10.0,
                  log_handler: ?logging.Handler=None):
-        if subsystem is None and command is None:
-            raise ValueError("SshPipe requires a subsystem or a command")
-        if subsystem is not None and command is not None:
-            raise ValueError("SshPipe takes either a subsystem or a command, not both")
+        requests = 0
+        if subsystem is not None:
+            requests += 1
+        if command is not None:
+            requests += 1
+        if shell:
+            requests += 1
+        if requests == 0:
+            raise ValueError("SshPipe requires a subsystem, a command or a shell")
+        if requests > 1:
+            raise ValueError("SshPipe takes only one of a subsystem, a command or a shell")
         self._endpoint = _SshClientPipeEndpoint(connect_cap, address, port,
                                                 username, password,
                                                 private_keys,
                                                 subsystem, command,
+                                                shell, term, cols, rows,
+                                                with_pty,
                                                 host_key_check, known_hosts,
                                                 transport,
                                                 connect_timeout,
@@ -90,6 +103,11 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                              private_keys: ?list[ssh.PrivateKey],
                              subsystem: ?str,
                              command: ?str,
+                             shell: bool,
+                             term: str,
+                             cols: int,
+                             rows: int,
+                             with_pty: bool,
                              host_key_check: str,
                              known_hosts: ?bytes,
                              transport: ?ssh.TransportConfig,
@@ -194,6 +212,8 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
             ch.request_subsystem(sub)
         elif cmd is not None:
             ch.request_exec(cmd)
+        elif shell:
+            ch.request_shell(term=term, cols=cols, rows=rows, with_pty=with_pty)
         _connected_pending = True
         _emit_pending()
 
