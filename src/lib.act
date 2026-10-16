@@ -609,11 +609,14 @@ actor Client(cap: net.TCPConnectCap,
     on_close(reason) fires exactly once after a successful connect when the
     session ends. on_hostkey is invoked for host key verification when the
     key is not already trusted via the in-memory known_hosts data; respond
-    with accept_hostkey() or reject_hostkey(reason). known_hosts does not
-    influence which host key type is negotiated; set
-    transport.host_key_algorithms to pin one. @cert-authority and @revoked
-    marker lines are ignored, as in libssh itself. private_keys are tried in
-    order. transport contains only shared negotiation and rekey settings.
+    with accept_hostkey() or reject_hostkey(reason). connect_timeout bounds
+    the TCP connect, key exchange and the on_hostkey decision, counted from
+    construction; auth_timeout then bounds authentication. A timeout <= 0
+    disables it. known_hosts does not influence which host key type is
+    negotiated; set transport.host_key_algorithms to pin one. @cert-authority
+    and @revoked marker lines are ignored, as in libssh itself. private_keys are
+    tried in order. transport contains only shared negotiation and rekey
+    settings.
     """
 
     # Pointer to the native client context (opaque)

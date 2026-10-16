@@ -1983,7 +1983,11 @@ static void connect_timeout_cb(uv_timer_t *timer) {
     ssh_client_ctx *c = (ssh_client_ctx *)timer->data;
     if (c == NULL)
         return;
-    if (c->state == CLIENT_STATE_CONNECTING || c->state == CLIENT_STATE_HOSTKEY || c->state == CLIENT_STATE_HOSTKEY_WAIT) {
+    if (c->state == CLIENT_STATE_HOSTKEY_WAIT) {
+        client_fail(c, "SSH host key verification timeout");
+        return;
+    }
+    if (c->state == CLIENT_STATE_CONNECTING || c->state == CLIENT_STATE_HOSTKEY) {
         client_fail(c, "SSH connect timeout");
     }
 }
@@ -2053,6 +2057,14 @@ static void client_start_auth_timer(ssh_client_ctx *c) {
     c->auth_timer->data = c;
     uv_timer_init(get_uv_loop(), c->auth_timer);
     uv_timer_start(c->auth_timer, auth_timeout_cb, (uint64_t)(c->auth_timeout * 1000), 0);
+}
+
+/* connect_timer covers CONNECTING, HOSTKEY and HOSTKEY_WAIT (the states
+ * connect_timeout_cb acts on), so it ends here, where AUTH begins. */
+static void client_on_hostkey_accepted(ssh_client_ctx *c) {
+    c->state = CLIENT_STATE_AUTH;
+    stop_timer(&c->connect_timer, client_timer_close_cb);
+    client_start_auth_timer(c);
 }
 
 static void client_start_keepalive(ssh_client_ctx *c) {
@@ -2213,7 +2225,6 @@ static int client_needs_write(ssh_client_ctx *c) {
 
 static void client_on_ready(ssh_client_ctx *c) {
     c->state = CLIENT_STATE_READY;
-    stop_timer(&c->connect_timer, client_timer_close_cb);
     stop_timer(&c->auth_timer, client_timer_close_cb);
     client_notify_connect(c, NULL);
     client_start_keepalive(c);
@@ -2237,7 +2248,6 @@ static void client_drive(ssh_client_ctx *c) {
         if (c->state == CLIENT_STATE_CONNECTING) {
             int rc = ssh_connect(c->session);
             if (rc == SSH_OK) {
-                stop_timer(&c->connect_timer, client_timer_close_cb);
                 if (fd_set_nonblocking(c->fd) != 0) {
                     client_fail(c, "Failed to restore SSH session fd nonblocking");
                     return;
@@ -2265,8 +2275,7 @@ static void client_drive(ssh_client_ctx *c) {
         if (c->state == CLIENT_STATE_HOSTKEY) {
             int rc = client_check_hostkey(c);
             if (rc == 0) {
-                c->state = CLIENT_STATE_AUTH;
-                client_start_auth_timer(c);
+                client_on_hostkey_accepted(c);
                 spin = 0;
                 continue;
             } else if (rc == 1) {
@@ -2616,8 +2625,7 @@ $R sshQ_libQ_ClientD_accept_hostkeyG_local(sshQ_libQ_Client self, $Cont c$cont) 
     if (c->state != CLIENT_STATE_HOSTKEY_WAIT)
         return $R_CONT(c$cont, B_None);
 
-    c->state = CLIENT_STATE_AUTH;
-    client_start_auth_timer(c);
+    client_on_hostkey_accepted(c);
     client_drive(c);
 
     return $R_CONT(c$cont, B_None);
