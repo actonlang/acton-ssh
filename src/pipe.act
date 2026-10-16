@@ -32,6 +32,11 @@ class SshPipe(Pipe):
 
     Exactly one of subsystem/command must be given; it determines what is
     requested on the session channel once the SSH connection is authenticated.
+    connect_timeout and auth_timeout are passed to Client, where
+    connect_timeout bounds the TCP connect, key exchange and host key decision
+    and auth_timeout then bounds authentication; a value <= 0 disables the
+    limit. Neither times out opening the session channel or the
+    subsystem/command request.
     """
     _endpoint: _SshClientPipeEndpoint
 
@@ -47,6 +52,8 @@ class SshPipe(Pipe):
                  host_key_check: str=HOST_KEY_CHECK_ACCEPT_NEW,
                  known_hosts: ?bytes=None,
                  transport: ?ssh.TransportConfig=None,
+                 connect_timeout: float=10.0,
+                 auth_timeout: float=10.0,
                  log_handler: ?logging.Handler=None):
         if subsystem is None and command is None:
             raise ValueError("SshPipe requires a subsystem or a command")
@@ -58,6 +65,8 @@ class SshPipe(Pipe):
                                                 subsystem, command,
                                                 host_key_check, known_hosts,
                                                 transport,
+                                                connect_timeout,
+                                                auth_timeout,
                                                 log_handler)
 
     proc def write(self, data: bytes):
@@ -84,6 +93,8 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                              host_key_check: str,
                              known_hosts: ?bytes,
                              transport: ?ssh.TransportConfig,
+                             connect_timeout: float,
+                             auth_timeout: float,
                              log_handler: ?logging.Handler):
     _log = logging.Logger(log_handler)
 
@@ -234,7 +245,9 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
                              private_keys=private_keys,
                              port=u16(port),
                              known_hosts=known_hosts,
-                             transport=transport)
+                             transport=transport,
+                             connect_timeout=connect_timeout,
+                             auth_timeout=auth_timeout)
 
     def write(data: bytes):
         ch = _channel

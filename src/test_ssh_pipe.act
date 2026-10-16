@@ -2,6 +2,7 @@
 
 import logging
 import net
+import random
 import lib as ssh
 import testing
 
@@ -14,6 +15,12 @@ PIPE_PASS = "pipepass"
 actor _PipeAuth():
     def check(user: str, password: ?str, pubkey: ?bytes, respond: action(bool) -> None):
         respond(user == PIPE_USER and password == PIPE_PASS)
+
+
+actor _PipeAuthStall():
+    def check(user: str, password: ?str, pubkey: ?bytes, respond: action(bool) -> None):
+        # Never respond: the server session stays in authentication
+        pass
 
 
 actor PipeEchoTester(t: testing.EnvT):
@@ -200,6 +207,161 @@ actor PipeAuthRejectTester(t: testing.EnvT):
         subsystem="echo",
         log_handler=t.log_handler)
     after 20.0: on_timeout()
+
+
+actor PipeConnectTimeoutTester(t: testing.EnvT):
+    """connect_timeout fails the pipe when the peer accepts TCP but never speaks SSH."""
+    var done = False
+    var connected = False
+    var port = 0
+    var listen_attempts = 0
+    var client_pipe: ?sshpipe.SshPipe = None
+    var peers: list[net.TCPListenConnection] = []
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        for c in peers:
+            c.close()
+
+    def on_timeout():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError("connect_timeout=0.5 did not fail the SSH pipe within 2s"))
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            done = True
+            _teardown()
+            if connected:
+                t.failure(ValueError("connected to a peer that never sent an SSH banner"))
+            elif str(err).find("SSH connect timeout") < 0:
+                t.failure(ValueError("expected SSH connect timeout, got: {err}"))
+            else:
+                t.success()
+        elif data is None:
+            connected = True
+
+    def _peer_receive(c: net.TCPListenConnection, data: bytes):
+        pass
+
+    def _peer_error(c: net.TCPListenConnection, error: str):
+        pass
+
+    def on_accept(c: net.TCPListenConnection):
+        # Read the client banner but never answer, so key exchange stalls
+        peers.append(c)
+        c.cb_install(_peer_receive, _peer_error)
+
+    def on_listen(l: net.TCPListener, err: ?str):
+        if err is not None:
+            listen_attempts += 1
+            if listen_attempts < 5:
+                listen()
+            elif not done:
+                done = True
+                t.failure(ValueError("listen error: {err}"))
+            return
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=port,
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            connect_timeout=0.5,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    def listen():
+        # TCPListener cannot report an ephemeral port, so pick one at random
+        port = random.randint(20000, 39999)
+        net.TCPListener(net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+                        "127.0.0.1", port, on_listen, on_accept)
+
+    listen()
+    after 2.0: on_timeout()
+
+
+actor PipeAuthTimeoutTester(t: testing.EnvT):
+    """auth_timeout fails the pipe when the server never answers authentication."""
+    var done = False
+    var connected = False
+    var listener: ?sshpipe.SshPipeListener = None
+    var client_pipe: ?sshpipe.SshPipe = None
+
+    def _teardown():
+        cp = client_pipe
+        if cp is not None:
+            cp.close(None)
+        l = listener
+        if l is not None:
+            l.close()
+
+    def on_timeout():
+        if done:
+            return
+        done = True
+        _teardown()
+        t.failure(ValueError("auth_timeout=0.5 did not fail the SSH pipe within 2s"))
+
+    def _client_read(err: ?Exception, data: ?bytes):
+        if done:
+            return
+        if err is not None:
+            done = True
+            _teardown()
+            if connected:
+                t.failure(ValueError("connected although authentication was never answered"))
+            elif str(err).find("SSH authentication timeout") < 0:
+                t.failure(ValueError("expected SSH authentication timeout, got: {err}"))
+            else:
+                t.success()
+        elif data is None:
+            connected = True
+
+    def on_accept(l: sshpipe.SshPipeListener, p: sshpipe.SshListenPipe):
+        pass
+
+    def on_listen(l: sshpipe.SshPipeListener, err: ?Exception):
+        if err is not None:
+            if not done:
+                done = True
+                t.failure(ValueError("listen error: {err}"))
+            return
+        port = await async l.bound_port()
+        client_pipe = sshpipe.SshPipe(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=int(port),
+            username=PIPE_USER,
+            password=PIPE_PASS,
+            subsystem="echo",
+            host_key_check=sshpipe.HOST_KEY_CHECK_NONE,
+            auth_timeout=0.5,
+            log_handler=t.log_handler)
+        cp = client_pipe
+        if cp is not None:
+            cp.read_cb(_client_read)
+
+    listener = sshpipe.SshPipeListener(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        address="127.0.0.1",
+        port=0,
+        on_listen=on_listen,
+        on_accept=on_accept,
+        auth_check=_PipeAuthStall().check,
+        subsystem="echo",
+        log_handler=t.log_handler)
+    after 2.0: on_timeout()
 
 
 actor PipeSubsystemRejectTester(t: testing.EnvT):
