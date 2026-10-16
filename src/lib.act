@@ -891,7 +891,10 @@ actor Server(cap: net.TCPListenCap,
     For each incoming connection a ServerSession actor is created; on_session
     fires when it is ready. Authentication requests are delivered via
     on_auth(session, AuthRequest); respond with session.accept_auth() or
-    session.reject_auth(reason). Channel opens are delivered via
+    session.reject_auth(reason). auth_timeout bounds key exchange (never
+    below 2 s) and then authentication, including the time on_auth takes to
+    answer; a value <= 0 disables the authentication limit. Channel opens
+    are delivered via
     on_channel_open(session); respond with
     session.accept_channel(ServerChannel(...)) or session.reject_channel().
     host_keys are in-memory keys offered by key type; when omitted, one

@@ -3270,8 +3270,12 @@ static B_bytes session_pubkey_authkeys_bytes(ssh_key key) {
 static void session_restart_auth_timer(ssh_server_session_ctx *s, double timeout_sec) {
     if (s == NULL)
         return;
-    if (timeout_sec <= 0.0)
+    /* The same timer bounded the previous phase; a disabled limit must not
+     * leave it running into this one. */
+    if (timeout_sec <= 0.0) {
+        stop_timer(&s->auth_timer, session_timer_close_cb);
         return;
+    }
     if (s->auth_timer == NULL) {
         s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
         s->auth_timer->data = s;
