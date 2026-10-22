@@ -73,7 +73,7 @@ actor main(env):
     # Optional authorized public key (authorized_keys "<type> <base64>" form,
     # no comment) provided via ACTON_SSH_AUTH_KEY. When set, publickey auth is
     # accepted for that key.
-    auth_key = env.getenv("ACTON_SSH_AUTH_KEY")
+    auth_key = env.vars.getenv("ACTON_SSH_AUTH_KEY")
 
     def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
         if req.method == "publickey":

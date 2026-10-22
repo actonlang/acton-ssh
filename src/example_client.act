@@ -36,7 +36,7 @@ actor main(env):
     if len(env.argv) > 5:
         password = env.argv[5]
     else:
-        home = env.getenv("HOME")
+        home = env.vars.getenv("HOME")
         if home is not None:
             key_file = home + "/.ssh/id_ed25519"
 

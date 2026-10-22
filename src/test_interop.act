@@ -21,7 +21,6 @@ are gated on the "openssh" capability tag and skipped by default:
 
 import file
 import net
-import process
 import random
 import lib as ssh
 import testing
@@ -30,7 +29,7 @@ INTEROP_USER = "interop"
 INTEROP_PASS = "interop-pass"
 
 
-actor _Cmd(cap: process.ProcessCap,
+actor _Cmd(process: EnvProcess,
            cmd: list[str],
            on_done: action(int, bytes, bytes) -> None,
            on_fail: action(str) -> None,
@@ -44,21 +43,21 @@ actor _Cmd(cap: process.ProcessCap,
     var out_buf = b""
     var err_buf = b""
 
-    def _out(p: process.Process, data: ?bytes):
+    def _out(p: Process, data: ?bytes):
         if data is not None:
             out_buf += data
 
-    def _err(p: process.Process, data: ?bytes):
+    def _err(p: Process, data: ?bytes):
         if data is not None:
             err_buf += data
 
-    def _exit(p: process.Process, exit_code: int, term_signal: int):
+    def _exit(p: Process, exit_code: int, term_signal: int):
         on_done(exit_code, out_buf, err_buf)
 
-    def _error(p: process.Process, error: str):
+    def _error(p: Process, error: str):
         on_fail(" ".join(cmd) + ": " + error)
 
-    _p = process.Process(cap, cmd, _out, _err, _exit, _error, None, env)
+    _p = process.spawn(cmd, _out, _err, _exit, _error, None, env)
     sd = stdin_data
     if sd is not None:
         _p.write(sd)
@@ -85,7 +84,7 @@ actor OpensshClientTester(
     stderr + exit 127, subsystem "echo" -> echo until client EOF.
     """
     fs = file.FS(file.FileCap(t.env.cap))
-    proc_cap = process.ProcessCap(t.env.cap)
+    process = t.env.process
 
     var done = False
     var server: ?ssh.Server = None
@@ -230,18 +229,18 @@ actor OpensshClientTester(
 
     # --- ssh client side
 
-    def ssh_out(p: process.Process, data: ?bytes):
+    def ssh_out(p: Process, data: ?bytes):
         if data is not None:
             out_buf += data
 
-    def ssh_err(p: process.Process, data: ?bytes):
+    def ssh_err(p: Process, data: ?bytes):
         if data is not None:
             err_buf += data
 
-    def ssh_error(p: process.Process, error: str):
+    def ssh_error(p: Process, error: str):
         finish_error("failed to spawn ssh: " + error)
 
-    def ssh_exit(p: process.Process, exit_code: int, term_signal: int):
+    def ssh_exit(p: Process, exit_code: int, term_signal: int):
         if expect_failure:
             if exit_code == 0:
                 finish_error("ssh unexpectedly succeeded")
@@ -295,7 +294,7 @@ actor OpensshClientTester(
         if subsystem:
             argv += ["-s"]
         argv += [INTEROP_USER + "@127.0.0.1", command]
-        p = process.Process(proc_cap, argv, ssh_out, ssh_err, ssh_exit, ssh_error, None, env)
+        p = process.spawn(argv, ssh_out, ssh_err, ssh_exit, ssh_error, None, env)
         sd = stdin_data
         if sd is not None:
             p.write(sd)
@@ -304,7 +303,7 @@ actor OpensshClientTester(
     # --- setup chain
 
     def keygen(path: str, cont: action(int, bytes, bytes) -> None):
-        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", path, "-C", ""],
+        _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", path, "-C", ""],
              cont, setup_fail)
 
     def setup_fail(msg: str):
@@ -350,7 +349,7 @@ actor OpensshClientTester(
             wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), askpass)
             await async wf.write(("#!/bin/sh\necho " + password + "\n").encode())
             await async wf.close()
-            _Cmd(proc_cap, ["chmod", "+x", askpass], chmod_done, setup_fail)
+            _Cmd(process, ["chmod", "+x", askpass], chmod_done, setup_fail)
         else:
             keypath = tmp + "/client_key"
             wrong_keypath = tmp + "/wrong_key"
@@ -374,11 +373,11 @@ actor SshdTester(
     of the old interop script, including the UsePAM config retry.
     """
     fs = file.FS(file.FileCap(t.env.cap))
-    proc_cap = process.ProcessCap(t.env.cap)
+    process = t.env.process
 
     var done = False
     var client: ?ssh.Client = None
-    var sshd_proc: ?process.Process = None
+    var sshd_proc: ?Process = None
     var sshd_started = False
     var tmp = ""
     var sshd_path = ""
@@ -447,7 +446,7 @@ actor SshdTester(
         sshd_port = random.randint(20000, 39999)
         # Empty output and exit 1 when no executable sshd exists, so
         # resolve_done skips instead of failing later on a bad path.
-        _Cmd(proc_cap,
+        _Cmd(process,
              ["/bin/sh", "-c",
               "command -v sshd 2>/dev/null || (test -x /usr/sbin/sshd && echo /usr/sbin/sshd)"],
              resolve_done, setup_fail)
@@ -457,21 +456,21 @@ actor SshdTester(
         if code != 0 or len(sshd_path) == 0:
             skip("sshd not found")
             return
-        _Cmd(proc_cap, ["id", "-un"], user_done, setup_fail)
+        _Cmd(process, ["id", "-un"], user_done, setup_fail)
 
     def user_done(code: int, out: bytes, err: bytes):
         if code != 0:
             finish_error("setup: id -un failed")
             return
         username = out.decode().strip(None)
-        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/host_ed25519"],
+        _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/host_ed25519"],
              hostkey_done, setup_fail)
 
     def hostkey_done(code: int, out: bytes, err: bytes):
         if code != 0:
             finish_error("setup: host keygen failed: " + err.decode())
             return
-        _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/client_ed25519"],
+        _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/client_ed25519"],
              clientkey_done, setup_fail)
 
     def clientkey_done(code: int, out: bytes, err: bytes):
@@ -479,7 +478,7 @@ actor SshdTester(
             finish_error("setup: client keygen failed: " + err.decode())
             return
         if use_wrong_key:
-            _Cmd(proc_cap, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/wrong_key"],
+            _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/wrong_key"],
                  wrongkey_done, setup_fail)
         else:
             install_authorized_key()
@@ -495,7 +494,7 @@ actor SshdTester(
         write_config(config_lines(), check_config)
 
     def check_config():
-        _Cmd(proc_cap, [sshd_path, "-t", "-f", config_path()], config_checked, setup_fail)
+        _Cmd(process, [sshd_path, "-t", "-f", config_path()], config_checked, setup_fail)
 
     def config_checked(code: int, out: bytes, err: bytes):
         if code != 0:
@@ -510,14 +509,14 @@ actor SshdTester(
 
     # --- sshd process
 
-    def sshd_out(p: process.Process, data: ?bytes):
+    def sshd_out(p: Process, data: ?bytes):
         pass
 
-    def sshd_stderr(p: process.Process, data: ?bytes):
+    def sshd_stderr(p: Process, data: ?bytes):
         if data is not None:
             sshd_err += data
 
-    def sshd_exit(p: process.Process, exit_code: int, term_signal: int):
+    def sshd_exit(p: Process, exit_code: int, term_signal: int):
         if done:
             return
         if not sshd_started:
@@ -525,7 +524,7 @@ actor SshdTester(
         else:
             finish_error("sshd exited early: " + sshd_err.decode())
 
-    def sshd_error(p: process.Process, error: str):
+    def sshd_error(p: Process, error: str):
         skip("cannot spawn sshd: " + error)
 
     def skip(reason: str):
@@ -542,8 +541,8 @@ actor SshdTester(
             pass
 
     def start_sshd():
-        sshd_proc = process.Process(proc_cap, [sshd_path, "-D", "-e", "-f", config_path()],
-                                    sshd_out, sshd_stderr, sshd_exit, sshd_error)
+        sshd_proc = process.spawn([sshd_path, "-D", "-e", "-f", config_path()],
+                                  sshd_out, sshd_stderr, sshd_exit, sshd_error)
         after 1.0: sshd_ready()
 
     def sshd_ready():
