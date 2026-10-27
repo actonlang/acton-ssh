@@ -10,6 +10,7 @@ Direction B: in-process ssh.Client -> OpenSSH `sshd`
   - publickey auth + exec output
   - remote exit status propagation
   - wrong key rejected
+  - SshPipe interactive shell, with and without a PTY
 
 These spawn the host's OpenSSH tools (`ssh`, `sshd`, `ssh-keygen`), so they
 are gated on the "openssh" capability tag and skipped by default:
@@ -24,6 +25,8 @@ import net
 import random
 import lib as ssh
 import testing
+
+import pipe as sshpipe
 
 INTEROP_USER = "interop"
 INTEROP_PASS = "interop-pass"
@@ -365,18 +368,27 @@ actor SshdTester(
         use_wrong_key: bool,
         expect_exit: int,
         expect_out_contains: ?str,
-        expect_connect_error: bool):
+        expect_connect_error: bool,
+        shell_input: ?bytes=None,
+        shell_pty: bool=True):
     """Drive the in-process ssh.Client against a freshly spawned OpenSSH sshd.
 
     sshd runs as the current user on an ephemeral config: ed25519 host key,
     publickey-only auth against a generated client key. Mirrors direction B
     of the old interop script, including the UsePAM config retry.
+
+    With shell_input, an SshPipe requests an interactive shell (with a PTY if
+    shell_pty) instead of running remote_cmd, writes shell_input and checks
+    expect_out_contains in the output once the shell exits. sshd starts the
+    current user's login shell, so shell_input must mean the same in any shell.
     """
     fs = file.FS(file.FileCap(t.env.cap))
     process = t.env.process
 
     var done = False
     var client: ?ssh.Client = None
+    var shell_pipe: ?sshpipe.SshPipe = None
+    var shell_out = b""
     var sshd_proc: ?Process = None
     var sshd_started = False
     var tmp = ""
@@ -391,13 +403,20 @@ actor SshdTester(
             sp.signal(15)
             sshd_proc = None
 
+    def close_client():
+        c = client
+        if c is not None:
+            c.close()
+        sp = shell_pipe
+        if sp is not None:
+            sp.close(None)
+            shell_pipe = None
+
     def finish_error(msg: str):
         if done:
             return
         done = True
-        c = client
-        if c is not None:
-            c.close()
+        close_client()
         stop_sshd()
         t.error(Exception(msg))
 
@@ -405,9 +424,7 @@ actor SshdTester(
         if done:
             return
         done = True
-        c = client
-        if c is not None:
-            c.close()
+        close_client()
         stop_sshd()
         t.success()
 
@@ -531,9 +548,7 @@ actor SshdTester(
         if done:
             return
         done = True
-        c = client
-        if c is not None:
-            c.close()
+        close_client()
         stop_sshd()
         try:
             t.skip(reason)
@@ -585,11 +600,41 @@ actor SshdTester(
             return
         finish_ok()
 
+    def on_shell_pipe_event(err: ?Exception, data: ?bytes):
+        if data is not None:
+            shell_out += data
+            return
+        if err is not None:
+            # The shell exited after the input: SshPipe reports the channel EOF
+            eo = expect_out_contains
+            if eo is not None and shell_out.decode().find(eo) < 0:
+                finish_error("shell output does not contain '" + eo + "': " + shell_out.decode())
+            else:
+                finish_ok()
+            return
+        sp = shell_pipe
+        si = shell_input
+        if sp is not None and si is not None:
+            sp.write(si)
+
     def run_client():
         keyfile = tmp + ("/wrong_key" if use_wrong_key else "/client_ed25519")
         reader = file.ReadFile(file.ReadFileCap(file.FileCap(t.env.cap)), keyfile)
         private_key = await async reader.read()
         await async reader.close()
+        if shell_input is not None:
+            sp = sshpipe.SshPipe(
+                net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                "127.0.0.1",
+                sshd_port,
+                username,
+                private_keys=[ssh.PrivateKey(private_key)],
+                shell=True,
+                with_pty=shell_pty,
+                host_key_check=sshpipe.HOST_KEY_CHECK_NONE)
+            shell_pipe = sp
+            sp.read_cb(on_shell_pipe_event)
+            return
         client = ssh.Client(
             net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -691,3 +736,15 @@ actor InteropSshdWrongKeyTester(t: testing.EnvT):
     """Acton client: wrong key is rejected by OpenSSH sshd"""
     t.require("openssh")
     SshdTester(t, "echo nope", True, 0, None, True)
+
+actor InteropSshdShellPtyTester(t: testing.EnvT):
+    """Acton SshPipe: interactive shell with a PTY against OpenSSH sshd"""
+    t.require("openssh")
+    SshdTester(t, "", False, 0, "/dev/", False,
+               shell_input=b"tty\nexit\n", shell_pty=True)
+
+actor InteropSshdShellNoPtyTester(t: testing.EnvT):
+    """Acton SshPipe: interactive shell without a PTY against OpenSSH sshd"""
+    t.require("openssh")
+    SshdTester(t, "", False, 0, "not a tty", False,
+               shell_input=b"tty\nexit\n", shell_pty=False)
