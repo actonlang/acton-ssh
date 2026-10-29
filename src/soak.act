@@ -75,9 +75,9 @@ actor main(env):
         start_cycle()
 
     def start_cycle():
-        def on_connect(c: ssh.Client, err: ?str):
+        def on_connect(c: ssh.Client, err: ?Exception):
             if err is not None:
-                fail("connect: " + err)
+                fail("connect: " + str(err))
                 return
             def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, eb: bytes, error: ?str):
                 if error is None and code == 0 and out == b"ok\n":

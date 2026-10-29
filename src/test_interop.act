@@ -571,12 +571,14 @@ actor SshdTester(
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            if expect_connect_error:
+            if expect_connect_error and isinstance(err, ssh.AuthenticationError):
                 finish_ok()
+            elif expect_connect_error:
+                finish_error("client connect error: want AuthenticationError, got " + repr(err))
             else:
-                finish_error("client connect error: " + err +
+                finish_error("client connect error: " + str(err) +
                              " (sshd stderr: " + sshd_err.decode() + ")")
             return
         if expect_connect_error:

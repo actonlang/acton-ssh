@@ -54,7 +54,7 @@ actor main(env):
         print("host key [" + state + "]", info.key_type, info.fingerprint)
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
             print("connect error:", err)
             env.exit(1)

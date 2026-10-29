@@ -219,9 +219,9 @@ actor ExecTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.RunCommand(c, "greet", on_run_exit, timeout=10.0)
 
@@ -372,9 +372,9 @@ actor SubsystemTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
 
@@ -498,9 +498,12 @@ actor AuthRejectTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is None:
             finish_error("connect unexpectedly succeeded")
+            return
+        if not isinstance(err, ssh.AuthenticationError):
+            finish_error("want AuthenticationError, got " + repr(err))
             return
         got_auth_error = True
         if server is not None:
@@ -597,9 +600,12 @@ actor HostkeyRejectTester(t: testing.EnvT):
             return
         c.reject_hostkey("untrusted")
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is None:
             finish_error("connect unexpectedly succeeded")
+            return
+        if not isinstance(err, ssh.HostKeyError):
+            finish_error("want HostKeyError, got " + repr(err))
             return
         got_reject_error = True
         if server is not None:
@@ -637,6 +643,88 @@ actor HostkeyRejectTester(t: testing.EnvT):
 def _test_hostkey_reject(t: testing.EnvT):
     """Rejecting the host key must surface as a connect error."""
     HostkeyRejectTester(t)
+
+
+actor KexMismatchTester(t: testing.EnvT):
+    """A client and server with no key exchange in common must fail to connect
+    with a KeyExchangeError."""
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+
+    def finish(err: ?Exception):
+        if done:
+            return
+        done = True
+        if client is not None:
+            client.close()
+        if server is not None:
+            server.close()
+        if err is not None:
+            t.error(err)
+        else:
+            t.success()
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish(Exception("server listen error: " + err))
+            return
+        port = await async s.bound_port()
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+            transport=ssh.TransportConfig(key_exchanges=[ssh.kex.ecdh_sha2_nistp256]),
+        )
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.reject_channel("no channels")
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is None:
+            finish(Exception("connect unexpectedly succeeded"))
+        elif isinstance(err, ssh.KeyExchangeError):
+            finish(None)
+        else:
+            finish(Exception("want KeyExchangeError, got " + repr(err)))
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        transport=ssh.TransportConfig(key_exchanges=[ssh.kex.curve25519_sha256]),
+    )
+    after 10.0: finish(Exception("timeout waiting for key exchange mismatch test"))
+
+
+def _test_kex_mismatch(t: testing.EnvT):
+    """No key exchange in common must surface as a KeyExchangeError."""
+    KexMismatchTester(t)
 
 
 actor EchoPayloadTester(t: testing.EnvT):
@@ -720,9 +808,9 @@ actor EchoPayloadTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
 
@@ -889,9 +977,9 @@ actor ConcurrentChannelsTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         for i in range(NUM_CHANNELS):
             start_run(c, i)
@@ -1030,9 +1118,9 @@ actor ServerCloseTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
 
@@ -1139,11 +1227,14 @@ actor ConnectRefusedTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if done:
             return
         if err is None:
             finish_error("connect unexpectedly succeeded to a closed port")
+            return
+        if isinstance(err, ssh.SshError) or not isinstance(err, OSError):
+            finish_error("want OSError, got " + repr(err))
             return
         done = True
         t.success()
@@ -1281,9 +1372,9 @@ actor PubkeyAuthTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         finish_error("in-memory known_hosts did not accept the server key: " + state)
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.RunCommand(c, "go", on_run_exit, timeout=10.0)
 
@@ -1421,9 +1512,9 @@ actor WriteBufferLimitTester(t: testing.EnvT):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            finish_error("client connect error: " + err)
+            finish_error("client connect error: " + str(err))
             return
         ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
 
@@ -1545,14 +1636,17 @@ actor HostkeyStallTester(t: testing.EnvT):
         # Neither accept nor reject: the client stays in CLIENT_STATE_HOSTKEY_WAIT.
         reached_hostkey = True
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if done:
             return
         if err is None:
             finish_error("connect unexpectedly succeeded")
             return
-        if not reached_hostkey or err != "SSH host key verification timeout":
-            finish_error("expected SSH host key verification timeout, got: " + str(err))
+        timed_out = False
+        if err is not None and isinstance(err, ssh.HostKeyError):
+            timed_out = err.error_message == "SSH host key verification timeout"
+        if not reached_hostkey or not timed_out:
+            finish_error("expected HostKeyError for the host key verification timeout, got: " + repr(err))
             return
         done = True
         if server is not None:

@@ -41,7 +41,10 @@ Authentication (client):
   - If neither is given, the connection fails.
 
 Callback ordering and semantics:
-  - All operations are async actor actions; callbacks receive errors as ?str.
+  - All operations are async actor actions. Client.on_connect receives an
+    error as ?Exception: SshError or one of its subclasses, or OSError for a
+    failure before the server's SSH banner. Other callbacks receive errors
+    as ?str.
   - ?bytes data callbacks use None to signal EOF (end of that stream).
   - On channel teardown the delivery order is: on_exit (if the remote sent an
     exit status), then on_stdout(None) / on_stderr(None) for streams that have
@@ -67,6 +70,36 @@ Notes:
 """
 
 import net
+
+
+class SshError(Exception):
+    """An SSH connection failed after the server's SSH banner arrived.
+
+    Client.on_connect reports a failure before the banner, like a refused
+    TCP connect, as an OSError. The subclasses are the failures that need a
+    change on one side to go away.
+    """
+    pass
+
+
+class KeyExchangeError(SshError):
+    """The key exchange failed, as when client and server share no key
+    exchange, host key, cipher or MAC algorithm. Client's transport sets
+    what the client offers."""
+    pass
+
+
+class HostKeyError(SshError):
+    """The client did not trust the server's host key: the key does not match
+    known_hosts, on_hostkey rejected it or did not answer in time, or there
+    is no on_hostkey to ask."""
+    pass
+
+
+class AuthenticationError(SshError):
+    """The server refused every credential the client offered, or the client
+    had none to offer."""
+    pass
 
 
 class Algorithm:
@@ -587,7 +620,7 @@ class AuthRequest():
 actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,
-             on_connect: action(Client, ?str) -> None,
+             on_connect: action(Client, ?Exception) -> None,
              on_close: action(Client, str) -> None,
              on_hostkey: ?action(Client, str, HostKeyInfo) -> None=None,
              password: ?str=None,
@@ -605,7 +638,11 @@ actor Client(cap: net.TCPConnectCap,
     """SSH Client
 
     Connects to host:port as username. on_connect(err) fires exactly once:
-    err is None on success, otherwise a description of the failure.
+    err is None on success. A failure before the server's SSH banner, like a
+    refused TCP connect, is an OSError. After the banner it is a
+    KeyExchangeError while client and server agree on algorithms and keys, a
+    HostKeyError when the host key is not trusted, an AuthenticationError
+    when the server refuses the credentials, and otherwise an SshError.
     on_close(reason) fires exactly once after a successful connect when the
     session ends. on_hostkey is invoked for host key verification when the
     key is not already trusted via the in-memory known_hosts data; respond
@@ -648,7 +685,7 @@ actor Client(cap: net.TCPConnectCap,
     var _keepalive_enabled: bool = keepalive_enabled
     var _close_timeout: float = close_timeout
     var _max_write_buffer: int = max_write_buffer
-    var _on_connect: action(Client, ?str) -> None = on_connect
+    var _on_connect: action(Client, ?Exception) -> None = on_connect
     var _on_close: action(Client, str) -> None = on_close
     var _on_hostkey: ?action(Client, str, HostKeyInfo) -> None = on_hostkey
 

@@ -169,6 +169,8 @@ actor PipeAuthRejectTester(t: testing.EnvT):
             _teardown()
             if connected:
                 t.failure(ValueError("connected before auth error"))
+            elif not isinstance(err, ssh.AuthenticationError):
+                t.failure(ValueError("expected AuthenticationError, got: {repr(err)}"))
             else:
                 t.success()
         elif data is None:
@@ -242,6 +244,8 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
                 t.failure(ValueError("connected to a peer that never sent an SSH banner"))
             elif str(err).find("SSH connect timeout") < 0:
                 t.failure(ValueError("expected SSH connect timeout, got: {err}"))
+            elif isinstance(err, ssh.SshError) or not isinstance(err, OSError):
+                t.failure(ValueError("expected OSError before the SSH banner, got: {repr(err)}"))
             else:
                 t.success()
         elif data is None:
@@ -323,6 +327,8 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
                 t.failure(ValueError("connected although authentication was never answered"))
             elif str(err).find("SSH authentication timeout") < 0:
                 t.failure(ValueError("expected SSH authentication timeout, got: {err}"))
+            elif isinstance(err, ssh.AuthenticationError) or not isinstance(err, ssh.SshError):
+                t.failure(ValueError("expected SshError for a timeout, got: {repr(err)}"))
             else:
                 t.success()
         elif data is None:
@@ -463,7 +469,10 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
         if err is not None:
             done = True
             _teardown()
-            t.success()
+            if isinstance(err, ssh.HostKeyError):
+                t.success()
+            else:
+                t.failure(ValueError("expected HostKeyError, got: {repr(err)}"))
         elif data is None:
             done = True
             _teardown()

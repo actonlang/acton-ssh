@@ -71,7 +71,7 @@ actor main(env):
         # Verify info.fingerprint against a known value in production.
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
             print("connect failed:", err)
             env.exit(1)
@@ -231,7 +231,12 @@ the server generates an ephemeral in-memory key using `host_key_type` and
   and/or `private_keys: list[PrivateKey]`. Tunables: `port`, in-memory
   `known_hosts`, `transport`, `connect_timeout`, `auth_timeout`,
   `keepalive_interval`, `keepalive_enabled`, `close_timeout`,
-  `max_write_buffer`.
+  `max_write_buffer`. A failed connect reports `on_connect(client, err)` with
+  an `OSError` when it failed before the server's SSH banner, like a refused
+  TCP connect, and otherwise an `SshError`: `KeyExchangeError` when client
+  and server share no algorithm, `HostKeyError` when the host key is not
+  trusted, `AuthenticationError` when the server refuses the credentials.
+  `SshPipe` reports the same errors.
 - **`Channel(client, on_open, on_stdout, on_stderr, on_exit, on_close)`** —
   `request_exec(cmd)`, `request_shell(...)`, `request_subsystem(name)`,
   `write(data)`, `send_eof()`, `close()`. `?bytes` callbacks deliver `None`
