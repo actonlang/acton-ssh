@@ -1,0 +1,309 @@
+"""Reproducer for first-data corruption on newly opened channels under load.
+
+Field report: with ~250 concurrent NETCONF subsystem sessions, a small
+fraction of sessions receive the server <hello> with its leading bytes
+missing (stream starts mid-capability), which then fails XML parsing.
+
+This test mimics that workload in-process: one ssh.Server that, like a
+NETCONF server, writes a multi-kilobyte hello in many small chunks the
+moment the subsystem request is accepted, and ROUNDS x NUM concurrent
+clients that each open a session channel, request the subsystem and then
+verify on EVERY on_stdout delivery that the bytes received so far are an
+exact prefix of the expected hello. Any lost, reordered or duplicated
+leading bytes fail the test immediately with the received head attached.
+
+Odd rounds defer the server-side hello write through `after 0` so the
+write is issued from a later actor turn, varying the interleaving between
+the subsystem accept, the hello write and the client's own first write.
+
+The defaults are sized to fit the plain `acton test` budget (a test is
+killed after max(--max-time, 2s) + 1s, and every session costs a full key
+exchange). For a real soak, raise the concurrency with
+ACTON_SSH_STORM_NUM -- but only as far as the run still completes (~64 on one
+host; see the scope note below) -- and give the harness room:
+
+    ACTON_SSH_STORM_NUM=32 acton test --module test_ssh_hello_storm \\
+        --max-time 120000 --min-iter 1 --max-iter 1
+    ACTON_SSH_STORM_NUM=32 acton test stress \\
+        --module test_ssh_hello_storm --stress-workers 4 \\
+        --max-time 240000 --min-iter 1 --max-iter 1
+
+`acton test stress` adds scheduling chaos on top.
+
+Two things this test does NOT do, so nobody spends another afternoon on it:
+
+- **It cannot trigger the "Window exceeded" discard** that the `pre_fatal`
+  guard in `session_event_poll` catches -- and neither can anything else on a
+  stock build. That branch needs a DATA packet larger than the
+  channel's local window, but `packet.c:1170` caps any transport packet at
+  `MAX_PACKET_LEN` = 262,144 B, far below the fresh 2,097,152 B window
+  (`WINDOW_DEFAULT` = `64 * CHANNEL_MAX_PACKET`, `src/channels.c:67`). It is
+  reachable only by a receiver whose window has diverged *below* the incoming
+  packet size. ANALYSIS-first-data-corruption.md, section *Forcing the
+  discard*, gives the recipe for producing that divergence in a local libssh
+  build, and `src/test_ssh_hello_storm.sh` automates it; with one
+  server hello chunk dropped, the assertion below fires with exactly the field
+  symptom. On the stock build this file is a guard for the
+  reported *symptom*, not a reproducer of that *mechanism*.
+- **It stops testing the data path entirely above ~64 sessions.** The first
+  failing client calls `finish_error`, which aborts the whole test, and past
+  ~128 concurrent handshakes on one host a client always loses the connect
+  race first (`SSH connect timeout` at `ssh.Client`'s 10 s default
+  `connect_timeout`, or `bad file descriptor` -- a `UV_EBADF` delivered to
+  `client_poll_cb` when libssh closes a session socket out from under a live
+  `uv_poll_t`). Neither says anything about data integrity. Raising
+  ACTON_SSH_STORM_NUM past what completes makes this test cover *less*, not
+  more; prefer `acton test stress` for scheduling chaos.
+
+The only output that confirms the reported bug is the prefix assertion:
+`corrupt hello (round R client C): received N bytes, head=...`. It has never
+fired in-process. To confirm the mechanism on an affected host, run against
+the real peer with `ACTON_SSH_LIBSSH_LOG=warn` (see
+ANALYSIS-first-data-corruption.md) and watch for
+`Data packet too big for our window(N vs M)`.
+"""
+
+import net
+import lib as ssh
+import testing
+
+
+TEST_USER = "netconf"
+TEST_PASS = "netconf-pass"
+
+
+actor HelloStormTester(t: testing.EnvT):
+    NUM = 4           # concurrent sessions per round (see ACTON_SSH_STORM_NUM)
+    ROUNDS = 2        # even round writes the hello inline, odd round defers it
+    CHUNK = 1024      # server-side write granularity for the hello
+
+    var num = NUM
+
+    var hello = b""
+    var client_hello = b'<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities><capability>urn:ietf:params:netconf:base:1.1</capability></capabilities></hello>]]>]]>'
+
+    var done = False
+    var server: ?ssh.Server = None
+    var port: u16 = 0
+    var round_num = 0
+    var completed = 0                        # sessions with a fully verified hello, this round
+    var closed = 0                           # client close callbacks seen, this round
+    var total_ok = 0
+    var bufs: dict[int, bytes] = {}          # per-client accumulated stdout
+    var clients: dict[int, ssh.Client] = {}  # per-client handle, for teardown
+    var all_clients: list[ssh.Client] = []
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        for c in all_clients:
+            c.close()
+        s = server
+        if s is not None:
+            s.close()
+        t.error(Exception(msg))
+
+    def on_timeout():
+        finish_error("timeout: round " + str(round_num) + " of " + str(ROUNDS) +
+                     ", completed " + str(completed) + "/" + str(num) +
+                     " (total ok " + str(total_ok) + ")")
+
+    # --- server side
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish_error("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        # Soak knob: ACTON_SSH_STORM_NUM raises the concurrency without a
+        # source edit (the default is sized to fit `acton test`'s budget).
+        override = await async t.env.getenv("ACTON_SSH_STORM_NUM")
+        if override is not None:
+            try:
+                num = int(override)
+            except ValueError:
+                pass
+        start_round()
+
+    def on_server_close(s: ssh.Server, reason: str):
+        if done:
+            return
+        if total_ok == num * ROUNDS:
+            done = True
+            t.success()
+        else:
+            finish_error("server closed early: " + reason + " (total ok " + str(total_ok) + ")")
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == TEST_USER and req.password == TEST_PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        # Inbound client hello is load, not what we verify here.
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def send_hello(ch: ssh.ServerChannel):
+        # Write the hello like a real NETCONF server: immediately, and in
+        # many small chunks so it spans several SSH DATA packets.
+        offset = 0
+        while offset < len(hello):
+            end = offset + CHUNK
+            if end > len(hello):
+                end = len(hello)
+            ch.write(hello[offset:end])
+            offset = end
+
+    def on_subsystem(sess: ssh.ServerSession, ch: ssh.ServerChannel, name: str):
+        if name == "netconf":
+            ch.accept_request()
+            if round_num % 2 == 0:
+                send_hello(ch)
+            else:
+                # Defer to a later actor turn: varies the interleaving of
+                # the subsystem reply, the hello write and client traffic.
+                def deferred_hello():
+                    send_hello(ch)
+                after 0.0: deferred_hello()
+        else:
+            ch.reject_request("unsupported subsystem")
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.reject_request("exec disabled")
+
+    # --- client side
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def round_done():
+        if done:
+            return
+        round_num += 1
+        if round_num >= ROUNDS:
+            s = server
+            if s is not None:
+                s.close()
+        else:
+            start_round()
+
+    def start_round():
+        completed = 0
+        closed = 0
+        all_clients = []
+        for i in range(num):
+            start_one(i)
+
+    def start_one(i: int):
+        bufs[i] = b""
+
+        def ch_open(ch: ssh.Channel, err: ?str):
+            if done:
+                return
+            if err is not None:
+                finish_error("client " + str(i) + " channel open error: " + err)
+                return
+            ch.request_subsystem("netconf")
+            # Bidirectional first-data traffic, like a real NETCONF client.
+            ch.write(client_hello)
+
+        def ch_out(ch: ssh.Channel, data: ?bytes):
+            if done:
+                return
+            if data is not None:
+                nb = bufs[i] + data
+                # THE core assertion: everything received so far must be an
+                # exact prefix of the expected hello. Missing/reordered
+                # leading bytes fail here on the very first delivery.
+                if hello[0:len(nb)] != nb:
+                    finish_error("corrupt hello (round " + str(round_num) +
+                                 " client " + str(i) + "): received " + str(len(nb)) +
+                                 " bytes, head=" + str(nb[0:80]))
+                    return
+                bufs[i] = nb
+                if len(nb) == len(hello):
+                    total_ok += 1
+                    completed += 1
+                    ch.close()
+
+        def ch_err(ch: ssh.Channel, data: ?bytes):
+            pass
+
+        def ch_exit(ch: ssh.Channel, code: int, sig: ?str):
+            pass
+
+        def ch_close(ch: ssh.Channel, reason: str):
+            if done:
+                return
+            clients[i].close()
+
+        def on_connect(c: ssh.Client, err: ?str):
+            if done:
+                return
+            if err is not None:
+                finish_error("client " + str(i) + " connect error: " + err)
+                return
+            ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)
+
+        def on_client_close(c: ssh.Client, reason: str):
+            if done:
+                return
+            closed += 1
+            if closed == num:
+                if completed != num:
+                    finish_error("round " + str(round_num) + ": only " + str(completed) +
+                                 "/" + str(num) + " sessions saw a complete hello")
+                    return
+                round_done()
+
+        c = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            TEST_USER,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            password=TEST_PASS,
+            port=port,
+        )
+        clients[i] = c
+        all_clients.append(c)
+
+    # A realistic multi-kilobyte NETCONF hello: many capability URIs, so the
+    # transfer spans many SSH DATA packets and socket reads.
+    hello = b'<?xml version="1.0" encoding="UTF-8"?><hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"><capabilities>'
+    for i in range(120):
+        hello += b'<capability>urn:example:params:xml:ns:yang:mod-' + str(i).encode() + \
+                 b'?module=mod-' + str(i).encode() + b'&amp;revision=2024-01-01</capability>'
+    hello += b'</capabilities><session-id>1</session-id></hello>]]>]]>'
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+        on_subsystem,
+    )
+    after 60.0: on_timeout()
+
+
+def _test_hello_storm(t: testing.EnvT):
+    """Concurrent subsystem sessions: first channel data must never lose its head."""
+    HelloStormTester(t)
