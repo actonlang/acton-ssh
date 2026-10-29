@@ -10,6 +10,9 @@ shell; the channel's stdin/stdout is the pipe. The connection is established
 lazily when the first read callback is installed (mirroring the other Pipe
 implementations). The connected signal is read_cb(None, None); data is
 read_cb(None, data); errors (including channel EOF/close) are read_cb(err, None).
+A failed connect gives the error of Client.on_connect, an ssh.SshError or an
+OSError, and a refused channel an ssh.SshError. The end of a connection, like
+channel EOF or close or the session closing, is an OSError, as on TCP.
 
 Server side: SshPipeListener accepts SSH sessions, authenticates them via a
 caller-supplied check function, and turns each accepted subsystem channel into
@@ -161,12 +164,16 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
             _pending_err = None
             await async _read_cb(err, None)
 
-    def _fail(msg: str):
+    def _fail_with(err: Exception):
         if _closing or _failed:
             return
         _failed = True
-        _pending_err = OSError(msg)
+        _pending_err = err
         _emit_pending()
+
+    def _fail(msg: str):
+        """Fail with an OSError: the connection ended, as a TCP pipe's would."""
+        _fail_with(OSError(msg))
 
     def _on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         if not _is_current_client(c):
@@ -179,11 +186,11 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
             _log.warning("Rejecting SSH host key", {"address": address, "state": state, "fingerprint": info.fingerprint})
             c.reject_hostkey("host key not trusted ({state})")
 
-    def _on_ssh_connect(c: ssh.Client, err: ?str):
+    def _on_ssh_connect(c: ssh.Client, err: ?Exception):
         if _closing or not _is_current_client(c):
             return
         if err is not None:
-            _fail("SSH connection failed: {err}")
+            _fail_with(err)
             return
         # Track the channel from creation, not from on_open: its EOF can arrive
         # before on_open, and a channel the peer closes while it is still
@@ -203,7 +210,7 @@ actor _SshClientPipeEndpoint(connect_cap: net.TCPConnectCap,
             ch.close()
             return
         if err is not None:
-            _fail("SSH channel open failed: {err}")
+            _fail_with(ssh.SshError("SSH channel open failed: {err}"))
             return
         _channel_open = True
         sub = subsystem

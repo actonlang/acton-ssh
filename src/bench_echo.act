@@ -69,9 +69,9 @@ actor main(env):
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
 
-    def on_connect(c: ssh.Client, err: ?str):
+    def on_connect(c: ssh.Client, err: ?Exception):
         if err is not None:
-            fail("connect: " + err)
+            fail("connect: " + str(err))
             return
         t_connect = time.monotonic()
         ssh.Channel(c, ch_open, ch_out, ch_err, ch_exit, ch_close)

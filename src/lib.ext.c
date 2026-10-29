@@ -140,6 +140,15 @@ typedef enum {
     CLIENT_STATE_CLOSED,
 } client_state_t;
 
+// The exception on_connect reports for a client failure.
+typedef enum {
+    CLIENT_ERR_OS = 0,  // OSError: before the server's SSH banner
+    CLIENT_ERR_SSH,     // SshError
+    CLIENT_ERR_KEX,     // KeyExchangeError
+    CLIENT_ERR_HOSTKEY, // HostKeyError
+    CLIENT_ERR_AUTH,    // AuthenticationError
+} client_err_t;
+
 typedef enum {
     CHAN_STATE_INIT = 0,
     CHAN_STATE_OPENING,
@@ -958,7 +967,36 @@ static int session_channel_limit_reached(ssh_server_session_ctx *s) {
 
 // --- Client implementation
 
-static void client_notify_connect(ssh_client_ctx *c, const char *err) {
+static B_BaseException client_error(client_err_t kind, const char *msg) {
+    B_str s = to$str((char *)msg);
+    switch (kind) {
+    case CLIENT_ERR_SSH:
+        return (B_BaseException)sshQ_libQ_SshErrorG_new(s);
+    case CLIENT_ERR_KEX:
+        return (B_BaseException)sshQ_libQ_KeyExchangeErrorG_new(s);
+    case CLIENT_ERR_HOSTKEY:
+        return (B_BaseException)sshQ_libQ_HostKeyErrorG_new(s);
+    case CLIENT_ERR_AUTH:
+        return (B_BaseException)sshQ_libQ_AuthenticationErrorG_new(s);
+    case CLIENT_ERR_OS:
+    default:
+        return (B_BaseException)B_OSErrorG_new(s);
+    }
+}
+
+/* The kind of a failure that libssh reports for the session. Until the
+ * server's SSH banner arrives the TCP connection is what failed; after it,
+ * until the host key check, the key exchange. */
+static client_err_t client_session_error(ssh_client_ctx *c) {
+    if (c->state == CLIENT_STATE_INIT || c->state == CLIENT_STATE_CONNECTING) {
+        if (c->session == NULL || ssh_get_serverbanner(c->session) == NULL)
+            return CLIENT_ERR_OS;
+        return CLIENT_ERR_KEX;
+    }
+    return CLIENT_ERR_SSH;
+}
+
+static void client_notify_connect(ssh_client_ctx *c, client_err_t kind, const char *err) {
     if (c == NULL)
         return;
     if (c->connect_notified)
@@ -966,7 +1004,7 @@ static void client_notify_connect(ssh_client_ctx *c, const char *err) {
     sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_connect) {
         $action2 f = ($action2)c->on_connect;
-        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? (B_value)client_error(kind, err) : B_None);
     }
     c->connect_notified = 1;
     if (err == NULL)
@@ -986,14 +1024,16 @@ static void client_notify_close(ssh_client_ctx *c, const char *reason) {
     c->close_notified = 1;
 }
 
-static void client_fail(ssh_client_ctx *c, const char *msg) {
+/* Fail the client. Before it has connected, on_connect gets the exception of
+ * kind with msg. */
+static void client_fail(ssh_client_ctx *c, client_err_t kind, const char *msg) {
     if (c == NULL || c->state == CLIENT_STATE_CLOSED || c->state == CLIENT_STATE_ERROR)
         return;
     if (ssh_debug_enabled)
-        ssh_debug_log("client fail: session=%p state=%d msg=%s", (void *)c->session, (int)c->state, msg);
+        ssh_debug_log("client fail: session=%p state=%d kind=%d msg=%s", (void *)c->session, (int)c->state, (int)kind, msg);
     c->state = CLIENT_STATE_ERROR;
     if (!c->connected_ok)
-        client_notify_connect(c, msg);
+        client_notify_connect(c, kind, msg);
     client_close_internal(c, msg, 1);
 }
 
@@ -1900,7 +1940,7 @@ static int client_check_hostkey(ssh_client_ctx *c) {
         if (state == SSH_KNOWN_HOSTS_ERROR) {
             char errmsg[256] = {0};
             snprintf(errmsg, sizeof(errmsg), "Unable to parse or check SSH known_hosts data");
-            client_fail(c, errmsg);
+            client_fail(c, CLIENT_ERR_HOSTKEY, errmsg);
             return -1;
         }
     }
@@ -1910,7 +1950,7 @@ static int client_check_hostkey(ssh_client_ctx *c) {
     if (!c->on_hostkey) {
         char errmsg[256] = {0};
         snprintf(errmsg, sizeof(errmsg), "Host key not accepted (%s)", hostkey_state_str(state));
-        client_fail(c, errmsg);
+        client_fail(c, CLIENT_ERR_HOSTKEY, errmsg);
         return -1;
     }
 
@@ -1929,10 +1969,14 @@ static int client_check_hostkey(ssh_client_ctx *c) {
 
 /* One authentication step. Tries public key auth first (if configured), then
  * password. Returns SSH_AUTH_SUCCESS, SSH_AUTH_AGAIN (call again on next
- * event) or SSH_AUTH_ERROR with errmsg filled in. */
-static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen) {
+ * event) or SSH_AUTH_ERROR with errmsg and kind filled in. kind is
+ * CLIENT_ERR_AUTH when the server refused the credentials or there were none
+ * to offer. */
+static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen, client_err_t *kind) {
+    *kind = CLIENT_ERR_AUTH;
     sshQ_libQ_Client actor = client_actor_ref(c);
     if (actor == NULL) {
+        *kind = CLIENT_ERR_SSH;
         snprintf(errmsg, errlen, "SSH client actor gone during auth");
         return SSH_AUTH_ERROR;
     }
@@ -1971,6 +2015,8 @@ static int client_auth_step(ssh_client_ctx *c, char *errmsg, size_t errlen) {
             return SSH_AUTH_SUCCESS;
         if (rc == SSH_AUTH_AGAIN)
             return SSH_AUTH_AGAIN;
+        if (rc == SSH_AUTH_ERROR)
+            *kind = CLIENT_ERR_SSH;
         snprintf(errmsg, errlen, "SSH auth failed: %s", ssh_get_error(c->session));
         return SSH_AUTH_ERROR;
     }
@@ -1984,11 +2030,11 @@ static void connect_timeout_cb(uv_timer_t *timer) {
     if (c == NULL)
         return;
     if (c->state == CLIENT_STATE_HOSTKEY_WAIT) {
-        client_fail(c, "SSH host key verification timeout");
+        client_fail(c, CLIENT_ERR_HOSTKEY, "SSH host key verification timeout");
         return;
     }
     if (c->state == CLIENT_STATE_CONNECTING || c->state == CLIENT_STATE_HOSTKEY) {
-        client_fail(c, "SSH connect timeout");
+        client_fail(c, client_session_error(c), "SSH connect timeout");
     }
 }
 
@@ -1997,7 +2043,7 @@ static void auth_timeout_cb(uv_timer_t *timer) {
     if (c == NULL)
         return;
     if (c->state == CLIENT_STATE_AUTH) {
-        client_fail(c, "SSH authentication timeout");
+        client_fail(c, CLIENT_ERR_SSH, "SSH authentication timeout");
     }
 }
 
@@ -2015,7 +2061,7 @@ static void keepalive_cb(uv_timer_t *timer) {
     if (rc != SSH_OK) {
         char errmsg[256] = {0};
         snprintf(errmsg, sizeof(errmsg), "SSH keepalive failed: %s", ssh_get_error(c->session));
-        client_fail(c, errmsg);
+        client_fail(c, CLIENT_ERR_SSH, errmsg);
         return;
     }
     client_update_poll(c);
@@ -2088,7 +2134,7 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
     if (status < 0) {
         char errmsg[256] = {0};
         uv_strerror_r(status, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-        client_fail(c, errmsg);
+        client_fail(c, CLIENT_ERR_OS, errmsg);
         return;
     }
     int ready = 0;
@@ -2110,7 +2156,7 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
     if (ready && session_event_poll(c->event) != 0) {
         char errmsg[256] = {0};
         session_failure_reason(c->session, errmsg, sizeof(errmsg));
-        client_fail(c, errmsg);
+        client_fail(c, client_session_error(c), errmsg);
         return;
     }
     client_drive(c);
@@ -2127,7 +2173,7 @@ static void client_update_poll(ssh_client_ctx *c) {
         return;
     int status = ssh_get_status(c->session);
     if (status & SSH_CLOSED_ERROR) {
-        client_fail(c, "SSH session closed with error");
+        client_fail(c, client_session_error(c), "SSH session closed with error");
         return;
     }
     if (status & SSH_CLOSED) {
@@ -2149,7 +2195,7 @@ static void client_update_poll(ssh_client_ctx *c) {
         if (uv_rc != 0) {
             char errmsg[256] = {0};
             uv_strerror_r(uv_rc, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-            client_fail(c, errmsg);
+            client_fail(c, CLIENT_ERR_OS, errmsg);
             return;
         }
         c->poll_events = events;
@@ -2170,7 +2216,7 @@ static void client_pump_io(ssh_client_ctx *c) {
             if (session_event_poll(c->event) != 0) {
                 char errmsg[256] = {0};
                 session_failure_reason(c->session, errmsg, sizeof(errmsg));
-                client_fail(c, errmsg);
+                client_fail(c, client_session_error(c), errmsg);
                 return;
             }
             client_drive(c);
@@ -2226,7 +2272,7 @@ static int client_needs_write(ssh_client_ctx *c) {
 static void client_on_ready(ssh_client_ctx *c) {
     c->state = CLIENT_STATE_READY;
     stop_timer(&c->auth_timer, client_timer_close_cb);
-    client_notify_connect(c, NULL);
+    client_notify_connect(c, CLIENT_ERR_SSH, NULL);
     client_start_keepalive(c);
     client_drive_channels(c);
     client_update_poll(c);
@@ -2249,7 +2295,7 @@ static void client_drive(ssh_client_ctx *c) {
             int rc = ssh_connect(c->session);
             if (rc == SSH_OK) {
                 if (fd_set_nonblocking(c->fd) != 0) {
-                    client_fail(c, "Failed to restore SSH session fd nonblocking");
+                    client_fail(c, CLIENT_ERR_OS, "Failed to restore SSH session fd nonblocking");
                     return;
                 }
                 c->state = CLIENT_STATE_HOSTKEY;
@@ -2267,7 +2313,7 @@ static void client_drive(ssh_client_ctx *c) {
             } else {
                 char errmsg[256] = {0};
                 snprintf(errmsg, sizeof(errmsg), "SSH connect failed: %s", ssh_get_error(c->session));
-                client_fail(c, errmsg);
+                client_fail(c, client_session_error(c), errmsg);
                 return;
             }
         }
@@ -2293,7 +2339,8 @@ static void client_drive(ssh_client_ctx *c) {
 
         if (c->state == CLIENT_STATE_AUTH) {
             char errmsg[512] = {0};
-            int rc = client_auth_step(c, errmsg, sizeof(errmsg));
+            client_err_t kind;
+            int rc = client_auth_step(c, errmsg, sizeof(errmsg), &kind);
             if (rc == SSH_AUTH_SUCCESS) {
                 client_on_ready(c);
                 return;
@@ -2307,7 +2354,7 @@ static void client_drive(ssh_client_ctx *c) {
                 client_update_poll(c);
                 return;
             } else {
-                client_fail(c, errmsg);
+                client_fail(c, kind, errmsg);
                 return;
             }
         }
@@ -2417,7 +2464,7 @@ static void client_close_internal(ssh_client_ctx *c, const char *reason, int for
         force_close = 1;
 
     if (!c->connected_ok && !c->connect_notified) {
-        client_notify_connect(c, reason ? reason : "closed");
+        client_notify_connect(c, CLIENT_ERR_SSH, reason ? reason : "closed");
     }
     if (reason != NULL && c->close_reason == NULL)
         c->close_reason = acton_strdup(reason);
@@ -2505,7 +2552,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
 
     c->session = ssh_new();
     if (c->session == NULL) {
-        client_fail(c, "Failed to create SSH session");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to create SSH session");
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2516,7 +2563,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
 
     rc = ssh_options_set(c->session, SSH_OPTIONS_PROCESS_CONFIG, &process_config);
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to disable SSH config processing");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to disable SSH config processing");
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2525,40 +2572,40 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
      * see the header note. */
     rc = ssh_options_set(c->session, SSH_OPTIONS_KNOWNHOSTS, "/dev/null");
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to disable SSH known_hosts files");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to disable SSH known_hosts files");
         return $R_CONT(c$cont, B_None);
     }
     rc = ssh_options_set(c->session, SSH_OPTIONS_GLOBAL_KNOWNHOSTS, "/dev/null");
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to disable SSH global known_hosts files");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to disable SSH global known_hosts files");
         return $R_CONT(c$cont, B_None);
     }
 
     rc = ssh_options_set(c->session, SSH_OPTIONS_HOST, fromB_str(self->_host));
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to set SSH host");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to set SSH host");
         return $R_CONT(c$cont, B_None);
     }
     rc = ssh_options_set(c->session, SSH_OPTIONS_PORT, &port);
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to set SSH port");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to set SSH port");
         return $R_CONT(c$cont, B_None);
     }
     rc = ssh_options_set(c->session, SSH_OPTIONS_USER, fromB_str(self->_username));
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to set SSH username");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to set SSH username");
         return $R_CONT(c$cont, B_None);
     }
     rc = ssh_options_set(c->session, SSH_OPTIONS_STRICTHOSTKEYCHECK, &strict);
     if (rc != SSH_OK) {
-        client_fail(c, "Failed to set SSH strict host key checking");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to set SSH strict host key checking");
         return $R_CONT(c$cont, B_None);
     }
 
     char transport_error[256] = {0};
     if (apply_client_transport(c->session, self,
                                transport_error, sizeof(transport_error)) != SSH_OK) {
-        client_fail(c, transport_error);
+        client_fail(c, CLIENT_ERR_SSH, transport_error);
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2575,22 +2622,22 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     } else {
         char errmsg[256] = {0};
         snprintf(errmsg, sizeof(errmsg), "SSH connect failed: %s", ssh_get_error(c->session));
-        client_fail(c, errmsg);
+        client_fail(c, client_session_error(c), errmsg);
         return $R_CONT(c$cont, B_None);
     }
 
     c->fd = ssh_get_fd(c->session);
     if (c->fd < 0) {
-        client_fail(c, "Failed to get SSH session fd");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to get SSH session fd");
         return $R_CONT(c$cont, B_None);
     }
     if (c->state != CLIENT_STATE_CONNECTING && fd_set_nonblocking(c->fd) != 0) {
-        client_fail(c, "Failed to set SSH session fd nonblocking");
+        client_fail(c, CLIENT_ERR_OS, "Failed to set SSH session fd nonblocking");
         return $R_CONT(c$cont, B_None);
     }
     /* Only valid after the ssh_connect() above; see session_event_attach(). */
     if (session_event_attach(c->session, &c->event) != 0) {
-        client_fail(c, "Failed to attach SSH session event");
+        client_fail(c, CLIENT_ERR_SSH, "Failed to attach SSH session event");
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2600,7 +2647,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     if (uv_rc != 0) {
         char errmsg[256] = {0};
         uv_strerror_r(uv_rc, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-        client_fail(c, errmsg);
+        client_fail(c, CLIENT_ERR_OS, errmsg);
         return $R_CONT(c$cont, B_None);
     }
     c->poll_events = UV_READABLE | UV_WRITABLE;
@@ -2608,7 +2655,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     if (uv_rc != 0) {
         char errmsg[256] = {0};
         uv_strerror_r(uv_rc, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
-        client_fail(c, errmsg);
+        client_fail(c, CLIENT_ERR_OS, errmsg);
         return $R_CONT(c$cont, B_None);
     }
 
@@ -2640,7 +2687,7 @@ $R sshQ_libQ_ClientD_reject_hostkeyG_local(sshQ_libQ_Client self, $Cont c$cont, 
 
     char errmsg[256] = {0};
     snprintf(errmsg, sizeof(errmsg), "Host key rejected: %s", fromB_str(reason));
-    client_fail(c, errmsg);
+    client_fail(c, CLIENT_ERR_HOSTKEY, errmsg);
 
     return $R_CONT(c$cont, B_None);
 }
