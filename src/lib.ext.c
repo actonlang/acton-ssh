@@ -122,6 +122,10 @@
 uv_loop_t *get_uv_loop(void);
 
 #define SSH_IO_PUMP_LIMIT 128
+/* Most bytes handed to one ssh_channel_write() call. Its length is a
+ * uint32_t, and it refuses one above INT_MAX without setting an error. It
+ * sends at most the peer's window per call anyway. */
+#define SSH_WRITE_CALL_MAX ((size_t)16 * 1024 * 1024)
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
 #define SSH_KEYEX_TIMEOUT_SEC 2.0
 #define SSH_SERVER_ACCEPT_LIMIT 64
@@ -1308,6 +1312,8 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
+        if (remaining > SSH_WRITE_CALL_MAX)
+            remaining = SSH_WRITE_CALL_MAX;
         int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
         if (rc > 0) {
             chunk->offset += (size_t)rc;
@@ -2256,9 +2262,17 @@ static int client_needs_write(ssh_client_ctx *c) {
              * them here would arm UV_WRITABLE on an always-writable
              * socket and hot-spin, starving the very actor that would
              * reply in loopback setups. */
-        } else {
-            if (ch->write_head != NULL)
+        } else if (ch->write_head != NULL) {
+            /* With the peer's window shut, only a WINDOW_ADJUST - a
+             * readable event, which sets write_wontblock again - lets the
+             * queue move; arming UV_WRITABLE on an always-writable socket
+             * would spin. With the window open but write_wontblock clear
+             * (a rekey, libssh's own buffer), writability is what
+             * restores write_wontblock. EOF and close wait for the queue. */
+            if (ch->write_wontblock ||
+                (ch->channel != NULL && ssh_channel_window_size(ch->channel) > 0))
                 return 1;
+        } else {
             if (ch->send_eof && !ch->eof_sent)
                 return 1;
             if (ch->close_requested && !ch->close_sent)
@@ -3143,6 +3157,8 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
+        if (remaining > SSH_WRITE_CALL_MAX)
+            remaining = SSH_WRITE_CALL_MAX;
         int rc;
         if (chunk->is_stderr) {
             rc = ssh_channel_write_stderr(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);

@@ -144,6 +144,14 @@ and [`src/example_server.act`](src/example_server.act):
 ./out/bin/example_client 127.0.0.1 demo "hello" 2222 demo
 ```
 
+[`src/example_scp_client.act`](src/example_scp_client.act) copies one file
+with `ScpPut` or `ScpGet`, against any server that has `scp`:
+
+```sh
+./out/bin/example_scp_client put example.com alice ./notes.txt /tmp/notes.txt
+./out/bin/example_scp_client get example.com alice /tmp/notes.txt ./copy.txt
+```
+
 ## Transport configuration
 
 `TransportConfig` contains only settings shared by clients and servers.
@@ -243,6 +251,14 @@ the server generates an ephemeral in-memory key using `host_key_type` and
   for EOF. Teardown order: `on_exit`, then stream EOFs, then `on_close`.
 - **`RunCommand(client, cmd, on_exit, timeout?)`** — buffers stdout/stderr and
   reports once: `on_exit(channel, code, signal?, stdout, stderr, error?)`.
+- **`ScpPut(client, remote_path, data, on_done, mode="0644", name?, timeout?)`**
+  and **`ScpGet(client, remote_path, on_data, on_done, timeout?)`** — copy one
+  file over SCP. Each runs the server's `scp` program (`scp -t` / `scp -f`) on
+  an exec channel of `client`, the way libssh's SCP API also works, and
+  reports once through `on_done(op, err?)`. They speak the SCP protocol
+  themselves in Acton, so they stay nonblocking and share the client's
+  connection. The server needs `scp`. `ScpPut` queues `data` in one piece, so
+  it must fit in the client's `max_write_buffer` (0 for no limit).
 - **`Server(cap, host, port, on_listen, on_close, on_session, on_auth,
   on_channel_open, on_exec?, on_subsystem?, on_session_close?, ...)`** —
   `close()`, `bound_port()` (use `port=0` for an ephemeral port). Tunables
@@ -275,7 +291,8 @@ acton test --tag openssh         # also run interop with the OpenSSH ssh client 
 
 The interop tests (`src/test_interop.act`) spawn the host's OpenSSH tools
 (`ssh` >= 8.4, `sshd`, `ssh-keygen`), so they are gated on the `openssh` tag
-and skipped by default.
+and skipped by default. So are the SCP tests (`src/test_scp.act`), which also
+need `scp`.
 
 `src/bench_echo.act` measures echo throughput; `src/soak.act` runs many
 connect→exec→close cycles for leak checking.

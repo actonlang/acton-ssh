@@ -7,6 +7,8 @@ and integrated with Acton's libuv loop. The main actors are:
   and optionally on_hostkey(state, HostKeyInfo) for strict host key checks.
 - Channel: client-side data stream (stdout/stderr/exit/close callbacks).
 - RunCommand: convenience wrapper that buffers stdout/stderr and reports exit.
+- ScpPut / ScpGet: upload bytes to, or download, one remote file over SCP on
+  an exec channel of a Client; each reports once through on_done(err).
 - Server: listens for incoming connections and creates ServerSession actors.
 - ServerSession: per-connection state; emits on_auth(AuthRequest),
   on_channel_open, and optional on_exec/on_subsystem.
@@ -897,6 +899,385 @@ actor RunCommand(client: Client,
                 return
             _error = "timeout"
             _finish(_channel)
+            _channel.close()
+        after timeout: _on_timeout()
+
+
+# SCP runs the server's scp program on an exec channel: `scp -t PATH` to
+# receive a file, `scp -f PATH` to send one. libssh's SCP API does the same,
+# but needs a blocking session. Every step of the protocol is answered with
+# one status byte: 0 for OK, or 1 (warning) or 2 (fatal error) followed by a
+# message line. A file is sent as a "C<mode> <size> <name>\n" header, then
+# <size> bytes of data, then a 0 byte.
+
+_SCP_MAX_LINE = 4096
+_SCP_MAX_STDERR = 4096
+
+
+def _scp_text(data: bytes) -> str:
+    """data as text for an error message, even when it is not UTF-8."""
+    try:
+        return data.decode()
+    except ValueError:
+        return repr(data)
+
+
+def _scp_quote(path: str) -> str:
+    """path as one word for a POSIX shell, never read as an option."""
+    p = "./" + path if path.startswith("-") else path
+    return "'" + p.replace("'", "'\\''") + "'"
+
+
+def _scp_basename(path: str) -> str:
+    return path[path.rfind("/") + 1:]
+
+
+def _scp_valid_mode(mode: str) -> bool:
+    if len(mode) < 3 or len(mode) > 4:
+        return False
+    for c in mode.encode():
+        if c < 48 or c > 55:
+            return False
+    return True
+
+
+def _scp_name_error(name: str) -> ?str:
+    if name == "" or name == "." or name == "..":
+        return "SCP file name cannot be empty, '.' or '..'"
+    if name.find("/") >= 0 or name.find("\n") >= 0:
+        return "SCP file name cannot contain '/' or a newline: " + name
+    return None
+
+
+def _scp_header(mode: str, size: int, name: str) -> bytes:
+    """The "C<mode> <size> <name>\\n" line that starts a file."""
+    mode4 = mode if len(mode) == 4 else "0" + mode
+    return ("C" + mode4 + " " + str(size) + " " + name + "\n").encode()
+
+
+def _scp_file_size(line: bytes) -> int:
+    """The size in a "C<mode> <size> <name>" line, or -1 if it is malformed."""
+    parts = line[1:].split(b" ", 2)
+    if len(parts) != 3:
+        return -1
+    mode = parts[0]
+    size = parts[1]
+    if len(mode) < 3 or len(mode) > 4 or len(size) == 0 or len(parts[2]) == 0:
+        return -1
+    for c in mode:
+        if c < 48 or c > 55:
+            return -1
+    for c in size:
+        if c < 48 or c > 57:
+            return -1
+    return int(size.decode())
+
+
+def _scp_reply(buf: bytes) -> (int, str, int):
+    """Parse the status reply at the start of buf.
+
+    Returns (status, message, used). status is 0 for OK, 1 for an error with
+    its message, and -1 while the reply is incomplete. used is the number of
+    bytes the reply takes up in buf.
+    """
+    if len(buf) == 0:
+        return (-1, "", 0)
+    code = buf[0]
+    if code == 0:
+        return (0, "", 1)
+    if code != 1 and code != 2:
+        return (1, "unexpected SCP reply: " + _scp_text(buf[:80]), len(buf))
+    nl = buf.find(b"\n")
+    if nl < 0:
+        if len(buf) > _SCP_MAX_LINE:
+            return (1, "SCP reply too long", len(buf))
+        return (-1, "", 0)
+    return (1, _scp_text(buf[1:nl]), nl + 1)
+
+
+def _scp_with_stderr(msg: str, err_out: bytes) -> str:
+    text = _scp_text(err_out).strip(None)
+    if len(text) == 0:
+        return msg
+    return msg + ": " + text
+
+
+def _scp_close_error(completed: bool, reason: str, exit_code: int, exit_signal: ?str, err_out: bytes) -> ?str:
+    """The result of an SCP transfer whose channel has closed.
+
+    None when the protocol completed and the remote scp did not report a
+    failure. exit_code is -1 when the server sent no exit status.
+    """
+    if exit_signal is not None:
+        return _scp_with_stderr("remote scp killed by signal " + exit_signal, err_out)
+    if completed:
+        if exit_code > 0:
+            return _scp_with_stderr("remote scp exited with status " + str(exit_code), err_out)
+        return None
+    if reason != "closed":
+        return _scp_with_stderr(reason, err_out)
+    if exit_code >= 0:
+        return _scp_with_stderr("SCP channel closed before the transfer completed (remote exit status " + str(exit_code) + ")", err_out)
+    return _scp_with_stderr("SCP channel closed before the transfer completed", err_out)
+
+
+actor ScpPut(client: Client,
+             remote_path: str,
+             data: bytes,
+             on_done: action(ScpPut, ?str) -> None,
+             mode: str="0644",
+             name: ?str=None,
+             timeout: ?float=None):
+    """Upload bytes to a remote file over SCP
+
+    Runs `scp -t remote_path` on an exec channel of client, sends data as
+    one file and reports once via on_done(self, error). error is None once
+    the server has written and closed the file and its scp has exited
+    without an error.
+
+    mode is the file mode as 3 or 4 octal digits, like "0644". OpenSSH's scp
+    applies it, minus the server's umask, only when it creates the file. name
+    is the file name sent in the header. It defaults to the last component
+    of remote_path and is only used when remote_path is an existing
+    directory, which then receives the file under that name.
+
+    remote_path is quoted for a POSIX shell and taken literally: ~ is not
+    expanded, and a relative path is relative to the remote user's home
+    directory. The server needs an scp program.
+
+    data is queued on the channel in one piece, so it must fit in the
+    client's max_write_buffer (8 MiB by default, 0 for no limit). If timeout
+    is given, the upload fails with error "timeout" after that many seconds.
+    """
+    if not _scp_valid_mode(mode):
+        raise ValueError("SCP mode must be 3 or 4 octal digits: " + mode)
+    file_name = name if name is not None else _scp_basename(remote_path)
+    name_error = _scp_name_error(file_name)
+    if name_error is not None:
+        raise ValueError(name_error)
+    header = _scp_header(mode, len(data), file_name)
+
+    # "start": waiting for scp to be ready, "header": for the header's
+    # reply, "data": for the reply to the data, "complete": for the close.
+    var _state = "start"
+    var _rx = b""
+    var _stderr = b""
+    var _exit_code = -1
+    var _exit_signal: ?str = None
+    var _done = False
+
+    def _finish(err: ?str):
+        if _done:
+            return
+        _done = True
+        on_done(self, err)
+
+    def _fail(ch: Channel, err: str):
+        if _done:
+            return
+        _finish(_scp_with_stderr(err, _stderr))
+        ch.close()
+
+    def _advance(ch: Channel):
+        while not _done and _state != "complete":
+            status, msg, used = _scp_reply(_rx)
+            if status < 0:
+                return
+            _rx = _rx[used:]
+            if status != 0:
+                _fail(ch, msg)
+                return
+            if _state == "start":
+                ch.write(header)
+                _state = "header"
+            elif _state == "header":
+                if len(data) > 0:
+                    ch.write(data)
+                ch.write(b"\x00")
+                _state = "data"
+            else:
+                ch.send_eof()
+                _state = "complete"
+
+    def _on_open(ch: Channel, err: ?str):
+        if _done:
+            return
+        if err is not None:
+            _finish(err)
+            return
+        ch.request_exec("scp -t " + _scp_quote(remote_path))
+
+    def _on_stdout(ch: Channel, chunk: ?bytes):
+        if _done:
+            return
+        if chunk is not None:
+            _rx += chunk
+            _advance(ch)
+
+    def _on_stderr(ch: Channel, chunk: ?bytes):
+        if chunk is not None and len(_stderr) < _SCP_MAX_STDERR:
+            _stderr += chunk
+
+    def _on_exit(ch: Channel, code: int, sig: ?str):
+        _exit_code = code
+        _exit_signal = sig
+
+    def _on_close(ch: Channel, reason: str):
+        if _done:
+            return
+        why = reason
+        if reason.find("write buffer limit") >= 0:
+            why = reason + " (data is larger than the Client's max_write_buffer)"
+        _finish(_scp_close_error(_state == "complete", why, _exit_code, _exit_signal, _stderr))
+
+    var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
+
+    if timeout is not None:
+        def _on_timeout():
+            if _done:
+                return
+            _finish("timeout")
+            _channel.close()
+        after timeout: _on_timeout()
+
+
+actor ScpGet(client: Client,
+             remote_path: str,
+             on_data: action(ScpGet, bytes) -> None,
+             on_done: action(ScpGet, ?str) -> None,
+             timeout: ?float=None):
+    """Download a remote file over SCP
+
+    Runs `scp -f remote_path` on an exec channel of client and delivers the
+    file's contents in order through on_data, in chunks, then reports once
+    via on_done(self, error). error is None once the whole file has arrived
+    and the remote scp has exited without an error. After an error, the
+    chunks delivered are a prefix of the file.
+
+    remote_path must name a regular file and is quoted as for ScpPut. If
+    timeout is given, the download fails with error "timeout" after that
+    many seconds.
+    """
+
+    # "header": waiting for the file's header, "data": for its contents,
+    # "trailer": for the status byte after them, "complete": for the close.
+    var _state = "header"
+    var _rx = b""
+    var _remaining = 0
+    var _stderr = b""
+    var _exit_code = -1
+    var _exit_signal: ?str = None
+    var _done = False
+
+    def _finish(err: ?str):
+        if _done:
+            return
+        _done = True
+        on_done(self, err)
+
+    def _fail(ch: Channel, err: str):
+        if _done:
+            return
+        _finish(_scp_with_stderr(err, _stderr))
+        ch.close()
+
+    def _advance(ch: Channel):
+        while not _done:
+            if _state == "header":
+                if len(_rx) == 0:
+                    return
+                kind = _rx[0]
+                if kind == 1 or kind == 2:
+                    status, msg, used = _scp_reply(_rx)
+                    if status < 0:
+                        return
+                    _fail(ch, msg)
+                    return
+                nl = _rx.find(b"\n")
+                if nl < 0:
+                    if len(_rx) > _SCP_MAX_LINE:
+                        _fail(ch, "SCP header line too long")
+                    return
+                line = _rx[:nl]
+                _rx = _rx[nl + 1:]
+                if kind == 84:
+                    # "T<mtime> 0 <atime> 0": times for the next file
+                    ch.write(b"\x00")
+                elif kind == 67:
+                    size = _scp_file_size(line)
+                    if size < 0:
+                        _fail(ch, "malformed SCP file header: " + _scp_text(line))
+                        return
+                    _remaining = size
+                    _state = "data"
+                    ch.write(b"\x00")
+                else:
+                    _fail(ch, "unexpected SCP message: " + _scp_text(line[:80]))
+                    return
+            elif _state == "data":
+                if _remaining == 0:
+                    _state = "trailer"
+                    continue
+                if len(_rx) == 0:
+                    return
+                if len(_rx) <= _remaining:
+                    piece = _rx
+                    _rx = b""
+                else:
+                    piece = _rx[:_remaining]
+                    _rx = _rx[_remaining:]
+                _remaining -= len(piece)
+                on_data(self, piece)
+            elif _state == "trailer":
+                status, msg, used = _scp_reply(_rx)
+                if status < 0:
+                    return
+                _rx = _rx[used:]
+                if status != 0:
+                    _fail(ch, msg)
+                    return
+                ch.write(b"\x00")
+                ch.send_eof()
+                _state = "complete"
+            else:
+                return
+
+    def _on_open(ch: Channel, err: ?str):
+        if _done:
+            return
+        if err is not None:
+            _finish(err)
+            return
+        ch.request_exec("scp -f " + _scp_quote(remote_path))
+        ch.write(b"\x00")
+
+    def _on_stdout(ch: Channel, chunk: ?bytes):
+        if _done:
+            return
+        if chunk is not None:
+            _rx += chunk
+            _advance(ch)
+
+    def _on_stderr(ch: Channel, chunk: ?bytes):
+        if chunk is not None and len(_stderr) < _SCP_MAX_STDERR:
+            _stderr += chunk
+
+    def _on_exit(ch: Channel, code: int, sig: ?str):
+        _exit_code = code
+        _exit_signal = sig
+
+    def _on_close(ch: Channel, reason: str):
+        if _done:
+            return
+        _finish(_scp_close_error(_state == "complete", reason, _exit_code, _exit_signal, _stderr))
+
+    var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
+
+    if timeout is not None:
+        def _on_timeout():
+            if _done:
+                return
+            _finish("timeout")
             _channel.close()
         after timeout: _on_timeout()
 

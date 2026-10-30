@@ -1,0 +1,129 @@
+"""Example SCP client: copy one file to or from an SSH server.
+
+Build:  acton build
+Run:    ./out/bin/example_scp_client put HOST USER LOCAL_FILE REMOTE_PATH [PORT] [PASSWORD]
+        ./out/bin/example_scp_client get HOST USER REMOTE_FILE LOCAL_FILE [PORT] [PASSWORD]
+
+  - With PASSWORD, authenticates by password; otherwise the application reads
+    the private key file named by $SCP_KEY (default ~/.ssh/id_ed25519) and
+    passes its bytes to ssh.PrivateKey.
+  - Host key checking here is permissive (accepts any key) so the example
+    works against an unknown server. A real client must verify the host key
+    against known_hosts or a pinned fingerprint.
+  - The transfer runs the server's scp program (`scp -t` / `scp -f`) on an
+    exec channel, so the server needs scp.
+  - put reads the whole local file into memory and creates the remote file
+    with mode 0644. The Client is created with max_write_buffer=0, because
+    ScpPut queues the whole file at once. get collects the chunks and writes
+    LOCAL_FILE once the whole file has arrived.
+
+Examples:
+  ./out/bin/example_scp_client put 127.0.0.1 alice ./notes.txt /tmp/notes.txt
+  ./out/bin/example_scp_client get example.com alice /etc/hostname ./hostname 2222 secret
+  SCP_KEY=~/.ssh/id_rsa ./out/bin/example_scp_client get example.com alice notes.txt ./notes.txt
+"""
+
+import file
+import net
+import lib as ssh
+
+
+actor main(env):
+    var client: ?ssh.Client = None
+    var password: ?str = None
+    var key_file: ?str = None
+    var private_keys: ?list[ssh.PrivateKey] = None
+    var parts: list[bytes] = []
+    var sent = 0
+
+    def finish(code: int):
+        c = client
+        if c is not None:
+            c.close()
+        env.exit(code)
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure. In production, compare
+        # info.fingerprint against a known value before accepting.
+        print("host key [" + state + "]", info.key_type, info.fingerprint)
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            print("connect error:", err)
+            finish(1)
+            return
+        print("connected")
+        if env.argv[1] == "put":
+            reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), env.argv[4])
+            data = await async reader.read()
+            await async reader.close()
+            sent = len(data)
+            ssh.ScpPut(c, env.argv[5], data, on_put_done, timeout=300.0)
+        else:
+            ssh.ScpGet(c, env.argv[4], on_get_data, on_get_done, timeout=300.0)
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            print("put failed:", err)
+            finish(1)
+            return
+        print("sent", sent, "bytes to", env.argv[5])
+        finish(0)
+
+    def on_get_data(op: ssh.ScpGet, chunk: bytes):
+        parts.append(chunk)
+
+    def on_get_done(op: ssh.ScpGet, err: ?str):
+        if err is not None:
+            print("get failed:", err)
+            finish(1)
+            return
+        data = b"".join(parts)
+        wf = file.WriteFile(file.WriteFileCap(file.FileCap(env.cap)), env.argv[5])
+        await async wf.write(data)
+        await async wf.close()
+        print("received", len(data), "bytes into", env.argv[5])
+        finish(0)
+
+    def start():
+        port = u16(22)
+        if len(env.argv) > 6:
+            port = u16(int(env.argv[6]))
+        if len(env.argv) > 7:
+            password = env.argv[7]
+        else:
+            key_file = env.vars.getenv("SCP_KEY")
+            if key_file is None:
+                home = env.vars.getenv("HOME")
+                if home is not None:
+                    key_file = home + "/.ssh/id_ed25519"
+        kf = key_file
+        if kf is not None:
+            reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), kf)
+            key_bytes = await async reader.read()
+            await async reader.close()
+            private_keys = [ssh.PrivateKey(key_bytes)]
+
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            env.argv[2],
+            env.argv[3],
+            on_connect,
+            on_close,
+            on_hostkey,
+            password=password,
+            private_keys=private_keys,
+            port=port,
+            max_write_buffer=0,
+        )
+
+    if len(env.argv) < 6 or (env.argv[1] != "put" and env.argv[1] != "get"):
+        print("usage: example_scp_client put HOST USER LOCAL_FILE REMOTE_PATH [PORT] [PASSWORD]")
+        print("       example_scp_client get HOST USER REMOTE_FILE LOCAL_FILE [PORT] [PASSWORD]")
+        env.exit(2)
+    else:
+        after 0: start()
