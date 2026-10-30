@@ -1,0 +1,465 @@
+"""SCP tests: ssh.ScpPut and ssh.ScpGet against OpenSSH sshd and its scp.
+
+  - a payload larger than the channel window goes up and comes back down,
+    and the file on disk has the bytes and the mode that were sent
+  - an empty file goes up and comes back down
+  - a path with spaces and a quote reaches scp as one word, and a put into
+    an existing directory creates the file there under the given name
+  - errors from the remote scp reach on_done: a missing file, a directory
+    instead of a file, and a missing target directory
+  - a put larger than the Client's max_write_buffer fails and says so
+  - two puts on one Client run at the same time on separate channels
+
+sshd runs as the current user on 127.0.0.1, so the "remote" files are
+checked directly on the local disk. These spawn the host's OpenSSH tools
+(`sshd`, `ssh-keygen`, `scp`), so they are gated on the "openssh"
+capability tag and skipped by default:
+
+    acton test --tag openssh --module test_scp
+"""
+
+import file
+import net
+import random
+import lib as ssh
+import testing
+
+
+actor _Cmd(process: EnvProcess,
+           cmd: list[str],
+           on_done: action(int, bytes, bytes) -> None,
+           on_fail: action(str) -> None):
+    """Run one short-lived command to completion, buffering its output."""
+    var out_buf = b""
+    var err_buf = b""
+
+    def _out(p: Process, data: ?bytes):
+        if data is not None:
+            out_buf += data
+
+    def _err(p: Process, data: ?bytes):
+        if data is not None:
+            err_buf += data
+
+    def _exit(p: Process, exit_code: int, term_signal: int):
+        on_done(exit_code, out_buf, err_buf)
+
+    def _error(p: Process, error: str):
+        on_fail(" ".join(cmd) + ": " + error)
+
+    _p = process.spawn(cmd, _out, _err, _exit, _error)
+    _p.done_writing()
+
+
+def _payload(blocks: int) -> bytes:
+    """blocks numbered blocks of 1000 numbered lines, about 3.9 KB each, so
+    a lost, repeated or reordered piece changes the bytes."""
+    lines = []
+    i = 1
+    while i <= 1000:
+        lines.append(str(i))
+        i += 1
+    block = ("\n".join(lines) + "\n").encode()
+    parts = []
+    for n in range(blocks):
+        parts.append(("block " + str(n) + "\n").encode())
+        parts.append(block)
+    return b"".join(parts)
+
+
+def _error_mismatch(what: str, err: ?str, want: str) -> ?str:
+    """None if err is an error containing want, else what went wrong."""
+    if err is not None:
+        if err.find(want) >= 0:
+            return None
+        return what + ": error '" + err + "' does not contain '" + want + "'"
+    return what + ": succeeded, want an error containing '" + want + "'"
+
+
+actor ScpTester(t: testing.EnvT, scenario: str):
+    """Run one SCP scenario against a freshly spawned OpenSSH sshd.
+
+    sshd runs as the current user on an ephemeral config: ed25519 host key,
+    publickey-only auth against a generated client key, as for SshdTester
+    in test_interop.act.
+    """
+    fs = file.FS(file.FileCap(t.env.cap))
+    process = t.env.process
+
+    var done = False
+    var client: ?ssh.Client = None
+    var sshd_proc: ?Process = None
+    var sshd_started = False
+    var tmp = ""
+    var sshd_path = ""
+    var sshd_port = 0
+    var username = ""
+    var sshd_err = b""
+    var payload = b""
+    var local_path = ""
+    var got = b""
+    var puts_left = 0
+
+    def stop_sshd():
+        sp = sshd_proc
+        if sp is not None:
+            sp.signal(15)
+            sshd_proc = None
+
+    def close_client():
+        c = client
+        if c is not None:
+            c.close()
+
+    def finish_error(msg: str):
+        if done:
+            return
+        done = True
+        close_client()
+        stop_sshd()
+        t.error(Exception(msg))
+
+    def finish_ok():
+        if done:
+            return
+        done = True
+        close_client()
+        stop_sshd()
+        t.success()
+
+    def skip(reason: str):
+        if done:
+            return
+        done = True
+        close_client()
+        stop_sshd()
+        try:
+            t.skip(reason)
+        except testing.AbortTest:
+            pass
+
+    def on_timeout():
+        finish_error("timeout in SCP scenario " + scenario + " (sshd stderr: " + sshd_err.decode() + ")")
+
+    def setup_fail(msg: str):
+        finish_error("setup: " + msg)
+
+    def config_path() -> str:
+        return tmp + "/sshd_config"
+
+    def config_lines() -> list[str]:
+        return ["Port " + str(sshd_port),
+                "ListenAddress 127.0.0.1",
+                "HostKey " + tmp + "/host_ed25519",
+                "PidFile " + tmp + "/sshd.pid",
+                "AuthorizedKeysFile " + tmp + "/authorized_keys",
+                "PasswordAuthentication no",
+                "KbdInteractiveAuthentication no",
+                "PubkeyAuthentication yes",
+                "StrictModes no",
+                "UsePAM no",
+                "LogLevel ERROR"]
+
+    def write_config(lines: list[str], cont: action() -> None):
+        wf = file.WriteFile(file.WriteFileCap(file.FileCap(t.env.cap)), config_path())
+        await async wf.write(("\n".join(lines) + "\n").encode())
+        await async wf.close()
+        cont()
+
+    def read_local(path: str) -> bytes:
+        reader = file.ReadFile(file.ReadFileCap(file.FileCap(t.env.cap)), path)
+        content = await async reader.read()
+        await async reader.close()
+        return content
+
+    # --- setup chain: resolve sshd and scp -> username -> keys -> config -> spawn
+
+    def setup():
+        tmp = await async fs.mktmpdir("acton-ssh-scp")
+        sshd_port = random.randint(20000, 39999)
+        # Empty output and exit 1 when no executable sshd exists, so
+        # resolve_done skips instead of failing later on a bad path.
+        _Cmd(process,
+             ["/bin/sh", "-c",
+              "command -v sshd 2>/dev/null || (test -x /usr/sbin/sshd && echo /usr/sbin/sshd)"],
+             resolve_done, setup_fail)
+
+    def resolve_done(code: int, out: bytes, err: bytes):
+        sshd_path = out.decode().strip(None)
+        if code != 0 or len(sshd_path) == 0:
+            skip("sshd not found")
+            return
+        _Cmd(process, ["/bin/sh", "-c", "command -v scp"], scp_resolved, setup_fail)
+
+    def scp_resolved(code: int, out: bytes, err: bytes):
+        if code != 0 or len(out.decode().strip(None)) == 0:
+            skip("scp not found")
+            return
+        _Cmd(process, ["id", "-un"], user_done, setup_fail)
+
+    def user_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: id -un failed")
+            return
+        username = out.decode().strip(None)
+        _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/host_ed25519"],
+             hostkey_done, setup_fail)
+
+    def hostkey_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: host keygen failed: " + err.decode())
+            return
+        _Cmd(process, ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", tmp + "/client_ed25519"],
+             clientkey_done, setup_fail)
+
+    def clientkey_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: client keygen failed: " + err.decode())
+            return
+        await async fs.copyfile(tmp + "/client_ed25519.pub", tmp + "/authorized_keys")
+        write_config(config_lines(), check_config)
+
+    def check_config():
+        _Cmd(process, [sshd_path, "-t", "-f", config_path()], config_checked, setup_fail)
+
+    def config_checked(code: int, out: bytes, err: bytes):
+        if code != 0:
+            # UsePAM is illegal on some platforms when not root; retry without
+            lines = []
+            for l in config_lines():
+                if not l.startswith("UsePAM"):
+                    lines.append(l)
+            write_config(lines, start_sshd)
+        else:
+            start_sshd()
+
+    # --- sshd process
+
+    def sshd_out(p: Process, data: ?bytes):
+        pass
+
+    def sshd_stderr(p: Process, data: ?bytes):
+        if data is not None:
+            sshd_err += data
+
+    def sshd_exit(p: Process, exit_code: int, term_signal: int):
+        if done:
+            return
+        if not sshd_started:
+            skip("sshd failed to start: " + sshd_err.decode())
+        else:
+            finish_error("sshd exited early: " + sshd_err.decode())
+
+    def sshd_error(p: Process, error: str):
+        skip("cannot spawn sshd: " + error)
+
+    def start_sshd():
+        sshd_proc = process.spawn([sshd_path, "-D", "-e", "-f", config_path()],
+                                  sshd_out, sshd_stderr, sshd_exit, sshd_error)
+        after 1.0: sshd_ready()
+
+    def sshd_ready():
+        if done:
+            return
+        sshd_started = True
+        run_client()
+
+    # --- Acton ssh client side
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def run_client():
+        private_key = read_local(tmp + "/client_ed25519")
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            username,
+            on_connect,
+            on_client_close,
+            on_hostkey,
+            private_keys=[ssh.PrivateKey(private_key)],
+            port=u16(sshd_port),
+            connect_timeout=10.0,
+            auth_timeout=10.0,
+            max_write_buffer=1024 if scenario == "too_big" else 8388608,
+        )
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            finish_error("client connect error: " + str(err) +
+                         " (sshd stderr: " + sshd_err.decode() + ")")
+            return
+        if scenario == "roundtrip":
+            payload = _payload(1000)
+            start_put(c, tmp + "/put.bin", tmp + "/put.bin", None, "0600")
+        elif scenario == "empty":
+            payload = b""
+            start_put(c, tmp + "/empty.bin", tmp + "/empty.bin", None, "0644")
+        elif scenario == "dir_name":
+            payload = _payload(3)
+            d = tmp + "/it's a dir"
+            await async fs.mkdir(d)
+            start_put(c, d, d + "/x y.txt", "x y.txt", "0644")
+        elif scenario == "errors":
+            ssh.ScpGet(c, tmp + "/missing.bin", ignore_data, missing_done, timeout=20.0)
+        elif scenario == "too_big":
+            ssh.ScpPut(c, tmp + "/big.bin", _payload(3), too_big_done, timeout=20.0)
+        elif scenario == "parallel":
+            puts_left = 2
+            ssh.ScpPut(c, tmp + "/a.bin", _payload(300), parallel_a_done, timeout=20.0)
+            ssh.ScpPut(c, tmp + "/b.bin", _payload(301), parallel_b_done, timeout=20.0)
+        else:
+            finish_error("unknown scenario " + scenario)
+
+    # --- put, check the file on disk, then get it back
+
+    def start_put(c: ssh.Client, remote: str, local: str, name: ?str, mode: str):
+        local_path = local
+        ssh.ScpPut(c, remote, payload, on_put_done, mode=mode, name=name, timeout=20.0)
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            finish_error("put: " + err)
+            return
+        content = read_local(local_path)
+        if content != payload:
+            finish_error("put: " + local_path + " has " + str(len(content)) +
+                         " bytes, want the " + str(len(payload)) + " bytes sent")
+            return
+        if scenario == "roundtrip":
+            st = await async fs.stat(local_path)
+            perm = int(st.mode) % 512
+            if perm != 384:
+                finish_error("put: permission bits " + str(perm) + ", want 384 (0600)")
+                return
+        c = client
+        if c is not None:
+            got = b""
+            ssh.ScpGet(c, local_path, on_get_data, on_get_done, timeout=20.0)
+
+    def on_get_data(op: ssh.ScpGet, chunk: bytes):
+        got += chunk
+
+    def on_get_done(op: ssh.ScpGet, err: ?str):
+        if err is not None:
+            finish_error("get: " + err)
+            return
+        if got != payload:
+            finish_error("get: got " + str(len(got)) + " bytes, want the " +
+                         str(len(payload)) + " bytes on disk")
+            return
+        finish_ok()
+
+    # --- errors: missing file -> directory -> missing target directory
+
+    def ignore_data(op: ssh.ScpGet, chunk: bytes):
+        pass
+
+    def missing_done(op: ssh.ScpGet, err: ?str):
+        e = _error_mismatch("get of a missing file", err, "No such file")
+        if e is not None:
+            finish_error(e)
+            return
+        c = client
+        if c is not None:
+            ssh.ScpGet(c, tmp, ignore_data, directory_done, timeout=20.0)
+
+    def directory_done(op: ssh.ScpGet, err: ?str):
+        e = _error_mismatch("get of a directory", err, "not a regular file")
+        if e is not None:
+            finish_error(e)
+            return
+        c = client
+        if c is not None:
+            ssh.ScpPut(c, tmp + "/no-such-dir/f.bin", b"x", no_dir_done, timeout=20.0)
+
+    def no_dir_done(op: ssh.ScpPut, err: ?str):
+        e = _error_mismatch("put into a missing directory", err, "No such file")
+        if e is not None:
+            finish_error(e)
+            return
+        finish_ok()
+
+    # --- a put that does not fit in max_write_buffer
+
+    def too_big_done(op: ssh.ScpPut, err: ?str):
+        e = _error_mismatch("put larger than max_write_buffer", err, "max_write_buffer")
+        if e is not None:
+            finish_error(e)
+            return
+        finish_ok()
+
+    # --- two puts at once on one Client
+
+    def parallel_check(name: str, want: bytes):
+        content = read_local(tmp + "/" + name)
+        if content != want:
+            finish_error("parallel put: " + name + " has " + str(len(content)) +
+                         " bytes, want the " + str(len(want)) + " bytes sent")
+            return
+        puts_left -= 1
+        if puts_left == 0:
+            finish_ok()
+
+    def parallel_a_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            finish_error("parallel put a.bin: " + err)
+            return
+        parallel_check("a.bin", _payload(300))
+
+    def parallel_b_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            finish_error("parallel put b.bin: " + err)
+            return
+        parallel_check("b.bin", _payload(301))
+
+    after 0: setup()
+    after 25.0: on_timeout()
+
+
+# --- Test entry points.
+#
+# The compiler generates a _test_<Actor> wrapper for every actor whose only
+# parameter is testing.EnvT. t.require("openssh") skips each one unless
+# `acton test --tag openssh` is given, and t.timeout gives it time for the
+# sshd setup.
+
+actor ScpRoundTripTester(t: testing.EnvT):
+    """ScpPut then ScpGet of ~3.9 MB, more than a channel window, with mode 0600"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "roundtrip")
+
+actor ScpEmptyFileTester(t: testing.EnvT):
+    """ScpPut then ScpGet of an empty file"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "empty")
+
+actor ScpDirectoryNameTester(t: testing.EnvT):
+    """ScpPut into an existing directory whose path has a quote and spaces"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "dir_name")
+
+actor ScpErrorsTester(t: testing.EnvT):
+    """Errors from the remote scp reach on_done"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "errors")
+
+actor ScpTooBigTester(t: testing.EnvT):
+    """ScpPut larger than the Client's max_write_buffer fails with a hint"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "too_big")
+
+actor ScpParallelTester(t: testing.EnvT):
+    """Two ScpPuts on one Client at the same time both arrive intact"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "parallel")

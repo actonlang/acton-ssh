@@ -2301,9 +2301,17 @@ static int client_needs_write(ssh_client_ctx *c) {
              * them here would arm UV_WRITABLE on an always-writable
              * socket and hot-spin, starving the very actor that would
              * reply in loopback setups. */
-        } else {
-            if (ch->write_head != NULL)
+        } else if (ch->write_head != NULL) {
+            /* With the peer's window shut, only a WINDOW_ADJUST - a
+             * readable event, which sets write_wontblock again - lets the
+             * queue move; arming UV_WRITABLE on an always-writable socket
+             * would spin. With the window open but write_wontblock clear
+             * (a rekey, libssh's own buffer), writability is what
+             * restores write_wontblock. EOF and close wait for the queue. */
+            if (ch->write_wontblock ||
+                (ch->channel != NULL && ssh_channel_window_size(ch->channel) > 0))
                 return 1;
+        } else {
             if (ch->send_eof && !ch->eof_sent)
                 return 1;
             if (ch->close_requested && !ch->close_sent)
