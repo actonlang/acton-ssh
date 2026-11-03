@@ -1,0 +1,231 @@
+"""SCP benchmark: memory held after ScpPut, and allocation per ScpGet.
+
+Build:  acton build
+Run:    ./out/bin/bench_scp retain HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]
+        ./out/bin/bench_scp get    HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]
+
+Runs against any server with scp. Defaults: SIZE_MIB 50, COUNT 5, PORT 22.
+REMOTE_DIR needs room for one file of SIZE_MIB; the benchmark writes
+REMOTE_DIR/bench_scp_retain.bin or REMOTE_DIR/bench_scp_get.bin.
+
+retain: COUNT uploads, one after another, each of a new SIZE_MIB buffer and
+  each with timeout=600. After each on_done it runs a full GC and prints the
+  live GC heap. If a finished ScpPut keeps its data while its timeout timer
+  is pending, the heap grows by about SIZE_MIB per upload. Otherwise it
+  stays near where it started.
+
+get: uploads one SIZE_MIB file, then downloads it COUNT times. For each
+  download it prints the wall time, the CPU time of the whole process, and
+  the bytes allocated on the GC heap per byte received. The C glue copies
+  each received chunk into a new bytes object once, which is 1.0 per byte.
+  Another copy in ScpGet shows up as about 2.0.
+
+All numbers are for this client process. The network changes the times,
+not the heap and allocation figures. Host keys are accepted unchecked.
+"""
+
+import net
+import time
+import acton.rts
+import lib as ssh
+
+
+def mib(n: int) -> str:
+    """n bytes in MiB with one decimal, with a sign when negative."""
+    if n < 0:
+        return "-" + mib(-n)
+    tenths = n * 10 // 1048576
+    return str(tenths // 10) + "." + str(tenths % 10) + " MiB"
+
+
+def ratio(a: int, b: int) -> str:
+    """a / b with two decimals."""
+    if b <= 0:
+        return "-"
+    h = a * 100 // b
+    return str(h // 100) + "." + str(h % 100).zfill(2)
+
+
+def make_buffer(size_mib: int, i: int) -> bytes:
+    """A new buffer of size_mib MiB whose contents depend on i."""
+    line = ("bench_scp buffer " + str(i) + "\n").encode()
+    block = (line * (1048576 // len(line) + 1))[:1048576]
+    return block * size_mib
+
+
+actor main(env):
+    var mode = ""
+    var host = ""
+    var remote_dir = ""
+    var size_mib = 50
+    var count = 5
+    var client: ?ssh.Client = None
+
+    var step = 0
+    var t_step = 0
+    var heap_start = 0
+    var gc_start = 0
+    var cpu_start = 0
+    var got = 0
+    var sum_ms = 0
+    var sum_cpu_ms = 0
+    var sum_alloc = 0
+
+    def since_ms(t: int) -> int:
+        return (time.monotonic_ns() - t) // 1000000
+
+    def live_heap() -> int:
+        """The GC heap in use right after a full collection."""
+        acton.rts.gc(env.syscap)
+        return int(acton.rts.get_mem_usage(env.syscap))
+
+    def gc_bytes() -> int:
+        """All bytes allocated on the GC heap so far."""
+        return int(acton.rts.get_gc_total_bytes(env.syscap))
+
+    def cpu_ns() -> int:
+        """User plus system CPU time of the process, all threads."""
+        p = acton.rts.perf_snapshot(env.syscap)
+        total = 0
+        u = p.user_ns
+        if u is not None:
+            total += int(u)
+        s = p.system_ns
+        if s is not None:
+            total += int(s)
+        return total
+
+    def finish(code: int):
+        c = client
+        if c is not None:
+            c.close()
+        env.exit(code)
+
+    def fail(msg: str):
+        print("FAIL: " + msg)
+        finish(1)
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure.
+        print("host key [" + state + "] " + info.key_type + " " + info.fingerprint)
+        c.accept_hostkey()
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            fail("connect: " + str(err))
+            return
+        print("connected to " + host)
+        if mode == "retain":
+            heap_start = live_heap()
+            print("retain: " + str(count) + " uploads of a new " + str(size_mib)
+                  + " MiB buffer each, timeout=600")
+            print("  live GC heap before: " + mib(heap_start))
+            retain_next()
+        else:
+            print("get: uploading the " + str(size_mib) + " MiB file to download")
+            ssh.ScpPut(c, remote_dir + "/bench_scp_get.bin", make_buffer(size_mib, 0),
+                       on_get_file_ready, timeout=600.0)
+
+    # retain
+
+    def retain_next():
+        c = client
+        if c is not None:
+            step += 1
+            data = make_buffer(size_mib, step)
+            t_step = time.monotonic_ns()
+            ssh.ScpPut(c, remote_dir + "/bench_scp_retain.bin", data, on_retain_done, timeout=600.0)
+
+    def on_retain_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            fail("upload " + str(step) + ": " + err)
+            return
+        ms = since_ms(t_step)
+        heap = live_heap()
+        print("  upload " + str(step) + ": " + str(ms) + " ms, live GC heap after GC "
+              + mib(heap) + " (" + mib(heap - heap_start) + " since the start)")
+        if step < count:
+            retain_next()
+        else:
+            finish(0)
+
+    # get
+
+    def on_get_file_ready(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            fail("upload: " + err)
+            return
+        print("get: " + str(count) + " downloads of " + str(size_mib) + " MiB")
+        get_next()
+
+    def get_next():
+        c = client
+        if c is not None:
+            step += 1
+            got = 0
+            gc_start = gc_bytes()
+            cpu_start = cpu_ns()
+            t_step = time.monotonic_ns()
+            ssh.ScpGet(c, remote_dir + "/bench_scp_get.bin", on_get_data, on_get_done, timeout=600.0)
+
+    def on_get_data(op: ssh.ScpGet, chunk: bytes):
+        got += len(chunk)
+
+    def on_get_done(op: ssh.ScpGet, err: ?str):
+        ms = since_ms(t_step)
+        cpu_ms = (cpu_ns() - cpu_start) // 1000000
+        alloc = gc_bytes() - gc_start
+        if err is not None:
+            fail("download " + str(step) + ": " + err)
+            return
+        if got != size_mib * 1048576:
+            fail("download " + str(step) + ": " + str(got) + " bytes, want " + str(size_mib * 1048576))
+            return
+        sum_ms += ms
+        sum_cpu_ms += cpu_ms
+        sum_alloc += alloc
+        print("  download " + str(step) + ": " + str(ms) + " ms, CPU " + str(cpu_ms)
+              + " ms, GC allocated " + mib(alloc) + " = " + ratio(alloc, got) + " per byte received")
+        if step < count:
+            get_next()
+        else:
+            print("  average: " + str(sum_ms // count) + " ms, CPU " + str(sum_cpu_ms // count)
+                  + " ms, GC allocated " + ratio(sum_alloc, got * count) + " per byte received")
+            finish(0)
+
+    def start():
+        argv = env.argv
+        if len(argv) < 6 or len(argv) > 9 or (argv[1] != "retain" and argv[1] != "get"):
+            print("usage: bench_scp retain|get HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]")
+            env.exit(2)
+            return
+        mode = argv[1]
+        host = argv[2]
+        remote_dir = argv[5]
+        if len(argv) > 6:
+            size_mib = int(argv[6])
+        if len(argv) > 7:
+            count = int(argv[7])
+        port = u16(22)
+        if len(argv) > 8:
+            port = u16(int(argv[8]))
+        if size_mib < 1 or count < 1:
+            print("SIZE_MIB and COUNT must be at least 1")
+            env.exit(2)
+            return
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            host,
+            argv[3],
+            on_connect,
+            on_close,
+            on_hostkey,
+            password=argv[4],
+            port=port,
+            max_write_buffer=0,
+        )
+
+    after 0: start()
