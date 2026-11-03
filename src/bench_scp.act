@@ -1,0 +1,168 @@
+"""SCP benchmark: memory a finished ScpPut keeps.
+
+Build:  acton build
+Run:    ./out/bin/bench_scp [OPTIONS] --password PASSWORD HOST USER REMOTE_PATH
+
+Runs against any server with scp. SIZE and COUNT below are the values of
+--size and --count; --help lists all options and their defaults. Use
+/dev/null as REMOTE_PATH: the server throws the data away, so its disk
+cannot slow the test down and nothing needs room.
+
+It makes COUNT uploads to REMOTE_PATH, one after another, each of a new
+SIZE MiB buffer and each with timeout=600. After each on_done it runs a
+full GC and prints the live GC heap. If a finished ScpPut keeps its data
+while its timeout timer is pending, the heap grows by about SIZE MiB per
+upload. Otherwise it stays near where it started.
+
+The heap figures are for this client process. Host keys are accepted
+unchecked.
+"""
+
+import argparse
+import net
+import time
+import acton.rts
+import lib as ssh
+
+
+def mib(n: int) -> str:
+    """n bytes in MiB with one decimal, with a sign when negative."""
+    if n < 0:
+        return "-" + mib(-n)
+    tenths = n * 10 // 1048576
+    return str(tenths // 10) + "." + str(tenths % 10) + " MiB"
+
+
+def make_buffer(size_mib: int, i: int) -> bytes:
+    """A new buffer of size_mib MiB whose contents depend on i."""
+    line = ("bench_scp buffer " + str(i) + "\n").encode()
+    block = (line * (1048576 // len(line) + 1))[:1048576]
+    return block * size_mib
+
+
+def since_ms(t: int) -> int:
+    return (time.monotonic_ns() - t) // 1000000
+
+
+def live_heap(cap: SysCap) -> int:
+    """The GC heap in use right after a full collection."""
+    acton.rts.gc(cap)
+    return int(acton.rts.get_mem_usage(cap))
+
+
+class Login(object):
+    """The server and the credentials to log in with."""
+    host: str
+    user: str
+    port: u16
+    password: str
+
+    def __init__(self, host: str, user: str, port: u16, password: str):
+        self.host = host
+        self.user = user
+        self.port = port
+        self.password = password
+
+
+actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count: int):
+    """COUNT uploads to remote_path, each of a new buffer, with the live GC
+    heap after each."""
+    var client: ?ssh.Client = None
+    var step = 0
+    var t_step = 0
+    var heap_start = 0
+
+    def finish(code: int):
+        c = client
+        if c is not None:
+            c.close()
+        env.exit(code)
+
+    def fail(msg: str):
+        print("FAIL: " + msg)
+        finish(1)
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure.
+        print("host key [" + state + "] " + info.key_type + " " + info.fingerprint)
+        c.accept_hostkey()
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            fail("connect: " + str(err))
+            return
+        print("connected to " + login.host)
+        heap_start = live_heap(env.syscap)
+        print(str(count) + " uploads of a new " + str(size_mib) + " MiB buffer each, timeout=600")
+        print("  live GC heap before: " + mib(heap_start))
+        upload_next()
+
+    def upload_next():
+        c = client
+        if c is not None:
+            step += 1
+            data = make_buffer(size_mib, step)
+            t_step = time.monotonic_ns()
+            ssh.ScpPut(c, remote_path, data, on_upload_done, timeout=600.0)
+
+    def on_upload_done(op: ssh.ScpPut, err: ?str):
+        if err is not None:
+            fail("upload " + str(step) + ": " + err)
+            return
+        ms = since_ms(t_step)
+        heap = live_heap(env.syscap)
+        print("  upload " + str(step) + ": " + str(ms) + " ms, live GC heap after GC "
+              + mib(heap) + " (" + mib(heap - heap_start) + " since the start)")
+        if step < count:
+            upload_next()
+        else:
+            finish(0)
+
+    client = ssh.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+                        login.host, login.user, on_connect, on_close, on_hostkey,
+                        password=login.password, port=login.port, max_write_buffer=0)
+
+
+actor main(env):
+    def login(args: argparse.Args) -> ?Login:
+        """The Login that args give, or None after printing why there is none."""
+        if "password" not in args.options:
+            print("give --password", err=True)
+            return None
+        return Login(args.get_str("host"), args.get_str("user"), u16(args.get_int("port")),
+                     args.get_str("password"))
+
+    def _parse_args() -> argparse.Args:
+        p = argparse.Parser()
+        p.add_option("size", "int", default=50, help="MiB per upload (default 50)")
+        p.add_option("count", "int", default=5, help="Uploads (default 5)")
+        p.add_option("port", "int", default=22, help="SSH server port (default 22)")
+        p.add_option("password", "str", help="Log in with this password (required)")
+        p.add_arg("host", "SSH server")
+        p.add_arg("user", "User name")
+        p.add_arg("remote_path", "File to upload to; use /dev/null")
+        return p.parse(env.argv)
+
+    def start():
+        try:
+            args = _parse_args()
+            if args.get_int("size") < 1 or args.get_int("count") < 1:
+                print("--size and --count must be at least 1", err=True)
+                env.exit(2)
+                return
+            l = login(args)
+            if l is not None:
+                RetainBench(env, l, args.get_str("remote_path"), args.get_int("size"), args.get_int("count"))
+            else:
+                env.exit(2)
+        except argparse.PrintUsage as exc:
+            print(exc.error_message)
+            env.exit(0)
+        except argparse.ArgumentError as exc:
+            print(exc.error_message, err=True)
+            env.exit(2)
+
+    after 0: start()

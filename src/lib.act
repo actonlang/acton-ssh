@@ -926,6 +926,10 @@ actor RunCommand(client: Client,
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
     if timeout is not None:
+        # TODO: cancel this timer in _finish once Acton supports cancelling
+        # timers. Until it fires, the pending timer keeps this actor alive, and
+        # with it out_buf and err_buf, up to timeout seconds after the command
+        # started.
         def _on_timeout():
             if _done:
                 return
@@ -1143,7 +1147,8 @@ actor ScpPut(client: Client,
         if _done:
             return
         if chunk is not None:
-            _rx += chunk
+            # bytes + bytes always copies, even onto empty bytes
+            _rx = chunk if len(_rx) == 0 else _rx + chunk
             _advance(ch)
 
     def _on_stderr(ch: Channel, chunk: ?bytes):
@@ -1165,6 +1170,10 @@ actor ScpPut(client: Client,
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
     if timeout is not None:
+        # TODO: cancel this timer in _finish once Acton supports cancelling
+        # timers. Until it fires, the pending timer keeps this actor alive, and
+        # with it a reference to data, up to timeout seconds after the upload
+        # started.
         def _on_timeout():
             if _done:
                 return
@@ -1287,7 +1296,10 @@ actor ScpGet(client: Client,
         if _done:
             return
         if chunk is not None:
-            _rx += chunk
+            # bytes + bytes always copies, even onto empty bytes. In the
+            # data state _rx is nearly always empty, so each chunk goes to
+            # on_data as received instead of as a copy.
+            _rx = chunk if len(_rx) == 0 else _rx + chunk
             _advance(ch)
 
     def _on_stderr(ch: Channel, chunk: ?bytes):
@@ -1306,6 +1318,9 @@ actor ScpGet(client: Client,
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
     if timeout is not None:
+        # TODO: cancel this timer in _finish once Acton supports cancelling
+        # timers. Until it fires, the pending timer keeps this actor alive, up
+        # to timeout seconds after the download started.
         def _on_timeout():
             if _done:
                 return
