@@ -1,0 +1,533 @@
+"""Example: send one file to many SSH servers at the same time with ScpPut.
+
+Build:  acton build
+Run:    ./out/bin/example_scp_multi [OPTIONS] HOSTS_FILE LOCAL_FILE [REMOTE_PATH]
+
+Reads LOCAL_FILE once and uploads the same bytes to every device listed in
+HOSTS_FILE. Each device gets its own Client and ScpPut, and all uploads run
+at the same time unless --parallel limits how many run at once. Each result
+is printed when it arrives, and a summary with one line per device follows at
+the end. The exit status is 0 only when every upload succeeded.
+
+HOSTS_FILE has one device per line, with fields separated by spaces or tabs:
+
+    # address       user    password   [port]  [remote_path]
+    192.168.1.1     root    routerpw
+    192.168.1.10    alice   secret1    22      incoming/
+    192.168.1.20    admin   switchpw   2222    /tmp/test_file.img
+
+  - Blank lines and lines starting with # are ignored. A password cannot
+    contain spaces or tabs.
+  - port defaults to 22. remote_path defaults to REMOTE_PATH from the
+    command line, and without REMOTE_PATH every line needs one. To give a
+    remote_path, give the port too.
+  - A remote path that ends in / names an existing directory, and the file
+    is created there under LOCAL_FILE's name. Any other path names the file
+    itself. A relative path is relative to the user's home directory. ~ is
+    not expanded.
+  - Authentication is by password only. This client does not support
+    keyboard-interactive authentication, so the server must accept the
+    "password" method.
+  - The file holds passwords in clear text. chmod 600 it and keep it out
+    of git.
+
+Options:
+  --parallel N   run at most N uploads at once (default 0: all at once)
+  --verify       download each copy back with ScpGet and compare it with
+                 LOCAL_FILE byte by byte
+  --legacy       after the default algorithms, also offer older ones (CBC
+                 ciphers, SHA-1 key exchange and MACs, ssh-rsa host keys)
+                 for old switches and embedded SSH servers
+  --timeout S    seconds allowed for each upload, and for each verify
+                 download (default 600)
+  --mode MODE    mode of the remote file as 3 or 4 octal digits
+                 (default 0644)
+
+Notes:
+  - Host keys are accepted without checking and their fingerprints are
+    printed. A real client must verify them.
+  - LOCAL_FILE is read into memory once, and every ScpPut gets the same
+    bytes, so the file is in RAM only once however many devices there are.
+    The Clients are created with max_write_buffer=0, because ScpPut queues
+    the whole file in one write. --verify compares each downloaded chunk as
+    it arrives and does not keep the copy.
+  - The server needs an scp program (OpenSSH's, or dropbear's on OpenWrt).
+    Many managed switches run a vendor CLI instead of a shell over SSH and
+    cannot run `scp -t`, so the upload to them fails with the server's
+    error.
+  - Every device must have room for the file. /tmp on OpenWrt is in RAM.
+  - Connect resolves host names with a blocking getaddrinfo, so use IP
+    addresses.
+
+Example:
+  chmod 600 hosts.txt
+  ./out/bin/example_scp_multi --verify hosts.txt ./test_file.img /tmp/test_file.img
+"""
+
+import file
+import net
+import time
+import lib as ssh
+
+
+class Device(object):
+    """One device from the hosts file."""
+    line: int
+    host: str
+    user: str
+    password: str
+    port: int
+    remote_path: str
+
+    def __init__(self, line: int, host: str, user: str, password: str, port: int, remote_path: str):
+        self.line = line
+        self.host = host
+        self.user = user
+        self.password = password
+        self.port = port
+        self.remote_path = remote_path
+
+    def label(self) -> str:
+        if self.port == 22:
+            return self.user + "@" + self.host
+        return self.user + "@" + self.host + ":" + str(self.port)
+
+
+def to_int(s: str) -> int:
+    """s as a non-negative decimal number, or -1 when it is not one."""
+    b = s.encode()
+    if len(b) == 0 or len(b) > 9:
+        return -1
+    for c in b:
+        if c < 48 or c > 57:
+            return -1
+    return int(s)
+
+
+def valid_mode(mode: str) -> bool:
+    b = mode.encode()
+    if len(b) < 3 or len(b) > 4:
+        return False
+    for c in b:
+        if c < 48 or c > 55:
+            return False
+    return True
+
+
+def basename(path: str) -> str:
+    return path[path.rfind("/") + 1:]
+
+
+def parse_hosts(text: str, default_path: str) -> (list[Device], list[str]):
+    """The devices in a hosts file, and an error message for each bad line."""
+    devices = []
+    errors = []
+    lineno = 0
+    for raw in text.splitlines():
+        lineno += 1
+        line = raw.strip()
+        if line == "" or line.startswith("#"):
+            continue
+        fields = line.split()
+        where = "line " + str(lineno) + ": "
+        if len(fields) < 3 or len(fields) > 5:
+            errors.append(where + "want: address user password [port] [remote_path]")
+            continue
+        port = 22
+        if len(fields) >= 4:
+            port = to_int(fields[3])
+            if port < 1 or port > 65535:
+                errors.append(where + "bad port: " + fields[3])
+                continue
+        path = fields[4] if len(fields) == 5 else default_path
+        if path == "":
+            errors.append(where + "no remote_path, and no REMOTE_PATH on the command line")
+            continue
+        if not path.endswith("/"):
+            name = basename(path)
+            if name == "" or name == "." or name == "..":
+                errors.append(where + "remote path '" + path + "' names no file; end a directory with /")
+                continue
+        devices.append(Device(lineno, fields[0], fields[1], fields[2], port, path))
+    return (devices, errors)
+
+
+def legacy_transport() -> ssh.TransportConfig:
+    """The library defaults first, then the older algorithms that old
+    switches and embedded SSH servers may still need. The none cipher and
+    MAC stay off."""
+    ciphers = list(ssh.cipher.default)
+    ciphers.extend([ssh.cipher.aes256_cbc, ssh.cipher.aes192_cbc,
+                    ssh.cipher.aes128_cbc, ssh.cipher.triple_des_cbc])
+    macs = list(ssh.mac.default)
+    macs.extend([ssh.mac.hmac_sha1_etm, ssh.mac.hmac_sha1])
+    kexes = list(ssh.kex.default)
+    kexes.extend([ssh.kex.diffie_hellman_group14_sha1,
+                  ssh.kex.diffie_hellman_group_exchange_sha1,
+                  ssh.kex.diffie_hellman_group1_sha1])
+    hostkeys = list(ssh.hostkey.default)
+    hostkeys.append(ssh.hostkey.ssh_rsa)
+    return ssh.TransportConfig(ciphers=ciphers,
+                               macs=macs,
+                               key_exchanges=kexes,
+                               host_key_algorithms=hostkeys)
+
+
+def ms_text(ms: int) -> str:
+    """ms milliseconds as seconds with three decimals, like 1.234 s."""
+    return str(ms // 1000) + "." + str(ms % 1000).zfill(3) + " s"
+
+
+def rate_text(n: int, ms: int) -> str:
+    """n bytes in ms milliseconds as MiB/s with one decimal."""
+    if ms <= 0:
+        return "- MiB/s"
+    tenths = n * 10000 // (ms * 1048576)
+    return str(tenths // 10) + "." + str(tenths % 10) + " MiB/s"
+
+
+def pad(s: str, width: int) -> str:
+    r = s
+    while len(r) < width:
+        r += " "
+    return r
+
+
+def first_difference(a: bytes, b: bytes) -> int:
+    """The index of the first byte where a and b differ, or the length of
+    the shorter one when it is a prefix of the other."""
+    n = len(a) if len(a) < len(b) else len(b)
+    i = 0
+    while i < n:
+        if a[i] != b[i]:
+            return i
+        i += 1
+    return n
+
+
+actor Transfer(cap: net.TCPConnectCap,
+               index: int,
+               dev: Device,
+               data: bytes,
+               local_name: str,
+               mode: str,
+               verify: bool,
+               transport: ?ssh.TransportConfig,
+               timeout: float,
+               on_done: action(int, ?str, int) -> None):
+    """Upload data to one device, download it back to compare if verify is
+    set, close the session, and report once through
+    on_done(index, error, milliseconds). error is None on success."""
+
+    label = dev.label()
+    is_dir = dev.remote_path.endswith("/")
+    verify_path = dev.remote_path + local_name if is_dir else dev.remote_path
+
+    var scp_name: ?str = None
+    if is_dir:
+        scp_name = local_name
+
+    var t0 = time.monotonic_ns()
+    var t_step = t0
+    var stage = "connecting"
+    var client: ?ssh.Client = None
+    var connected = False
+    var concluded = False
+    var result: ?str = None
+    var reported = False
+    var got = 0
+    var mismatch_at = -1
+
+    def since_ms(t: int) -> int:
+        return (time.monotonic_ns() - t) // 1000000
+
+    def log(msg: str):
+        print("[" + label + "] " + msg)
+
+    def report():
+        if reported:
+            return
+        reported = True
+        on_done(index, result, since_ms(t0))
+
+    def close_overdue():
+        if not reported:
+            log("WARNING: no on_close 10 s after Client.close()")
+            report()
+
+    def conclude(err: ?str):
+        """Record the result (the first one wins) and close the session."""
+        if concluded:
+            return
+        concluded = True
+        result = err
+        c = client
+        if c is not None:
+            c.close()
+        if connected:
+            # Report once on_close confirms the session is gone. The Client
+            # gives up on a clean close after close_timeout (5 s).
+            stage = "closing"
+            after 10.0: close_overdue()
+        else:
+            report()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure. A real client compares
+        # info.fingerprint with a known value before it accepts the key.
+        log("host key " + state + ": " + info.key_type + " " + info.fingerprint)
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            conclude("connect failed: " + str(err))
+            return
+        if concluded:
+            return
+        connected = True
+        log("connected in " + ms_text(since_ms(t0)) + ", uploading to " + dev.remote_path)
+        stage = "uploading"
+        t_step = time.monotonic_ns()
+        ssh.ScpPut(c, dev.remote_path, data, on_put_done, mode=mode, name=scp_name, timeout=timeout)
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        if concluded:
+            return
+        if err is not None:
+            conclude("upload failed: " + err)
+            return
+        ms = since_ms(t_step)
+        log("uploaded " + str(len(data)) + " bytes in " + ms_text(ms) + " (" + rate_text(len(data), ms) + ")")
+        c = client
+        if verify and c is not None:
+            log("verifying " + verify_path)
+            stage = "verifying"
+            t_step = time.monotonic_ns()
+            ssh.ScpGet(c, verify_path, on_get_data, on_get_done, timeout=timeout)
+        else:
+            conclude(None)
+
+    def on_get_data(op: ssh.ScpGet, chunk: bytes):
+        n = len(chunk)
+        if mismatch_at < 0:
+            expected = data[got:got + n]
+            if expected != chunk:
+                mismatch_at = got + first_difference(expected, chunk)
+        got += n
+
+    def on_get_done(op: ssh.ScpGet, err: ?str):
+        if concluded:
+            return
+        if err is not None:
+            conclude("verify download failed: " + err)
+            return
+        if mismatch_at >= 0:
+            conclude("verify failed: the copy differs from LOCAL_FILE at byte " + str(mismatch_at))
+        elif got != len(data):
+            conclude("verify failed: the copy has " + str(got) + " bytes, LOCAL_FILE " + str(len(data)))
+        else:
+            ms = since_ms(t_step)
+            log("verified: downloaded " + str(got) + " identical bytes in " + ms_text(ms) + " (" + rate_text(got, ms) + ")")
+            conclude(None)
+
+    def on_close(c: ssh.Client, reason: str):
+        connected = False
+        if not concluded:
+            concluded = True
+            result = "session closed while " + stage + ": " + reason
+        report()
+
+    # Catches a transfer that never reports. The Client's connect and auth
+    # timeouts (10 s each) and the ScpPut/ScpGet timeouts should fire first.
+    limit = 60.0 + (2.0 * timeout if verify else timeout)
+
+    def watchdog():
+        if not concluded:
+            conclude("no result after " + str(int(limit)) + " s, still " + stage)
+
+    after limit: watchdog()
+
+    client = ssh.Client(
+        cap,
+        dev.host,
+        dev.user,
+        on_connect,
+        on_close,
+        on_hostkey,
+        password=dev.password,
+        port=u16(dev.port),
+        transport=transport,
+        max_write_buffer=0,
+    )
+
+
+actor main(env):
+    var parallel = 0
+    var verify = False
+    var legacy = False
+    var timeout = 600.0
+    var mode = "0644"
+    var args: list[str] = []
+
+    var devices: list[Device] = []
+    var transfers: list[Transfer] = []
+    var results: list[?str] = []
+    var times: list[int] = []
+    var next_index = 0
+    var running = 0
+    var finished = 0
+    var data = b""
+    var local_name = ""
+    var transport: ?ssh.TransportConfig = None
+    var t0 = time.monotonic_ns()
+
+    def usage():
+        print("usage: example_scp_multi [--parallel N] [--verify] [--legacy] [--timeout S] [--mode MODE]")
+        print("                         HOSTS_FILE LOCAL_FILE [REMOTE_PATH]")
+        print("HOSTS_FILE: one device per line: address user password [port] [remote_path]")
+        print("Without REMOTE_PATH, every line needs its own remote_path.")
+        env.exit(2)
+
+    def parse_args() -> bool:
+        i = 1
+        while i < len(env.argv):
+            a = env.argv[i]
+            if a == "--verify":
+                verify = True
+            elif a == "--legacy":
+                legacy = True
+            elif a == "--parallel" or a == "--timeout" or a == "--mode":
+                if i + 1 >= len(env.argv):
+                    print(a + " needs a value")
+                    return False
+                i += 1
+                v = env.argv[i]
+                if a == "--parallel":
+                    n = to_int(v)
+                    if n < 0:
+                        print("--parallel wants a number >= 0, not " + v)
+                        return False
+                    parallel = n
+                elif a == "--timeout":
+                    t = to_int(v)
+                    if t <= 0:
+                        print("--timeout wants a number of seconds > 0, not " + v)
+                        return False
+                    timeout = float(t)
+                else:
+                    if not valid_mode(v):
+                        print("--mode wants 3 or 4 octal digits, not " + v)
+                        return False
+                    mode = v
+            elif a.startswith("--"):
+                print("unknown option: " + a)
+                return False
+            else:
+                args.append(a)
+            i += 1
+        return len(args) == 2 or len(args) == 3
+
+    def summary():
+        total = since_ms(t0)
+        width = 0
+        for d in devices:
+            if len(d.label()) > width:
+                width = len(d.label())
+        ok = 0
+        busy = 0
+        print("")
+        print("summary:")
+        for i in range(len(devices)):
+            d = devices[i]
+            busy += times[i]
+            r = results[i]
+            if r is not None:
+                print("  FAIL  " + pad(d.label(), width) + "  " + r)
+            else:
+                ok += 1
+                print("  ok    " + pad(d.label(), width) + "  " + pad(ms_text(times[i]), 11) + "  " + d.remote_path)
+        print(str(ok) + " of " + str(len(devices)) + " devices OK in " + ms_text(total)
+              + " (" + rate_text(len(data) * ok, total) + " in total). The transfers took "
+              + ms_text(busy) + " added up.")
+        env.exit(0 if ok == len(devices) else 1)
+
+    def since_ms(t: int) -> int:
+        return (time.monotonic_ns() - t) // 1000000
+
+    def on_transfer_done(index: int, err: ?str, ms: int):
+        results[index] = err
+        times[index] = ms
+        running -= 1
+        finished += 1
+        label = devices[index].label()
+        if err is not None:
+            print("[" + label + "] FAILED after " + ms_text(ms) + ": " + err)
+        else:
+            print("[" + label + "] OK after " + ms_text(ms))
+        if finished == len(devices):
+            summary()
+        else:
+            start_more()
+
+    def start_more():
+        while next_index < len(devices) and (parallel == 0 or running < parallel):
+            tr = Transfer(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+                          next_index,
+                          devices[next_index],
+                          data,
+                          local_name,
+                          mode,
+                          verify,
+                          transport,
+                          timeout,
+                          on_transfer_done)
+            transfers.append(tr)
+            next_index += 1
+            running += 1
+
+    def start():
+        if not parse_args():
+            usage()
+            return
+        hosts_path = args[0]
+        local_path = args[1]
+        fc = file.FileCap(env.cap)
+
+        hosts_reader = file.ReadFile(file.ReadFileCap(fc), hosts_path)
+        hosts_text = (await async hosts_reader.read()).decode()
+        await async hosts_reader.close()
+        parsed, errors = parse_hosts(hosts_text, args[2] if len(args) == 3 else "")
+        if len(errors) > 0:
+            for e in errors:
+                print(hosts_path + ": " + e)
+            env.exit(2)
+            return
+        if len(parsed) == 0:
+            print(hosts_path + ": no devices")
+            env.exit(2)
+            return
+
+        local_name = basename(local_path)
+        if local_name == "":
+            print("LOCAL_FILE must name a file: " + local_path)
+            env.exit(2)
+            return
+        file_reader = file.ReadFile(file.ReadFileCap(fc), local_path)
+        data = await async file_reader.read()
+        await async file_reader.close()
+
+        if legacy:
+            transport = legacy_transport()
+        devices = parsed
+        for d in devices:
+            results.append(None)
+            times.append(0)
+        n = len(devices)
+        at_once = n if parallel == 0 or parallel > n else parallel
+        how = ", verifying each copy" if verify else ""
+        print("sending " + local_path + " (" + str(len(data)) + " bytes) to " + str(n)
+              + " devices, " + str(at_once) + " at a time" + how)
+        t0 = time.monotonic_ns()
+        start_more()
+
+    after 0: start()

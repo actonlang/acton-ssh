@@ -152,6 +152,15 @@ with `ScpPut` or `ScpGet`, against any server that has `scp`:
 ./out/bin/example_scp_client get example.com alice /tmp/notes.txt ./copy.txt
 ```
 
+[`src/example_scp_multi.act`](src/example_scp_multi.act) reads a file once
+and uploads it to every device in a hosts file (`address user password
+[port] [remote_path]` per line), all at the same time. `--verify` downloads
+each copy back and compares it:
+
+```sh
+./out/bin/example_scp_multi --verify hosts.txt ./image.bin /tmp/image.bin
+```
+
 ## Transport configuration
 
 `TransportConfig` contains only settings shared by clients and servers.

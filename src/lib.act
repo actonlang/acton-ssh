@@ -1065,11 +1065,18 @@ actor ScpPut(client: Client,
     var _exit_code = -1
     var _exit_signal: ?str = None
     var _done = False
+    # The methods use _data, not data, so that data is not a field of this
+    # actor. A pending timeout timer keeps the actor alive until it fires,
+    # and a field would keep the file in memory that long after on_done.
+    # _data is dropped once queued (the channel keeps its own reference
+    # until the bytes are sent) or when the upload ends.
+    var _data: ?bytes = data
 
     def _finish(err: ?str):
         if _done:
             return
         _done = True
+        _data = None
         on_done(self, err)
 
     def _fail(ch: Channel, err: str):
@@ -1091,8 +1098,10 @@ actor ScpPut(client: Client,
                 ch.write(header)
                 _state = "header"
             elif _state == "header":
-                if len(data) > 0:
-                    ch.write(data)
+                d = _data
+                _data = None
+                if d is not None and len(d) > 0:
+                    ch.write(d)
                 ch.write(b"\x00")
                 _state = "data"
             else:
@@ -1111,7 +1120,8 @@ actor ScpPut(client: Client,
         if _done:
             return
         if chunk is not None:
-            _rx += chunk
+            # bytes + bytes always copies, even onto empty bytes
+            _rx = chunk if len(_rx) == 0 else _rx + chunk
             _advance(ch)
 
     def _on_stderr(ch: Channel, chunk: ?bytes):
@@ -1255,7 +1265,10 @@ actor ScpGet(client: Client,
         if _done:
             return
         if chunk is not None:
-            _rx += chunk
+            # bytes + bytes always copies, even onto empty bytes. In the
+            # data state _rx is nearly always empty, so each chunk goes to
+            # on_data as received instead of as a copy.
+            _rx = chunk if len(_rx) == 0 else _rx + chunk
             _advance(ch)
 
     def _on_stderr(ch: Channel, chunk: ?bytes):
