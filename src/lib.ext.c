@@ -98,6 +98,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <libssh/libssh.h>
 #include <libssh/callbacks.h>
 #include <libssh/server.h>
@@ -122,10 +123,18 @@
 uv_loop_t *get_uv_loop(void);
 
 #define SSH_IO_PUMP_LIMIT 128
-/* Most bytes handed to one ssh_channel_write() call. Its length is a
- * uint32_t, and it refuses one above INT_MAX without setting an error. It
- * sends at most the peer's window per call anyway. */
-#define SSH_WRITE_CALL_MAX ((size_t)16 * 1024 * 1024)
+/* Most bytes handed to one ssh_channel_write() call. One call encrypts as
+ * much as the peer's window allows (OpenSSH: 2 MB) in one go, and what the
+ * kernel's socket buffer cannot take right away waits in libssh's send
+ * buffer. The cap therefore bounds that buffer per channel, and the time one
+ * call keeps the worker thread busy, whatever window the peer offers.
+ * 256 KiB is 8 packets of OpenSSH's 32 KiB maximum. The queue moves on as
+ * soon as libssh has flushed it (SSH_WRITE_PENDING arms UV_WRITABLE), so a
+ * smaller cap only means more calls. ssh_channel_write() also refuses a
+ * length above INT_MAX without setting an error.
+ * ACTON_SSH_WRITE_CALL_MAX=<bytes> overrides the cap, for measurements. */
+#define SSH_WRITE_CALL_MAX_DEFAULT ((size_t)256 * 1024)
+static size_t ssh_write_call_max = SSH_WRITE_CALL_MAX_DEFAULT;
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
 #define SSH_KEYEX_TIMEOUT_SEC 2.0
 #define SSH_SERVER_ACCEPT_LIMIT 64
@@ -1312,8 +1321,8 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
-        if (remaining > SSH_WRITE_CALL_MAX)
-            remaining = SSH_WRITE_CALL_MAX;
+        if (remaining > ssh_write_call_max)
+            remaining = ssh_write_call_max;
         int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
         if (rc > 0) {
             chunk->offset += (size_t)rc;
@@ -2519,6 +2528,16 @@ void sshQ_libQ___ext_init__() {
     if (log_env != NULL && log_env[0] != '\0') {
         ssh_libssh_log_level = parse_libssh_log_level(log_env);
     }
+    const char *wmax_env = getenv("ACTON_SSH_WRITE_CALL_MAX");
+    if (wmax_env != NULL && wmax_env[0] != '\0') {
+        char *end = NULL;
+        errno = 0;
+        unsigned long long v = strtoull(wmax_env, &end, 10);
+        if (errno == 0 && end != NULL && *end == '\0' && v >= 1 && v <= (unsigned long long)INT_MAX)
+            ssh_write_call_max = (size_t)v;
+        else
+            log_warn("ACTON_SSH_WRITE_CALL_MAX=%s ignored: want 1 to %d bytes", wmax_env, INT_MAX);
+    }
     /* libssh (and mbedtls underneath it) run on the libc heap with their
      * default allocators; see the memory model notes at the top of this
      * file. We deliberately do NOT call libssh_replace_allocator(). */
@@ -3157,8 +3176,8 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
-        if (remaining > SSH_WRITE_CALL_MAX)
-            remaining = SSH_WRITE_CALL_MAX;
+        if (remaining > ssh_write_call_max)
+            remaining = ssh_write_call_max;
         int rc;
         if (chunk->is_stderr) {
             rc = ssh_channel_write_stderr(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
