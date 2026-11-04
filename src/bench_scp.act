@@ -1,24 +1,39 @@
-"""SCP benchmark: memory held after ScpPut, and allocation per ScpGet.
+"""SCP benchmark: memory held after ScpPut, allocation per ScpGet, and
+libssh's send buffers during many uploads at once.
 
 Build:  acton build
-Run:    ./out/bin/bench_scp retain HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]
-        ./out/bin/bench_scp get    HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]
+Run:    ./out/bin/bench_scp retain HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [COUNT] [PORT]
+        ./out/bin/bench_scp get    HOST USER PASSWORD REMOTE_DIR  [SIZE_MIB] [COUNT] [PORT]
+        ./out/bin/bench_scp fanout HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [COUNT] [PORT]
 
 Runs against any server with scp. Defaults: SIZE_MIB 50, COUNT 5, PORT 22.
-REMOTE_DIR needs room for one file of SIZE_MIB; the benchmark writes
-REMOTE_DIR/bench_scp_retain.bin or REMOTE_DIR/bench_scp_get.bin.
+For retain and fanout, use /dev/null as REMOTE_PATH: the server throws the
+data away, so its disk cannot slow the test down and nothing needs room.
 
-retain: COUNT uploads, one after another, each of a new SIZE_MIB buffer and
-  each with timeout=600. After each on_done it runs a full GC and prints the
-  live GC heap. If a finished ScpPut keeps its data while its timeout timer
-  is pending, the heap grows by about SIZE_MIB per upload. Otherwise it
-  stays near where it started.
+retain: COUNT uploads to REMOTE_PATH, one after another, each of a new
+  SIZE_MIB buffer and each with timeout=600. After each on_done it runs a
+  full GC and prints the live GC heap. If a finished ScpPut keeps its data
+  while its timeout timer is pending, the heap grows by about SIZE_MIB per
+  upload. Otherwise it stays near where it started.
 
-get: uploads one SIZE_MIB file, then downloads it COUNT times. For each
-  download it prints the wall time, the CPU time of the whole process, and
-  the bytes allocated on the GC heap per byte received. The C glue copies
-  each received chunk into a new bytes object once, which is 1.0 per byte.
-  Another copy in ScpGet shows up as about 2.0.
+get: uploads one SIZE_MIB file to REMOTE_DIR/bench_scp_get.bin, downloads
+  it COUNT times and deletes it. scp -f only sends regular files, so this
+  cannot use /dev/null. For each download it prints the wall time, the CPU
+  time of the whole process, and the bytes allocated on the GC heap per
+  byte received. The C glue copies each received chunk into a new bytes
+  object once, which is 1.0 per byte. Another copy in ScpGet shows up as
+  about 2.0.
+
+fanout: opens COUNT sessions, at most 8 connecting at a time (OpenSSH's
+  MaxStartups starts refusing at 10), then starts one upload of the same
+  SIZE_MIB buffer on every session at once, all to REMOTE_PATH. While the
+  uploads run it samples the process RSS every 50 ms and prints the peak,
+  and the peak of the RSS outside the GC heap, which is where libssh keeps
+  its send buffers.
+  When the link is the limit, each session's libssh buffer holds what one
+  ssh_channel_write() call encrypted and the kernel could not take yet: up
+  to the peer's window (OpenSSH: 2 MB) or SSH_WRITE_CALL_MAX in
+  src/lib.ext.c, whichever is smaller.
 
 All numbers are for this client process. The network changes the times,
 not the heap and allocation figures. Host keys are accepted unchecked.
@@ -30,12 +45,25 @@ import acton.rts
 import lib as ssh
 
 
+_FANOUT_CONNECTING_MAX = 8
+
+
 def mib(n: int) -> str:
     """n bytes in MiB with one decimal, with a sign when negative."""
     if n < 0:
         return "-" + mib(-n)
     tenths = n * 10 // 1048576
     return str(tenths // 10) + "." + str(tenths % 10) + " MiB"
+
+
+def plus_mib(n: int) -> str:
+    return "+" + mib(n) if n >= 0 else mib(n)
+
+
+def kib(n: int) -> str:
+    if n < 0:
+        return "-" + kib(-n)
+    return str(n // 1024) + " KiB"
 
 
 def ratio(a: int, b: int) -> str:
@@ -46,6 +74,19 @@ def ratio(a: int, b: int) -> str:
     return str(h // 100) + "." + str(h % 100).zfill(2)
 
 
+def rate(n: int, ms: int) -> str:
+    """n bytes in ms milliseconds as MiB/s with one decimal."""
+    if ms <= 0:
+        return "- MiB/s"
+    tenths = n * 10000 // (ms * 1048576)
+    return str(tenths // 10) + "." + str(tenths % 10) + " MiB/s"
+
+
+def sh_quote(s: str) -> str:
+    """s as one word for a POSIX shell."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
 def make_buffer(size_mib: int, i: int) -> bytes:
     """A new buffer of size_mib MiB whose contents depend on i."""
     line = ("bench_scp buffer " + str(i) + "\n").encode()
@@ -53,10 +94,55 @@ def make_buffer(size_mib: int, i: int) -> bytes:
     return block * size_mib
 
 
+actor FanoutSession(cap: net.TCPConnectCap,
+                    index: int,
+                    host: str,
+                    user: str,
+                    password: str,
+                    port: u16,
+                    on_ready: action(int, ?str) -> None,
+                    on_done: action(int, ?str) -> None):
+    """One session of the fanout run. Reports on_ready(index, error) once
+    connected, uploads when told to, and reports on_done(index, error)."""
+    var client: ?ssh.Client = None
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        # WARNING: accepting any host key is insecure.
+        c.accept_hostkey()
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            on_ready(index, str(err))
+        else:
+            on_ready(index, None)
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        on_done(index, err)
+
+    action def upload(remote_path: str, data: bytes) -> None:
+        c = client
+        if c is not None:
+            ssh.ScpPut(c, remote_path, data, on_put_done, timeout=600.0)
+
+    action def close() -> None:
+        c = client
+        if c is not None:
+            c.close()
+
+    client = ssh.Client(cap, host, user, on_connect, on_close, on_hostkey,
+                        password=password, port=port, max_write_buffer=0)
+
+
 actor main(env):
     var mode = ""
     var host = ""
-    var remote_dir = ""
+    var user = ""
+    var password = ""
+    var port = u16(22)
+    var remote = ""
     var size_mib = 50
     var count = 5
     var client: ?ssh.Client = None
@@ -70,6 +156,22 @@ actor main(env):
     var sum_ms = 0
     var sum_cpu_ms = 0
     var sum_alloc = 0
+
+    var shared = b""
+    var sessions: list[FanoutSession] = []
+    var next_connect = 0
+    var connecting = 0
+    var connected = 0
+    var t_connect = 0
+    var uploads_done = 0
+    var fastest_ms = -1
+    var slowest_ms = 0
+    var failures: list[str] = []
+    var sampling = False
+    var rss_before = 0
+    var outside_before = 0
+    var rss_peak = 0
+    var outside_peak = 0
 
     def since_ms(t: int) -> int:
         return (time.monotonic_ns() - t) // 1000000
@@ -95,10 +197,21 @@ actor main(env):
             total += int(s)
         return total
 
+    def rss() -> int:
+        return int(acton.rts.get_rss(env.syscap))
+
+    def outside_gc(r: int) -> int:
+        """r minus the mapped GC heap: about what libc's heap (libssh,
+        mbedtls), the stacks and the code take."""
+        info = acton.rts.get_gc_info(env.syscap)
+        return r - (int(info.heap_size) - int(info.unmapped_bytes))
+
     def finish(code: int):
         c = client
         if c is not None:
             c.close()
+        for s in sessions:
+            s.close()
         env.exit(code)
 
     def fail(msg: str):
@@ -126,7 +239,7 @@ actor main(env):
             retain_next()
         else:
             print("get: uploading the " + str(size_mib) + " MiB file to download")
-            ssh.ScpPut(c, remote_dir + "/bench_scp_get.bin", make_buffer(size_mib, 0),
+            ssh.ScpPut(c, remote + "/bench_scp_get.bin", make_buffer(size_mib, 0),
                        on_get_file_ready, timeout=600.0)
 
     # retain
@@ -137,7 +250,7 @@ actor main(env):
             step += 1
             data = make_buffer(size_mib, step)
             t_step = time.monotonic_ns()
-            ssh.ScpPut(c, remote_dir + "/bench_scp_retain.bin", data, on_retain_done, timeout=600.0)
+            ssh.ScpPut(c, remote, data, on_retain_done, timeout=600.0)
 
     def on_retain_done(op: ssh.ScpPut, err: ?str):
         if err is not None:
@@ -169,7 +282,7 @@ actor main(env):
             gc_start = gc_bytes()
             cpu_start = cpu_ns()
             t_step = time.monotonic_ns()
-            ssh.ScpGet(c, remote_dir + "/bench_scp_get.bin", on_get_data, on_get_done, timeout=600.0)
+            ssh.ScpGet(c, remote + "/bench_scp_get.bin", on_get_data, on_get_done, timeout=600.0)
 
     def on_get_data(op: ssh.ScpGet, chunk: bytes):
         got += len(chunk)
@@ -194,36 +307,138 @@ actor main(env):
         else:
             print("  average: " + str(sum_ms // count) + " ms, CPU " + str(sum_cpu_ms // count)
                   + " ms, GC allocated " + ratio(sum_alloc, got * count) + " per byte received")
-            finish(0)
+            c = client
+            if c is not None:
+                ssh.RunCommand(c, "rm -f " + sh_quote(remote + "/bench_scp_get.bin"),
+                               on_get_file_removed, timeout=30.0)
+
+    def on_get_file_removed(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err: bytes, error: ?str):
+        if error is not None:
+            print("  could not delete " + remote + "/bench_scp_get.bin: " + error)
+        elif code != 0:
+            print("  could not delete " + remote + "/bench_scp_get.bin: rm exited with " + str(code))
+        else:
+            print("  deleted " + remote + "/bench_scp_get.bin")
+        finish(0)
+
+    # fanout
+
+    def fanout_connect_more():
+        while next_connect < count and connecting < _FANOUT_CONNECTING_MAX:
+            s = FanoutSession(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+                              next_connect, host, user, password, port,
+                              on_fanout_ready, on_fanout_done)
+            sessions.append(s)
+            next_connect += 1
+            connecting += 1
+
+    def on_fanout_ready(index: int, err: ?str):
+        connecting -= 1
+        if err is not None:
+            fail("session " + str(index) + ": connect failed: " + err)
+            return
+        connected += 1
+        if connected < count:
+            fanout_connect_more()
+            return
+        print("  connected " + str(count) + " sessions in " + str(since_ms(t_connect)) + " ms")
+        acton.rts.gc(env.syscap)
+        rss_before = rss()
+        outside_before = outside_gc(rss_before)
+        rss_peak = rss_before
+        outside_peak = outside_before
+        cpu_start = cpu_ns()
+        t_step = time.monotonic_ns()
+        sampling = True
+        for s in sessions:
+            s.upload(remote, shared)
+        sample()
+
+    def sample():
+        if not sampling:
+            return
+        r = rss()
+        o = outside_gc(r)
+        if r > rss_peak:
+            rss_peak = r
+        if o > outside_peak:
+            outside_peak = o
+        after 0.05: sample()
+
+    def on_fanout_done(index: int, err: ?str):
+        ms = since_ms(t_step)
+        uploads_done += 1
+        if err is not None:
+            failures.append("session " + str(index) + ": " + err)
+        else:
+            if fastest_ms < 0 or ms < fastest_ms:
+                fastest_ms = ms
+            if ms > slowest_ms:
+                slowest_ms = ms
+        if uploads_done < count:
+            return
+        sampling = False
+        total_ms = since_ms(t_step)
+        cpu_ms = (cpu_ns() - cpu_start) // 1000000
+        ok = count - len(failures)
+        print("  uploads: " + str(ok) + " OK, " + str(len(failures)) + " failed, in "
+              + str(total_ms) + " ms, " + rate(ok * size_mib * 1048576, total_ms) + " in total")
+        for f in failures:
+            print("    " + f)
+        if ok > 0:
+            print("  per session: fastest " + str(fastest_ms) + " ms, slowest " + str(slowest_ms) + " ms")
+        print("  CPU while uploading: " + str(cpu_ms) + " ms")
+        print("  RSS: " + mib(rss_before) + " before the uploads, peak " + mib(rss_peak)
+              + " (" + plus_mib(rss_peak - rss_before) + ")")
+        growth = outside_peak - outside_before
+        print("  RSS outside the GC heap: " + mib(outside_before) + " before, peak " + mib(outside_peak)
+              + " (" + plus_mib(growth) + ", " + kib(growth // count) + " per session)")
+        peak = acton.rts.get_peak_rss(env.syscap)
+        if peak is not None:
+            print("  peak RSS of the process: " + mib(int(peak)))
+        finish(0 if len(failures) == 0 else 1)
 
     def start():
         argv = env.argv
-        if len(argv) < 6 or len(argv) > 9 or (argv[1] != "retain" and argv[1] != "get"):
-            print("usage: bench_scp retain|get HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]")
+        if (len(argv) < 6 or len(argv) > 9
+                or (argv[1] != "retain" and argv[1] != "get" and argv[1] != "fanout")):
+            print("usage: bench_scp retain|fanout HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [COUNT] [PORT]")
+            print("       bench_scp get HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]")
+            print("REMOTE_PATH: use /dev/null")
             env.exit(2)
             return
         mode = argv[1]
         host = argv[2]
-        remote_dir = argv[5]
+        user = argv[3]
+        password = argv[4]
+        remote = argv[5]
         if len(argv) > 6:
             size_mib = int(argv[6])
         if len(argv) > 7:
             count = int(argv[7])
-        port = u16(22)
         if len(argv) > 8:
             port = u16(int(argv[8]))
         if size_mib < 1 or count < 1:
             print("SIZE_MIB and COUNT must be at least 1")
             env.exit(2)
             return
+
+        if mode == "fanout":
+            shared = make_buffer(size_mib, 0)
+            print("fanout: " + str(count) + " sessions to " + host + ", each uploading the same "
+                  + str(size_mib) + " MiB buffer to " + remote)
+            t_connect = time.monotonic_ns()
+            fanout_connect_more()
+            return
+
         client = ssh.Client(
             net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
             host,
-            argv[3],
+            user,
             on_connect,
             on_close,
             on_hostkey,
-            password=argv[4],
+            password=password,
             port=port,
             max_write_buffer=0,
         )
