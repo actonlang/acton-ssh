@@ -749,4 +749,4 @@ actor InteropSshdShellNoPtyTester(t: testing.EnvT):
     """Acton SshPipe: interactive shell without a PTY against OpenSSH sshd"""
     t.require("openssh")
     SshdTester(t, "", False, 0, "not a tty", False,
-               shell_input=b"tty\nexit\n", shell_pty=False)
+               shell_input=b"LC_ALL=C tty\nexit\n", shell_pty=False)
