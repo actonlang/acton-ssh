@@ -24,3 +24,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends openssh-server
           sudo mkdir -p /run/sshd
       - run: acton test --min-time 2000 --max-time 10000 --tag openssh
+      # The write-barrier checker runs each test in generational GC mode and
+      # exits with status 70 at a pointer store without its barrier. The
+      # checker makes the tests slower: --max-time 10000 gives each test 11 s
+      # instead of 3 s, and --min-iter 0 keeps a slow test at one run.
+      - name: "Run the tests under the write-barrier checker"
+        run: acton test --gc-check --min-iter 0 --max-time 10000 --tag openssh
+      # Many concurrent connections: the checker then also finds a uv handle
+      # that is not in memory from acton_malloc_rescanned().
+      - name: "Run the fan-out program under the write-barrier checker"
+        timeout-minutes: 10
+        run: |
+          acton build --fast
+          ACTON_GC_CHECK=1 ./out/bin/fanout 32 50
