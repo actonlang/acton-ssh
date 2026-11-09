@@ -135,6 +135,12 @@ uv_loop_t *get_uv_loop(void);
  * ACTON_SSH_WRITE_CALL_MAX=<bytes> overrides the cap, for measurements. */
 #define SSH_WRITE_CALL_MAX_DEFAULT ((size_t)256 * 1024)
 static size_t ssh_write_call_max = SSH_WRITE_CALL_MAX_DEFAULT;
+/* Each Client does all its encryption and I/O on the worker thread it is
+ * pinned to. The runtime keeps an actor that a worker makes ready on that
+ * worker, so pinning to the current worker put most Clients created by one
+ * actor on one or two workers. Clients therefore take the workers 1 to
+ * num_wthreads in turn. */
+static uint64_t ssh_client_next_worker = 0;
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
 #define SSH_KEYEX_TIMEOUT_SEC 2.0
 #define SSH_SERVER_ACCEPT_LIMIT 64
@@ -2577,8 +2583,16 @@ B_NoneType sshQ_libQ__debug(B_str msg) {
     return B_None;
 }
 
+/* Runs in the Client's init, which goes on with the worker it runs on; the
+ * actor moves to the chosen worker for its next message (Client._start). */
 $R sshQ_libQ_ClientD__pin_affinityG_local(sshQ_libQ_Client self, $Cont c$cont) {
-    pin_actor_affinity();
+    int64_t n = num_wthreads;
+    if (n < 1) {
+        pin_actor_affinity();
+    } else {
+        uint64_t k = __atomic_fetch_add(&ssh_client_next_worker, 1, __ATOMIC_RELAXED);
+        set_actor_affinity((int)(1 + (int64_t)(k % (uint64_t)n)));
+    }
     return $R_CONT(c$cont, B_None);
 }
 
@@ -2659,7 +2673,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
 
     ssh_set_blocking(c->session, 0);
     if (ssh_debug_enabled)
-        ssh_debug_log("client init: session=%p blocking=%d", (void *)c->session, ssh_is_blocking(c->session));
+        ssh_debug_log("client init: session=%p blocking=%d worker=%d", (void *)c->session, ssh_is_blocking(c->session), get_wtid());
 
     c->state = CLIENT_STATE_CONNECTING;
     rc = ssh_connect(c->session);

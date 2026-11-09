@@ -698,7 +698,18 @@ actor Client(cap: net.TCPConnectCap,
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
-    _init()
+
+    # _init creates the libuv handles on the loop of the worker it runs on,
+    # and _pin_affinity may have picked another worker than this one. So
+    # _init runs as the Client's first message, which the runtime delivers
+    # on the picked worker. No other message comes first: the creator gets
+    # the Client once this init returns, and the message is queued by then.
+    action def _start() -> None:
+        _init()
+
+    def _queue_start():
+        async _start()
+    _queue_start()
 
     action def accept_hostkey() -> None:
         """Accept the currently pending host key (not persisted)"""

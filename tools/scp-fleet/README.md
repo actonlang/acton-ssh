@@ -110,7 +110,8 @@ Each device runs its own sshd, so the run needs no `--parallel`.
   ```
 
 - **Thread counts.** Add `--rts-wthreads 1`, `2` or `4` to the client to
-  change how actors interleave.
+  change how actors interleave. Each `Client` does its encryption on one
+  worker thread, and the `Client`s take the workers in turn.
 
 ## 6. Faults during a run
 
