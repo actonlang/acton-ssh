@@ -157,7 +157,8 @@ with `ScpPut` or `ScpGet`, against any server that has `scp`:
 and uploads it to every device in a hosts file (`address user password
 [port] [remote_path]` per line), all at the same time. A password of `-`
 logs in with the key in `$SCP_KEY` instead. `--verify` downloads each copy
-back and compares it:
+back and compares it; `--remote-md5` runs `md5sum` on each device and
+compares the digest without downloading. Use either, both or neither:
 
 ```sh
 ./out/bin/example_scp_multi --verify hosts.txt ./image.bin /tmp/image.bin

@@ -38,11 +38,15 @@ Options:
   --parallel N   run at most N uploads at once (default 0: all at once)
   --verify       download each copy back with ScpGet and compare it with
                  LOCAL_FILE byte by byte
+  --remote-md5   run md5sum on each device after its upload and compare the
+                 digest with LOCAL_FILE's MD5, without downloading the copy.
+                 With --verify too, the MD5 check runs first, and the
+                 download only when the MD5 matches.
   --legacy       after the default algorithms, also offer older ones (CBC
                  ciphers, SHA-1 key exchange and MACs, ssh-rsa host keys)
                  for old switches and embedded SSH servers
-  --timeout S    seconds allowed for each upload, and for each verify
-                 download (default 600)
+  --timeout S    seconds allowed for each upload, each MD5 check and each
+                 verify download (default 600)
   --mode MODE    mode of the remote file as 3 or 4 octal digits
                  (default 0644)
 
@@ -58,6 +62,8 @@ Notes:
     Many managed switches run a vendor CLI instead of a shell over SSH and
     cannot run `scp -t`, so the upload to them fails with the server's
     error.
+  - --remote-md5 needs md5sum on the device (GNU coreutils or BusyBox).
+    MD5 finds a damaged copy, not a deliberately changed one.
   - Every device must have room for the file. /tmp on OpenWrt is in RAM.
   - Connect resolves host names with a blocking getaddrinfo, so use IP
     addresses.
@@ -67,6 +73,7 @@ Example:
   ./out/bin/example_scp_multi --verify hosts.txt ./test_file.img /tmp/test_file.img
 """
 
+import crypto.hash.md5
 import file
 import net
 import time
@@ -196,6 +203,29 @@ def pad(s: str, width: int) -> str:
     return r
 
 
+def sh_quote(s: str) -> str:
+    """s as one word for a POSIX shell."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def md5_from_output(out: bytes) -> str:
+    """The digest at the start of md5sum's output, or "" when there is none.
+    GNU md5sum starts the line with a backslash when it escapes the name."""
+    b = out[1:] if out.startswith(b"\\") else out
+    if len(b) < 32:
+        return ""
+    for c in b[:32]:
+        if not ((c >= 48 and c <= 57) or (c >= 97 and c <= 102)):
+            return ""
+    return b[:32].decode()
+
+
+def first_line(b: bytes) -> str:
+    text = b.decode().strip()
+    i = text.find("\n")
+    return text if i < 0 else text[:i]
+
+
 def first_difference(a: bytes, b: bytes) -> int:
     """The index of the first byte where a and b differ, or the length of
     the shorter one when it is a prefix of the other."""
@@ -215,12 +245,14 @@ actor Transfer(cap: net.TCPConnectCap,
                local_name: str,
                mode: str,
                verify: bool,
+               want_md5: str,
                transport: ?ssh.TransportConfig,
                private_keys: ?list[ssh.PrivateKey],
                timeout: float,
                on_done: action(int, ?str, int) -> None):
-    """Upload data to one device, download it back to compare if verify is
-    set, close the session, and report once through
+    """Upload data to one device, compare the copy's MD5 on the device with
+    want_md5 unless want_md5 is "", download the copy to compare it if
+    verify is set, close the session, and report once through
     on_done(index, error, milliseconds). error is None on success."""
 
     label = dev.label()
@@ -309,6 +341,37 @@ actor Transfer(cap: net.TCPConnectCap,
         ms = since_ms(t_step)
         log("uploaded " + str(len(data)) + " bytes in " + ms_text(ms) + " (" + rate_text(len(data), ms) + ")")
         c = client
+        if want_md5 != "" and c is not None:
+            log("checking the MD5 of " + verify_path)
+            stage = "checking the MD5"
+            t_step = time.monotonic_ns()
+            ssh.RunCommand(c, "md5sum -- " + sh_quote(verify_path), on_md5_done, timeout=timeout)
+        else:
+            start_verify()
+
+    def on_md5_done(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err: bytes, error: ?str):
+        if concluded:
+            return
+        if error is not None:
+            conclude("MD5 check failed: " + error)
+            return
+        if sig is not None:
+            conclude("MD5 check failed: remote md5sum killed by signal " + sig)
+            return
+        if code != 0:
+            conclude("MD5 check failed: remote md5sum exited with " + str(code) + ": " + first_line(err))
+            return
+        got_md5 = md5_from_output(out)
+        if got_md5 == "":
+            conclude("MD5 check failed: unexpected md5sum output: " + first_line(out))
+        elif got_md5 != want_md5:
+            conclude("MD5 check failed: the copy has MD5 " + got_md5 + ", LOCAL_FILE " + want_md5)
+        else:
+            log("MD5 matches in " + ms_text(since_ms(t_step)))
+            start_verify()
+
+    def start_verify():
+        c = client
         if verify and c is not None:
             log("verifying " + verify_path)
             stage = "verifying"
@@ -348,8 +411,9 @@ actor Transfer(cap: net.TCPConnectCap,
         report()
 
     # Catches a transfer that never reports. The Client's connect and auth
-    # timeouts (10 s each) and the ScpPut/ScpGet timeouts should fire first.
-    limit = 60.0 + (2.0 * timeout if verify else timeout)
+    # timeouts (10 s each) and the timeouts of each step should fire first.
+    steps = 1 + (1 if want_md5 != "" else 0) + (1 if verify else 0)
+    limit = 60.0 + float(steps) * timeout
 
     def watchdog():
         if not concluded:
@@ -375,6 +439,8 @@ actor Transfer(cap: net.TCPConnectCap,
 actor main(env):
     var parallel = 0
     var verify = False
+    var remote_md5 = False
+    var want_md5 = ""
     var legacy = False
     var timeout = 600.0
     var mode = "0644"
@@ -394,8 +460,8 @@ actor main(env):
     var t0 = time.monotonic_ns()
 
     def usage():
-        print("usage: example_scp_multi [--parallel N] [--verify] [--legacy] [--timeout S] [--mode MODE]")
-        print("                         HOSTS_FILE LOCAL_FILE [REMOTE_PATH]")
+        print("usage: example_scp_multi [--parallel N] [--verify] [--remote-md5] [--legacy]")
+        print("                         [--timeout S] [--mode MODE] HOSTS_FILE LOCAL_FILE [REMOTE_PATH]")
         print("HOSTS_FILE: one device per line: address user password [port] [remote_path]")
         print("Password -: log in with the key in $SCP_KEY (default ~/.ssh/id_ed25519).")
         print("Without REMOTE_PATH, every line needs its own remote_path.")
@@ -407,6 +473,8 @@ actor main(env):
             a = env.argv[i]
             if a == "--verify":
                 verify = True
+            elif a == "--remote-md5":
+                remote_md5 = True
             elif a == "--legacy":
                 legacy = True
             elif a == "--parallel" or a == "--timeout" or a == "--mode":
@@ -491,6 +559,7 @@ actor main(env):
                           local_name,
                           mode,
                           verify,
+                          want_md5,
                           transport,
                           private_keys,
                           timeout,
@@ -552,6 +621,8 @@ actor main(env):
         data = await async file_reader.read()
         await async file_reader.close()
 
+        if remote_md5:
+            want_md5 = crypto.hash.md5.hash(data).hex()
         if legacy:
             transport = legacy_transport()
         devices = parsed
@@ -560,9 +631,16 @@ actor main(env):
             times.append(0)
         n = len(devices)
         at_once = n if parallel == 0 or parallel > n else parallel
-        how = ", verifying each copy" if verify else ""
+        checks: list[str] = []
+        if remote_md5:
+            checks.append("checking each copy's MD5 on the device")
+        if verify:
+            checks.append("verifying each copy")
+        how = (", " + " and ".join(checks)) if len(checks) > 0 else ""
         print("sending " + local_path + " (" + str(len(data)) + " bytes) to " + str(n)
               + " devices, " + str(at_once) + " at a time" + how)
+        if remote_md5:
+            print("MD5 of " + local_path + ": " + want_md5)
         t0 = time.monotonic_ns()
         start_more()
 
