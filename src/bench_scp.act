@@ -7,6 +7,8 @@ Run:    ./out/bin/bench_scp retain HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [CO
         ./out/bin/bench_scp fanout HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [COUNT] [PORT]
 
 Runs against any server with scp. Defaults: SIZE_MIB 50, COUNT 5, PORT 22.
+PASSWORD - logs in with a key instead: the private key file named by
+$SCP_KEY (default ~/.ssh/id_ed25519). The key must not have a passphrase.
 For retain and fanout, use /dev/null as REMOTE_PATH: the server throws the
 data away, so its disk cannot slow the test down and nothing needs room.
 
@@ -40,6 +42,7 @@ All numbers are for this client process. The network changes the times,
 not the heap and allocation figures. Host keys are accepted unchecked.
 """
 
+import file
 import net
 import time
 import acton.rts
@@ -99,7 +102,8 @@ actor FanoutSession(cap: net.TCPConnectCap,
                     index: int,
                     host: str,
                     user: str,
-                    password: str,
+                    password: ?str,
+                    private_keys: ?list[ssh.PrivateKey],
                     port: u16,
                     on_ready: action(int, ?str) -> None,
                     on_done: action(int, ?str) -> None):
@@ -134,14 +138,16 @@ actor FanoutSession(cap: net.TCPConnectCap,
             c.close()
 
     client = ssh.Client(cap, host, user, on_connect, on_close, on_hostkey,
-                        password=password, port=port, max_write_buffer=0)
+                        password=password, private_keys=private_keys,
+                        port=port, max_write_buffer=0)
 
 
 actor main(env):
     var mode = ""
     var host = ""
     var user = ""
-    var password = ""
+    var password: ?str = None
+    var private_keys: ?list[ssh.PrivateKey] = None
     var port = u16(22)
     var remote = ""
     var size_mib = 50
@@ -327,7 +333,7 @@ actor main(env):
     def fanout_connect_more():
         while next_connect < count and connecting < _FANOUT_CONNECTING_MAX:
             s = FanoutSession(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
-                              next_connect, host, user, password, port,
+                              next_connect, host, user, password, private_keys, port,
                               on_fanout_ready, on_fanout_done)
             sessions.append(s)
             next_connect += 1
@@ -406,12 +412,31 @@ actor main(env):
             print("usage: bench_scp retain|fanout HOST USER PASSWORD REMOTE_PATH [SIZE_MIB] [COUNT] [PORT]")
             print("       bench_scp get HOST USER PASSWORD REMOTE_DIR [SIZE_MIB] [COUNT] [PORT]")
             print("REMOTE_PATH: use /dev/null")
+            print("PASSWORD -: log in with the key in $SCP_KEY (default ~/.ssh/id_ed25519)")
             env.exit(2)
             return
         mode = argv[1]
         host = argv[2]
         user = argv[3]
-        password = argv[4]
+        if argv[4] == "-":
+            key_file: ?str = env.vars.getenv("SCP_KEY")
+            if key_file is None:
+                home = env.vars.getenv("HOME")
+                if home is not None:
+                    key_file = home + "/.ssh/id_ed25519"
+            kf = key_file
+            if kf is not None:
+                reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), kf)
+                key_bytes = await async reader.read()
+                await async reader.close()
+                private_keys = [ssh.PrivateKey(key_bytes)]
+                print("logging in with the key in " + kf)
+            else:
+                print("PASSWORD is -, but neither SCP_KEY nor HOME is set")
+                env.exit(2)
+                return
+        else:
+            password = argv[4]
         remote = argv[5]
         if len(argv) > 6:
             size_mib = int(argv[6])
@@ -445,6 +470,7 @@ actor main(env):
             on_close,
             on_hostkey,
             password=password,
+            private_keys=private_keys,
             port=port,
             max_write_buffer=0,
         )
