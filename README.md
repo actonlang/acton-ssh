@@ -271,6 +271,7 @@ the server generates an ephemeral in-memory key using `host_key_type` and
 acton test                       # loopback client<->server suite
 acton test stress                # concurrent churn (race/lifetime fuzzing)
 acton test --tag openssh         # also run interop with the OpenSSH ssh client and sshd
+acton test --gc-check            # generational GC mode with the write-barrier checker
 ```
 
 The interop tests (`src/test_interop.act`) spawn the host's OpenSSH tools
@@ -278,7 +279,10 @@ The interop tests (`src/test_interop.act`) spawn the host's OpenSSH tools
 and skipped by default.
 
 `src/bench_echo.act` measures echo throughput; `src/soak.act` runs many
-connect→exec→close cycles for leak checking.
+connect→exec→close cycles for leak checking. `src/fanout.act` runs such
+cycles on many concurrent connections; under the write-barrier checker
+(`ACTON_GC_CHECK=1 ./out/bin/fanout`) it also covers the uv handles, which
+the test suite alone does not.
 
 ## Debugging
 

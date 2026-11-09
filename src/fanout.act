@@ -1,0 +1,128 @@
+"""Fan-out soak: many concurrent clients against an in-process server.
+
+Each of LANES lanes runs CYCLES connect -> exec -> close cycles, with 1 to 4
+exec requests per connection, so the connections overlap and live for
+different times. In each libuv loop, old uv handles then sit next to new
+ones, and libuv relinks them as connections come and go. Under the
+write-barrier checker (ACTON_GC_CHECK=1) this finds a uv handle in plain GC
+memory instead of memory from acton_malloc_rescanned(). The test suite has
+few connections at a time and does not find it.
+
+Usage: fanout [LANES] [CYCLES]   (default 32 50)
+"""
+
+import net
+import lib as ssh
+
+
+actor main(env):
+    var lanes = 32
+    var cycles = 50
+    if len(env.argv) > 1:
+        lanes = int(env.argv[1])
+    if len(env.argv) > 2:
+        cycles = int(env.argv[2])
+
+    var server: ?ssh.Server = None
+    var port: u16 = 0
+    var done_lanes = 0
+    var ok = 0
+    var total = 0
+
+    def fail(msg: str):
+        print("FANOUT-FAIL:", msg)
+        env.exit(1)
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            fail("listen: " + err)
+            return
+        port = await async s.bound_port()
+        for lane in range(lanes):
+            start_cycle(lane, 0)
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        sess.accept_auth()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        ch.accept_request()
+        ch.write(b"ok\n")
+        ch.send_exit_status(0)
+        ch.close()
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def lane_done():
+        done_lanes += 1
+        if done_lanes == lanes:
+            print("FANOUT-DONE ok", ok, "of", total)
+            env.exit(0 if ok == total else 1)
+
+    def run_one(c: ssh.Client, left: int):
+        def on_run_exit(ch: ssh.Channel, code: int, sig: ?str, out: bytes, eb: bytes, error: ?str):
+            total += 1
+            if error is None and code == 0 and out == b"ok\n":
+                ok += 1
+            if left > 1:
+                run_one(c, left - 1)
+            else:
+                c.close()
+        ssh.RunCommand(c, "go", on_run_exit, timeout=60.0)
+
+    def start_cycle(lane: int, cycle: int):
+        if cycle >= cycles:
+            lane_done()
+            return
+
+        def on_connect(c: ssh.Client, err: ?Exception):
+            if err is not None:
+                fail("connect: " + str(err))
+                return
+            run_one(c, 1 + (lane + cycle) % 4)
+
+        def on_close(c: ssh.Client, reason: str):
+            start_cycle(lane, cycle + 1)
+
+        ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            "fanout",
+            on_connect,
+            on_close,
+            on_hostkey,
+            password="fanout",
+            port=port,
+            connect_timeout=60.0,
+            auth_timeout=60.0,
+        )
+
+    server = ssh.Server(
+        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+        "127.0.0.1",
+        u16(0),
+        on_listen,
+        on_server_close,
+        on_session,
+        on_auth,
+        on_channel_open,
+        on_exec,
+    )
