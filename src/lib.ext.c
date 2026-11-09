@@ -62,7 +62,8 @@
  *     actor method, so each is appended to its receiver's mailbox when libssh
  *     raises it, in libssh's order.
  *   - Memory model: two heaps with strict boundary rules.
- *       GC heap   - actors, ctx structs, B_bytes/B_str, uv handles/timers.
+ *       GC heap   - actors, ctx structs, B_bytes/B_str, uv handles/timers
+ *                   (the handles in the rescanned kind, see Rule C).
  *       libc heap - everything allocated inside libssh and mbedtls (their
  *                   default allocators; we do NOT call
  *                   libssh_replace_allocator, and the Acton RTS keeps mbedtls
@@ -78,6 +79,19 @@
  *       boundary by copy in both directions (ssh_channel_write copies into
  *       libssh packet buffers; inbound data is copied into B_bytes before
  *       delivery).
+ *     Rule C: GC pointer stores follow the write barrier rules of
+ *       rts/wbar.h, which generational GC mode needs. libuv writes pointers
+ *       into the uv handles without a barrier, inside its calls and inside
+ *       uv_run, so every uv handle comes from acton_malloc_rescanned(): every
+ *       collection rescans that memory. Our own code stores a GC pointer into
+ *       GC memory (a ctx struct, a write chunk, or the u64 field of an actor
+ *       that holds a ctx) with ACTON_STORE. These stores need no barrier: a
+ *       store into an object that the same function allocated and still
+ *       holds in a local variable, a store of NULL, an integer or a libssh
+ *       pointer (libc memory), and a store into a uv handle. libssh does not
+ *       write into the channel callbacks struct; it only keeps a pointer to
+ *       it (see Rule B). No thread outside the actor's worker thread touches
+ *       these objects.
  *   - Native contexts hold a strong (GC-visible) reference to their owning
  *     actor. Each context is reachable from its live uv_poll handle
  *     (handle->data -> ctx -> actor), so the actor stays alive while it has an
@@ -770,8 +784,8 @@ static uint64_t alloc_pending_session_id(void) {
 static void client_retire_channel(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     if (c == NULL || ch == NULL)
         return;
-    ch->next = c->retired_channels;
-    c->retired_channels = ch;
+    ACTON_STORE(ch, ch->next, c->retired_channels);
+    ACTON_STORE(c, c->retired_channels, ch);
 }
 
 static void client_free_retired_channels(ssh_client_ctx *c) {
@@ -790,8 +804,8 @@ static void client_free_retired_channels(ssh_client_ctx *c) {
 static void session_retire_channel(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch) {
     if (s == NULL || ch == NULL)
         return;
-    ch->next = s->retired_channels;
-    s->retired_channels = ch;
+    ACTON_STORE(ch, ch->next, s->retired_channels);
+    ACTON_STORE(s, s->retired_channels, ch);
 }
 
 static void session_free_retired_channels(ssh_server_session_ctx *s) {
@@ -1171,7 +1185,7 @@ static int client_channel_setup_callbacks(ssh_channel_ctx *ch) {
         acton_free(cb);
         return SSH_ERROR;
     }
-    ch->callbacks = cb;
+    ACTON_STORE(ch, ch->callbacks, cb);
     return SSH_OK;
 }
 
@@ -1202,7 +1216,7 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
 
     while (ch->write_head != NULL) {
         write_chunk_t *chunk = ch->write_head;
-        ch->write_head = chunk->next;
+        ACTON_STORE(ch, ch->write_head, chunk->next);
         acton_free(chunk);
     }
     ch->write_tail = NULL;
@@ -1283,12 +1297,13 @@ static int channel_queue_write(ssh_client_ctx *c, ssh_channel_ctx *ch, B_bytes d
     chunk->data = data;
     chunk->offset = 0;
     chunk->next = NULL;
-    if (ch->write_tail) {
-        ch->write_tail->next = chunk;
+    write_chunk_t *tail = ch->write_tail;
+    if (tail) {
+        ACTON_STORE(tail, tail->next, chunk);
     } else {
-        ch->write_head = chunk;
+        ACTON_STORE(ch, ch->write_head, chunk);
     }
-    ch->write_tail = chunk;
+    ACTON_STORE(ch, ch->write_tail, chunk);
     if (data != NULL)
         ch->write_buffered += (size_t)data->nbytes;
     return 0;
@@ -1298,7 +1313,7 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     while (ch->write_head != NULL) {
         write_chunk_t *chunk = ch->write_head;
         if (chunk->data->nbytes == chunk->offset) {
-            ch->write_head = chunk->next;
+            ACTON_STORE(ch, ch->write_head, chunk->next);
             acton_free(chunk);
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
@@ -1316,7 +1331,7 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             else
                 ch->write_buffered = 0;
             if (chunk->offset >= chunk->data->nbytes) {
-                ch->write_head = chunk->next;
+                ACTON_STORE(ch, ch->write_head, chunk->next);
                 acton_free(chunk);
                 if (ch->write_head == NULL)
                     ch->write_tail = NULL;
@@ -1503,9 +1518,9 @@ static void client_drive_channels(ssh_client_ctx *c) {
         channel_drive(c, ch);
         if (ch->state == CHAN_STATE_CLOSED || ch->state == CHAN_STATE_ERROR) {
             if (prev != NULL) {
-                prev->next = next;
+                ACTON_STORE(prev, prev->next, next);
             } else {
-                c->channels = next;
+                ACTON_STORE(c, c->channels, next);
             }
             client_retire_channel(c, ch);
         } else {
@@ -2081,7 +2096,7 @@ static void client_close_timeout_cb(uv_timer_t *timer) {
 static void client_start_close_timer(ssh_client_ctx *c) {
     if (c->close_timeout <= 0.0 || c->close_timer != NULL)
         return;
-    c->close_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(c, c->close_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     c->close_timer->data = c;
     uv_timer_init(get_uv_loop(), c->close_timer);
     uv_timer_start(c->close_timer, client_close_timeout_cb, (uint64_t)(c->close_timeout * 1000), 0);
@@ -2090,7 +2105,7 @@ static void client_start_close_timer(ssh_client_ctx *c) {
 static void client_start_connect_timer(ssh_client_ctx *c) {
     if (c->connect_timeout <= 0.0 || c->connect_timer != NULL)
         return;
-    c->connect_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(c, c->connect_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     c->connect_timer->data = c;
     uv_timer_init(get_uv_loop(), c->connect_timer);
     uv_timer_start(c->connect_timer, connect_timeout_cb, (uint64_t)(c->connect_timeout * 1000), 0);
@@ -2099,7 +2114,7 @@ static void client_start_connect_timer(ssh_client_ctx *c) {
 static void client_start_auth_timer(ssh_client_ctx *c) {
     if (c->auth_timeout <= 0.0 || c->auth_timer != NULL)
         return;
-    c->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(c, c->auth_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     c->auth_timer->data = c;
     uv_timer_init(get_uv_loop(), c->auth_timer);
     uv_timer_start(c->auth_timer, auth_timeout_cb, (uint64_t)(c->auth_timeout * 1000), 0);
@@ -2116,7 +2131,7 @@ static void client_on_hostkey_accepted(ssh_client_ctx *c) {
 static void client_start_keepalive(ssh_client_ctx *c) {
     if (!c->keepalive_enabled || c->keepalive_interval <= 0.0 || c->keepalive_timer != NULL)
         return;
-    c->keepalive_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(c, c->keepalive_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     c->keepalive_timer->data = c;
     uv_timer_init(get_uv_loop(), c->keepalive_timer);
     uint64_t interval_ms = (uint64_t)(c->keepalive_interval * 1000);
@@ -2467,7 +2482,7 @@ static void client_close_internal(ssh_client_ctx *c, const char *reason, int for
         client_notify_connect(c, CLIENT_ERR_SSH, reason ? reason : "closed");
     }
     if (reason != NULL && c->close_reason == NULL)
-        c->close_reason = acton_strdup(reason);
+        ACTON_STORE(c, c->close_reason, acton_strdup(reason));
 
     if (c->state == CLIENT_STATE_CLOSING) {
         if (force_close && !c->close_force) {
@@ -2548,7 +2563,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
     c->close_timeout = self->_close_timeout;
     c->max_write_buffer = self->_max_write_buffer;
 
-    self->_client = (uint64_t)(uintptr_t)c;
+    ACTON_STORE(self, self->_client, (uint64_t)(uintptr_t)c);
 
     c->session = ssh_new();
     if (c->session == NULL) {
@@ -2641,7 +2656,7 @@ $R sshQ_libQ_ClientD__initG_local(sshQ_libQ_Client self, $Cont c$cont) {
         return $R_CONT(c$cont, B_None);
     }
 
-    c->poll = acton_calloc(1, sizeof(uv_poll_t));
+    c->poll = acton_malloc_rescanned(sizeof(uv_poll_t));
     c->poll->data = c;
     int uv_rc = uv_poll_init(get_uv_loop(), c->poll, c->fd);
     if (uv_rc != 0) {
@@ -2750,9 +2765,9 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
     ch->on_exit = ($action3)on_exit;
 
     ch->next = c->channels;
-    c->channels = ch;
+    ACTON_STORE(c, c->channels, ch);
 
-    channel->_channel_id = (uint64_t)(uintptr_t)ch;
+    ACTON_STORE(channel, channel->_channel_id, (uint64_t)(uintptr_t)ch);
 
     if (c->state == CLIENT_STATE_READY)
         client_drive(c);
@@ -2797,7 +2812,7 @@ $R sshQ_libQ_ClientD_channel_request_execG_local(sshQ_libQ_Client self, $Cont c$
         return $R_CONT(c$cont, B_None);
     }
 
-    ch->exec_cmd = cmd;
+    ACTON_STORE(ch, ch->exec_cmd, cmd);
     ch->pending_req = CHAN_REQ_EXEC;
     client_drive(c);
 
@@ -2823,7 +2838,7 @@ $R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c
         return $R_CONT(c$cont, B_None);
     }
 
-    ch->term = term;
+    ACTON_STORE(ch, ch->term, term);
     ch->cols = (int)cols;
     ch->rows = (int)rows;
     ch->width_px = (int)width_px;
@@ -2855,7 +2870,7 @@ $R sshQ_libQ_ClientD_channel_request_subsystemG_local(sshQ_libQ_Client self, $Co
         return $R_CONT(c$cont, B_None);
     }
 
-    ch->subsystem = name;
+    ACTON_STORE(ch, ch->subsystem, name);
     ch->pending_req = CHAN_REQ_SUBSYSTEM;
     client_drive(c);
 
@@ -3051,7 +3066,7 @@ static int server_channel_setup_callbacks(ssh_server_channel_ctx *ch) {
         acton_free(cb);
         return SSH_ERROR;
     }
-    ch->callbacks = cb;
+    ACTON_STORE(ch, ch->callbacks, cb);
     return SSH_OK;
 }
 
@@ -3061,7 +3076,7 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     while (ch->write_head != NULL) {
         server_write_chunk_t *chunk = ch->write_head;
-        ch->write_head = chunk->next;
+        ACTON_STORE(ch, ch->write_head, chunk->next);
         acton_free(chunk);
     }
     ch->write_tail = NULL;
@@ -3110,12 +3125,13 @@ static int server_channel_queue_write(ssh_server_session_ctx *s, ssh_server_chan
     chunk->offset = 0;
     chunk->is_stderr = is_stderr;
     chunk->next = NULL;
-    if (ch->write_tail) {
-        ch->write_tail->next = chunk;
+    server_write_chunk_t *tail = ch->write_tail;
+    if (tail) {
+        ACTON_STORE(tail, tail->next, chunk);
     } else {
-        ch->write_head = chunk;
+        ACTON_STORE(ch, ch->write_head, chunk);
     }
-    ch->write_tail = chunk;
+    ACTON_STORE(ch, ch->write_tail, chunk);
     if (data != NULL)
         ch->write_buffered += (size_t)data->nbytes;
     return 0;
@@ -3133,7 +3149,7 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
     while (ch->write_head != NULL) {
         server_write_chunk_t *chunk = ch->write_head;
         if (chunk->data->nbytes == chunk->offset) {
-            ch->write_head = chunk->next;
+            ACTON_STORE(ch, ch->write_head, chunk->next);
             acton_free(chunk);
             if (ch->write_head == NULL)
                 ch->write_tail = NULL;
@@ -3156,7 +3172,7 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
             else
                 ch->write_buffered = 0;
             if (chunk->offset >= chunk->data->nbytes) {
-                ch->write_head = chunk->next;
+                ACTON_STORE(ch, ch->write_head, chunk->next);
                 acton_free(chunk);
                 if (ch->write_head == NULL)
                     ch->write_tail = NULL;
@@ -3260,9 +3276,9 @@ static void session_drive_channels(ssh_server_session_ctx *s) {
         }
         if (ch->state == SCHAN_STATE_CLOSED || ch->state == SCHAN_STATE_ERROR) {
             if (prev != NULL) {
-                prev->next = next;
+                ACTON_STORE(prev, prev->next, next);
             } else {
-                s->channels = next;
+                ACTON_STORE(s, s->channels, next);
             }
             session_retire_channel(s, ch);
         } else {
@@ -3328,7 +3344,7 @@ static void session_restart_auth_timer(ssh_server_session_ctx *s, double timeout
     if (timeout_sec <= 0.0)
         return;
     if (s->auth_timer == NULL) {
-        s->auth_timer = acton_calloc(1, sizeof(uv_timer_t));
+        ACTON_STORE(s, s->auth_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
         s->auth_timer->data = s;
         uv_timer_init(get_uv_loop(), s->auth_timer);
     } else {
@@ -3343,7 +3359,7 @@ static void session_restart_auth_timer(ssh_server_session_ctx *s, double timeout
 static void session_start_attach_timer(ssh_server_session_ctx *s) {
     if (s == NULL || s->attach_timer != NULL)
         return;
-    s->attach_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(s, s->attach_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     s->attach_timer->data = s;
     uv_timer_init(get_uv_loop(), s->attach_timer);
     uv_timer_start(s->attach_timer, session_auth_timeout_cb,
@@ -3376,7 +3392,7 @@ static void session_close_timeout_cb(uv_timer_t *timer) {
 static void session_start_close_timer(ssh_server_session_ctx *s) {
     if (s->close_timeout <= 0.0 || s->close_timer != NULL)
         return;
-    s->close_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(s, s->close_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     s->close_timer->data = s;
     uv_timer_init(get_uv_loop(), s->close_timer);
     uv_timer_start(s->close_timer, session_close_timeout_cb, (uint64_t)(s->close_timeout * 1000), 0);
@@ -3385,7 +3401,7 @@ static void session_start_close_timer(ssh_server_session_ctx *s) {
 static void session_start_keepalive(ssh_server_session_ctx *s) {
     if (s == NULL || !s->keepalive_enabled || s->keepalive_interval <= 0.0 || s->keepalive_timer != NULL)
         return;
-    s->keepalive_timer = acton_calloc(1, sizeof(uv_timer_t));
+    ACTON_STORE(s, s->keepalive_timer, acton_malloc_rescanned(sizeof(uv_timer_t)));
     s->keepalive_timer->data = s;
     uv_timer_init(get_uv_loop(), s->keepalive_timer);
     uv_timer_start(s->keepalive_timer, session_keepalive_cb, (uint64_t)(s->keepalive_interval * 1000.0), (uint64_t)(s->keepalive_interval * 1000.0));
@@ -3455,7 +3471,7 @@ static int session_start_poll(ssh_server_session_ctx *s, char *errmsg, size_t er
         return -1;
     }
 
-    s->poll = acton_calloc(1, sizeof(uv_poll_t));
+    ACTON_STORE(s, s->poll, acton_malloc_rescanned(sizeof(uv_poll_t)));
     s->poll->data = s;
     int uv_rc = uv_poll_init(get_uv_loop(), s->poll, s->fd);
     if (uv_rc != 0) {
@@ -3985,7 +4001,7 @@ static void server_accept(ssh_server_ctx *s) {
         session_start_attach_timer(sess);
 
         sess->next = s->sessions;
-        s->sessions = sess;
+        ACTON_STORE(s, s->sessions, sess);
 
         if (act) {
             act->$class->on_session_pending(act, sess->pending_id);
@@ -4001,9 +4017,9 @@ static void server_remove_session(ssh_server_ctx *s, ssh_server_session_ctx *ses
     while (cur != NULL) {
         if (cur == sess) {
             if (prev != NULL)
-                prev->next = cur->next;
+                ACTON_STORE(prev, prev->next, cur->next);
             else
-                s->sessions = cur->next;
+                ACTON_STORE(s, s->sessions, cur->next);
             break;
         }
         prev = cur;
@@ -4147,7 +4163,7 @@ static void server_close_internal(ssh_server_ctx *s, const char *reason) {
 
     s->state = SERVER_STATE_CLOSING;
     if (reason != NULL && s->close_reason == NULL)
-        s->close_reason = acton_strdup(reason);
+        ACTON_STORE(s, s->close_reason, acton_strdup(reason));
 
     if (s->poll != NULL) {
         close_poll(&s->poll, server_poll_close_cb);
@@ -4174,7 +4190,7 @@ static void session_close_internal(ssh_server_session_ctx *s, const char *reason
     if (!force_close && s->state != SESSION_STATE_READY)
         force_close = 1;
     if (reason != NULL && s->close_reason == NULL)
-        s->close_reason = acton_strdup(reason);
+        ACTON_STORE(s, s->close_reason, acton_strdup(reason));
     if (s->state == SESSION_STATE_CLOSING) {
         if (force_close && !s->close_force) {
             s->close_force = 1;
@@ -4241,7 +4257,7 @@ $R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
     s->max_channels_per_session = self->_max_channels_per_session;
     s->max_write_buffer = self->_max_write_buffer;
 
-    self->_server = (uint64_t)(uintptr_t)s;
+    ACTON_STORE(self, self->_server, (uint64_t)(uintptr_t)s);
 
     s->bind = ssh_bind_new();
     if (s->bind == NULL) {
@@ -4359,7 +4375,7 @@ $R sshQ_libQ_ServerD__initG_local(sshQ_libQ_Server self, $Cont c$cont) {
             self->_bound_port = ntohs(((struct sockaddr_in6 *)&ss_addr)->sin6_port);
     }
 
-    s->poll = acton_calloc(1, sizeof(uv_poll_t));
+    s->poll = acton_malloc_rescanned(sizeof(uv_poll_t));
     s->poll->data = s;
     int uv_rc = uv_poll_init(get_uv_loop(), s->poll, s->fd);
     if (uv_rc != 0) {
@@ -4424,15 +4440,15 @@ $R sshQ_libQ_ServerSessionD__attachG_local(sshQ_libQ_ServerSession self, $Cont c
         session_close_internal(s, errmsg, 1);
         return $R_CONT(c$cont, B_None);
     }
-    s->actor = self;
-    self->_session_id = (uint64_t)(uintptr_t)s;
+    ACTON_STORE(s, s->actor, self);
+    ACTON_STORE(self, self->_session_id, (uint64_t)(uintptr_t)s);
     s->attached = 1;
     s->pending_id = 0;
-    s->on_auth = ($action2)self->_on_auth;
-    s->on_channel_open = ($action)self->_on_channel_open;
-    s->on_exec = (self->_on_exec == NULL) ? NULL : ($action3)self->_on_exec;
-    s->on_subsystem = (self->_on_subsystem == NULL) ? NULL : ($action3)self->_on_subsystem;
-    s->on_close = (self->_on_close == NULL) ? NULL : ($action2)self->_on_close;
+    ACTON_STORE(s, s->on_auth, ($action2)self->_on_auth);
+    ACTON_STORE(s, s->on_channel_open, ($action)self->_on_channel_open);
+    ACTON_STORE(s, s->on_exec, (self->_on_exec == NULL) ? NULL : ($action3)self->_on_exec);
+    ACTON_STORE(s, s->on_subsystem, (self->_on_subsystem == NULL) ? NULL : ($action3)self->_on_subsystem);
+    ACTON_STORE(s, s->on_close, (self->_on_close == NULL) ? NULL : ($action2)self->_on_close);
     s->auth_timeout = self->server->_auth_timeout;
     s->keepalive_interval = self->server->_keepalive_interval;
     s->keepalive_enabled = self->server->_keepalive_enabled ? 1 : 0;
@@ -4553,8 +4569,8 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
     }
 
     ch->next = s->channels;
-    s->channels = ch;
-    channel->_channel_id = (uint64_t)(uintptr_t)ch;
+    ACTON_STORE(s, s->channels, ch);
+    ACTON_STORE(channel, channel->_channel_id, (uint64_t)(uintptr_t)ch);
 
     session_drive(s);
     return $R_CONT(c$cont, B_None);
