@@ -1,12 +1,14 @@
 """SCP benchmark: memory a finished ScpPut keeps.
 
 Build:  acton build
-Run:    ./out/bin/bench_scp [OPTIONS] --password PASSWORD HOST USER REMOTE_PATH
+Run:    ./out/bin/bench_scp [OPTIONS] HOST USER REMOTE_PATH
 
 Runs against any server with scp. SIZE and COUNT below are the values of
---size and --count; --help lists all options and their defaults. Use
-/dev/null as REMOTE_PATH: the server throws the data away, so its disk
-cannot slow the test down and nothing needs room.
+--size and --count; --help lists all options and their defaults. Without
+--password it logs in with the private key file named by --key (default
+~/.ssh/id_ed25519). The key must not have a passphrase. Use /dev/null as
+REMOTE_PATH: the server throws the data away, so its disk cannot slow the
+test down and nothing needs room.
 
 It makes COUNT uploads to REMOTE_PATH, one after another, each of a new
 SIZE MiB buffer and each with timeout=600. After each on_done it runs a
@@ -19,6 +21,7 @@ unchecked.
 """
 
 import argparse
+import file
 import net
 import time
 import acton.rts
@@ -55,13 +58,16 @@ class Login(object):
     host: str
     user: str
     port: u16
-    password: str
+    password: ?str
+    private_keys: ?list[ssh.PrivateKey]
 
-    def __init__(self, host: str, user: str, port: u16, password: str):
+    def __init__(self, host: str, user: str, port: u16, password: ?str,
+                 private_keys: ?list[ssh.PrivateKey]):
         self.host = host
         self.user = user
         self.port = port
         self.password = password
+        self.private_keys = private_keys
 
 
 actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count: int):
@@ -123,24 +129,49 @@ actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count
 
     client = ssh.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
                         login.host, login.user, on_connect, on_close, on_hostkey,
-                        password=login.password, port=login.port, max_write_buffer=0)
+                        password=login.password, private_keys=login.private_keys,
+                        port=login.port, max_write_buffer=0)
 
 
 actor main(env):
     def login(args: argparse.Args) -> ?Login:
         """The Login that args give, or None after printing why there is none."""
-        if "password" not in args.options:
-            print("give --password", err=True)
-            return None
+        password: ?str = None
+        private_keys: ?list[ssh.PrivateKey] = None
+        if "password" in args.options:
+            password = args.get_str("password")
+        else:
+            key_file: ?str = None
+            if "key" in args.options:
+                key_file = args.get_str("key")
+            else:
+                home = env.vars.getenv("HOME")
+                if home is not None:
+                    key_file = home + "/.ssh/id_ed25519"
+            kf = key_file
+            if kf is not None:
+                try:
+                    reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), kf)
+                    key_bytes = await async reader.read()
+                    await async reader.close()
+                    private_keys = [ssh.PrivateKey(key_bytes)]
+                except OSError as exc:
+                    print("cannot read the key file " + kf + ": " + str(exc), err=True)
+                    return None
+                print("logging in with the key in " + kf)
+            else:
+                print("give --password or --key", err=True)
+                return None
         return Login(args.get_str("host"), args.get_str("user"), u16(args.get_int("port")),
-                     args.get_str("password"))
+                     password, private_keys)
 
     def _parse_args() -> argparse.Args:
         p = argparse.Parser()
         p.add_option("size", "int", default=50, help="MiB per upload (default 50)")
         p.add_option("count", "int", default=5, help="Uploads (default 5)")
         p.add_option("port", "int", default=22, help="SSH server port (default 22)")
-        p.add_option("password", "str", help="Log in with this password (required)")
+        p.add_option("password", "str", help="Log in with this password")
+        p.add_option("key", "str", help="Without --password, log in with this private key file (default ~/.ssh/id_ed25519)")
         p.add_arg("host", "SSH server")
         p.add_arg("user", "User name")
         p.add_arg("remote_path", "File to upload to; use /dev/null")
