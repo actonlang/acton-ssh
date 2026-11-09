@@ -18,17 +18,46 @@ Run:    ./out/bin/example_scp_client [OPTIONS] put HOST USER LOCAL_FILE REMOTE_P
     with mode 0644. The Client is created with max_write_buffer=0, because
     ScpPut queues the whole file at once. get collects the chunks and writes
     LOCAL_FILE once the whole file has arrived.
+  - --remote-md5 runs md5sum on the remote file after the copy and compares
+    its digest with the MD5 of the bytes sent or received, without copying
+    the file again. The server needs md5sum (GNU coreutils or BusyBox). MD5
+    finds a damaged copy, not a deliberately changed one.
 
 Examples:
   ./out/bin/example_scp_client put 127.0.0.1 alice ./notes.txt /tmp/notes.txt
+  ./out/bin/example_scp_client --remote-md5 --password routerpw put 192.168.1.1 root ./image.bin /tmp/image.bin
   ./out/bin/example_scp_client --port 2222 --password secret get example.com alice /etc/hostname ./hostname
   ./out/bin/example_scp_client --key ~/.ssh/id_rsa get example.com alice notes.txt ./notes.txt
 """
 
 import argparse
+import crypto.hash.md5
 import file
 import net
 import lib as ssh
+
+
+def sh_quote(s: str) -> str:
+    """s as one word for a POSIX shell."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def md5_from_output(out: bytes) -> str:
+    """The digest at the start of md5sum's output, or "" when there is none.
+    GNU md5sum starts the line with a backslash when it escapes the name."""
+    b = out[1:] if out.startswith(b"\\") else out
+    if len(b) < 32:
+        return ""
+    for c in b[:32]:
+        if not ((c >= 48 and c <= 57) or (c >= 97 and c <= 102)):
+            return ""
+    return b[:32].decode()
+
+
+def first_line(b: bytes) -> str:
+    text = b.decode().strip()
+    i = text.find("\n")
+    return text if i < 0 else text[:i]
 
 
 actor main(env):
@@ -36,6 +65,7 @@ actor main(env):
     var put = True
     var src = ""
     var dst = ""
+    var remote_md5 = False
     var parts: list[bytes] = []
     var data = b""
 
@@ -74,7 +104,7 @@ actor main(env):
             finish(1)
             return
         print("sent", len(data), "bytes to", dst)
-        finish(0)
+        check_md5(dst)
 
     def on_get_data(op: ssh.ScpGet, chunk: bytes):
         parts.append(chunk)
@@ -89,7 +119,38 @@ actor main(env):
         await async wf.write(data)
         await async wf.close()
         print("received", len(data), "bytes into", dst)
-        finish(0)
+        check_md5(src)
+
+    def check_md5(remote_path: str):
+        """With --remote-md5, run md5sum on remote_path; otherwise exit."""
+        c = client
+        if remote_md5 and c is not None:
+            ssh.RunCommand(c, "md5sum -- " + sh_quote(remote_path), on_md5_done, timeout=300.0)
+        else:
+            finish(0)
+
+    def on_md5_done(ch: ssh.Channel, code: int, sig: ?str, out: bytes, err: bytes, error: ?str):
+        if error is not None:
+            print("MD5 check failed:", error)
+            finish(1)
+        elif sig is not None:
+            print("MD5 check failed: md5sum killed by signal", sig)
+            finish(1)
+        elif code != 0:
+            print("MD5 check failed: md5sum exited with " + str(code) + ":", first_line(err))
+            finish(1)
+        else:
+            want = crypto.hash.md5.hash(data).hex()
+            got = md5_from_output(out)
+            if got == "":
+                print("MD5 check failed: unexpected md5sum output:", first_line(out))
+                finish(1)
+            elif got != want:
+                print("MD5 mismatch: remote file", got + ", local copy", want)
+                finish(1)
+            else:
+                print("MD5 matches:", got)
+                finish(0)
 
     def cmd_put(args: argparse.Args):
         put = True
@@ -106,6 +167,7 @@ actor main(env):
     def connect(args: argparse.Args):
         host = args.get_str("host")
         user = args.get_str("user")
+        remote_md5 = args.get_bool("remote-md5")
         password: ?str = None
         private_keys: ?list[ssh.PrivateKey] = None
         if "password" in args.options:
@@ -143,6 +205,7 @@ actor main(env):
         p.add_option("port", "int", default=22, help="SSH server port (default 22)")
         p.add_option("password", "str", help="Log in with this password")
         p.add_option("key", "str", help="Without --password, log in with this private key file (default ~/.ssh/id_ed25519)")
+        p.add_bool("remote-md5", "After the copy, run md5sum on the remote file and compare its digest")
         put_cmd = p.add_cmd("put", "Upload LOCAL_FILE to REMOTE_PATH", cmd_put)
         put_cmd.add_arg("host", "SSH server")
         put_cmd.add_arg("user", "User name")

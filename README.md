@@ -146,11 +146,13 @@ and [`src/example_server.act`](src/example_server.act):
 ```
 
 [`src/example_scp_client.act`](src/example_scp_client.act) copies one file
-with `ScpPut` or `ScpGet`, against any server that has `scp`:
+with `ScpPut` or `ScpGet`, against any server that has `scp`.
+`--remote-md5` then runs `md5sum` on the server and compares the digest with
+the bytes sent or received:
 
 ```sh
 ./out/bin/example_scp_client put example.com alice ./notes.txt /tmp/notes.txt
-./out/bin/example_scp_client get example.com alice /tmp/notes.txt ./copy.txt
+./out/bin/example_scp_client --remote-md5 get example.com alice /tmp/notes.txt ./copy.txt
 ```
 
 ## Transport configuration
