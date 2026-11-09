@@ -25,9 +25,12 @@ HOSTS_FILE has one device per line, with fields separated by spaces or tabs:
     is created there under LOCAL_FILE's name. Any other path names the file
     itself. A relative path is relative to the user's home directory. ~ is
     not expanded.
-  - Authentication is by password only. This client does not support
+  - Authentication is by password. This client does not support
     keyboard-interactive authentication, so the server must accept the
     "password" method.
+  - A password of - logs in with a key instead: the private key file
+    named by $SCP_KEY (default ~/.ssh/id_ed25519), the same key for every
+    such line. The key must not have a passphrase.
   - The file holds passwords in clear text. chmod 600 it and keep it out
     of git.
 
@@ -213,6 +216,7 @@ actor Transfer(cap: net.TCPConnectCap,
                mode: str,
                verify: bool,
                transport: ?ssh.TransportConfig,
+               private_keys: ?list[ssh.PrivateKey],
                timeout: float,
                on_done: action(int, ?str, int) -> None):
     """Upload data to one device, download it back to compare if verify is
@@ -226,6 +230,12 @@ actor Transfer(cap: net.TCPConnectCap,
     var scp_name: ?str = None
     if is_dir:
         scp_name = local_name
+
+    var password: ?str = dev.password
+    var keys: ?list[ssh.PrivateKey] = None
+    if dev.password == "-":
+        password = None
+        keys = private_keys
 
     var t0 = time.monotonic_ns()
     var t_step = t0
@@ -354,7 +364,8 @@ actor Transfer(cap: net.TCPConnectCap,
         on_connect,
         on_close,
         on_hostkey,
-        password=dev.password,
+        password=password,
+        private_keys=keys,
         port=u16(dev.port),
         transport=transport,
         max_write_buffer=0,
@@ -379,12 +390,14 @@ actor main(env):
     var data = b""
     var local_name = ""
     var transport: ?ssh.TransportConfig = None
+    var private_keys: ?list[ssh.PrivateKey] = None
     var t0 = time.monotonic_ns()
 
     def usage():
         print("usage: example_scp_multi [--parallel N] [--verify] [--legacy] [--timeout S] [--mode MODE]")
         print("                         HOSTS_FILE LOCAL_FILE [REMOTE_PATH]")
         print("HOSTS_FILE: one device per line: address user password [port] [remote_path]")
+        print("Password -: log in with the key in $SCP_KEY (default ~/.ssh/id_ed25519).")
         print("Without REMOTE_PATH, every line needs its own remote_path.")
         env.exit(2)
 
@@ -479,6 +492,7 @@ actor main(env):
                           mode,
                           verify,
                           transport,
+                          private_keys,
                           timeout,
                           on_transfer_done)
             transfers.append(tr)
@@ -506,6 +520,28 @@ actor main(env):
             print(hosts_path + ": no devices")
             env.exit(2)
             return
+
+        uses_key = False
+        for d in parsed:
+            if d.password == "-":
+                uses_key = True
+        if uses_key:
+            key_file: ?str = env.vars.getenv("SCP_KEY")
+            if key_file is None:
+                home = env.vars.getenv("HOME")
+                if home is not None:
+                    key_file = home + "/.ssh/id_ed25519"
+            kf = key_file
+            if kf is not None:
+                key_reader = file.ReadFile(file.ReadFileCap(fc), kf)
+                key_bytes = await async key_reader.read()
+                await async key_reader.close()
+                private_keys = [ssh.PrivateKey(key_bytes)]
+                print("logging in with the key in " + kf + " where the password is -")
+            else:
+                print(hosts_path + ": a password is -, but neither SCP_KEY nor HOME is set")
+                env.exit(2)
+                return
 
         local_name = basename(local_path)
         if local_name == "":
