@@ -453,17 +453,20 @@ actor ShellTester(t: testing.EnvT,
                   lines: list[bytes],
                   expect_pty: str,
                   expect_out: bytes,
-                  expect_close: str):
+                  expect_close: str,
+                  resize: bool=False):
     """A client opens a shell and types lines into it, as a CLI client does.
 
     The server, when serve_shell is set, has on_shell and acts as a device
     CLI: it writes SHELL_PROMPT, echoes each line that it gets, and answers
     it. "exit" closes the channel. "show log" writes part of a log and closes
     the channel in the middle of the command. Other lines get one line of
-    output and a new prompt.
+    output and a new prompt. A new terminal size gets the line
+    "resized to <cols>x<rows>" and a new prompt.
 
-    The client types the next line of lines each time its output ends with
-    the prompt. When the client channel closes, the test checks:
+    With resize, the client changes the terminal size to 132x50 at the first
+    prompt. Then, and without resize from the first prompt, the client types
+    the next line of lines each time its output ends with the prompt. When the client channel closes, the test checks:
     expect_pty is what on_shell got: "<term> <cols>x<rows> <width_px>x<height_px>",
     "none" for no terminal, or "" when on_shell did not run. expect_out is
     all the output that the client got. The close reason starts with
@@ -478,6 +481,7 @@ actor ShellTester(t: testing.EnvT,
     var server_in = b""
     var client_out = b""
     var typed = 0
+    var resized = False
     var shell_ok = False
     var client_closed = False
     var server_closed = False
@@ -521,7 +525,8 @@ actor ShellTester(t: testing.EnvT,
         sess.accept_auth()
 
     def on_channel_open(sess: ssh.ServerSession):
-        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close,
+                                              srv_on_window_change))
 
     def on_shell(sess: ssh.ServerSession, ch: ssh.ServerChannel, pty: ?ssh.PtyRequest):
         if pty is not None:
@@ -557,6 +562,9 @@ actor ShellTester(t: testing.EnvT,
     def srv_on_close(ch: ssh.ServerChannel, reason: str):
         pass
 
+    def srv_on_window_change(ch: ssh.ServerChannel, cols: int, rows: int):
+        ch.write(f"resized to {cols}x{rows}\r\n".encode() + SHELL_PROMPT)
+
     # --- client side
     def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
         c.accept_hostkey()
@@ -583,10 +591,14 @@ actor ShellTester(t: testing.EnvT,
     def ch_out(ch: ssh.Channel, data: ?bytes):
         if data is not None:
             client_out += data
-            if client_out.endswith(SHELL_PROMPT) and typed < len(lines):
-                line = lines[typed]
-                typed += 1
-                ch.write(line + b"\n")
+            if client_out.endswith(SHELL_PROMPT):
+                if resize and not resized:
+                    resized = True
+                    ch.change_pty_size(132, 50)
+                elif typed < len(lines):
+                    line = lines[typed]
+                    typed += 1
+                    ch.write(line + b"\n")
 
     def ch_err(ch: ssh.Channel, data: ?bytes):
         pass
@@ -651,6 +663,15 @@ def _test_shell_no_pty(t: testing.EnvT):
                 "none",
                 SHELL_PROMPT + b"exit\r\n",
                 "closed")
+
+
+def _test_shell_window_change(t: testing.EnvT):
+    """The client changes the terminal size: on_window_change gets the new size."""
+    ShellTester(t, True, True, [b"exit"],
+                "xterm-256color 500x24 0x0",
+                SHELL_PROMPT + b"resized to 132x50\r\n" + SHELL_PROMPT + b"exit\r\n",
+                "closed",
+                resize=True)
 
 
 def _test_shell_refused(t: testing.EnvT):
