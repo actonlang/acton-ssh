@@ -197,6 +197,8 @@ typedef struct ssh_channel_ctx {
     int req_submitted;
     int pty_pending;
     int pty_done;
+    /* change_pty_size was called; send window-change once the shell runs. */
+    int resize_pending;
     B_str exec_cmd;
     B_str subsystem;
     B_str term;
@@ -291,6 +293,7 @@ typedef enum {
     SCHAN_REQ_NONE = 0,
     SCHAN_REQ_EXEC,
     SCHAN_REQ_SUBSYSTEM,
+    SCHAN_REQ_SHELL,
 } schan_req_t;
 
 typedef struct server_write_chunk {
@@ -322,9 +325,12 @@ typedef struct ssh_server_channel_ctx {
     size_t write_buffered;
     ssh_message pending_req;
     schan_req_t pending_req_type;
+    /* The accepted pty-req, NULL until the client asks for a terminal. */
+    sshQ_libQ_PtyRequest pty;
     $action2 on_data;
     $action2 on_stderr;
     $action2 on_close;
+    $action3 on_window_change;
     server_write_chunk_t *write_head;
     server_write_chunk_t *write_tail;
 } ssh_server_channel_ctx;
@@ -363,6 +369,7 @@ typedef struct ssh_server_session_ctx {
     $action on_channel_open;
     $action3 on_exec;
     $action3 on_subsystem;
+    $action3 on_shell;
     $action2 on_close;
 } ssh_server_session_ctx;
 
@@ -1463,6 +1470,19 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     }
 
     if (ch->state == CHAN_STATE_OPEN || ch->state == CHAN_STATE_RUNNING) {
+        /* window-change asks for no reply, but libssh sends it as a channel
+         * request, which waits for the reply of a request still in flight.
+         * So it goes out only when the shell runs. */
+        if (ch->resize_pending && ch->state == CHAN_STATE_RUNNING) {
+            ch->resize_pending = 0;
+            if (ch->pty_done && ssh_channel_change_pty_size(ch->channel, ch->cols, ch->rows) == SSH_ERROR) {
+                char errmsg[256] = {0};
+                snprintf(errmsg, sizeof(errmsg), "Failed to change PTY size: %s", ssh_get_error(c->session));
+                channel_fail(c, ch, errmsg);
+                return;
+            }
+        }
+
         if (ch->write_head != NULL) {
             channel_try_write(c, ch);
             if (ch->state == CHAN_STATE_ERROR)
@@ -2851,6 +2871,24 @@ $R sshQ_libQ_ClientD_channel_request_shellG_local(sshQ_libQ_Client self, $Cont c
     return $R_CONT(c$cont, B_None);
 }
 
+$R sshQ_libQ_ClientD_channel_change_pty_sizeG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, int64_t cols, int64_t rows) {
+    ssh_client_ctx *c = client_from_actor(self);
+    ssh_channel_ctx *ch = channel_from_actor(channel);
+    int valid = channel_validate(c, ch);
+    if (valid != 0) {
+        if (valid == 2 && ch != NULL)
+            channel_notify_error(ch, "Channel not ready");
+        return $R_CONT(c$cont, B_None);
+    }
+
+    ch->cols = (int)cols;
+    ch->rows = (int)rows;
+    ch->resize_pending = 1;
+    client_drive(c);
+
+    return $R_CONT(c$cont, B_None);
+}
+
 $R sshQ_libQ_ClientD_channel_request_subsystemG_local(sshQ_libQ_Client self, $Cont c$cont, sshQ_libQ_Channel channel, B_str name) {
     ssh_client_ctx *c = client_from_actor(self);
     ssh_channel_ctx *ch = channel_from_actor(channel);
@@ -3305,6 +3343,39 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
              context, s != NULL && s->session != NULL ? ssh_get_error(s->session) : "unknown error");
     session_fail(s, errmsg);
     return -1;
+}
+
+/* Return the terminal of a pty-req message as a PtyRequest. The term
+ * string belongs to the libssh message, so it is copied. */
+static sshQ_libQ_PtyRequest session_pty_request(ssh_message msg) {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    const char *term = ssh_message_channel_request_pty_term(msg);
+    int cols = ssh_message_channel_request_pty_width(msg);
+    int rows = ssh_message_channel_request_pty_height(msg);
+    int width_px = ssh_message_channel_request_pty_pxwidth(msg);
+    int height_px = ssh_message_channel_request_pty_pxheight(msg);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+    return sshQ_libQ_PtyRequestG_new(to$str((char *)(term ? term : "")),
+                                     (int64_t)cols, (int64_t)rows,
+                                     (int64_t)width_px, (int64_t)height_px);
+}
+
+/* Read the terminal size of a window-change message. */
+static void session_window_size(ssh_message msg, int *cols, int *rows) {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    *cols = ssh_message_channel_request_pty_width(msg);
+    *rows = ssh_message_channel_request_pty_height(msg);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 }
 
 /* Render a presented public key as an OpenSSH authorized_keys line
@@ -3799,7 +3870,25 @@ static void session_drive(ssh_server_session_ctx *s) {
                 } else if (type == SSH_REQUEST_CHANNEL) {
                     ssh_channel chan = ssh_message_channel_request_channel(msg);
                     ssh_server_channel_ctx *ch = server_channel_from_ssh(s, chan);
-                    if (ch == NULL || ch->pending_req != NULL) {
+                    if (ch != NULL && ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_WINDOW_CHANGE) {
+                        /* A new size needs no answer from the application,
+                         * so it goes to on_window_change also while another
+                         * request on the channel waits for one. Clients ask
+                         * for no reply. */
+                        int rc;
+                        if (ch->on_window_change == NULL) {
+                            rc = ssh_message_reply_default(msg);
+                        } else {
+                            int cols = 0, rows = 0;
+                            session_window_size(msg, &cols, &rows);
+                            $action3 f = ch->on_window_change;
+                            SSH_DELIVER(f, server_channel_actor_ref(ch), toB_int(cols), toB_int(rows));
+                            rc = ssh_message_channel_request_reply_success(msg);
+                        }
+                        ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH window change reply failed") != 0)
+                            return;
+                    } else if (ch == NULL || ch->pending_req != NULL) {
                         int rc = ssh_message_reply_default(msg);
                         ssh_message_free(msg);
                         if (session_check_reply_rc(s, rc, "SSH channel request reject failed") != 0)
@@ -3817,6 +3906,34 @@ static void session_drive(ssh_server_session_ctx *s) {
                             $action3 f = ($action3)s->on_exec;
                             SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
                                                to$str((char *)(cmd ? cmd : "")));
+                            break;
+                        }
+                    } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
+                        /* The terminal is only for a shell. Accept it here,
+                         * keep it on the channel, and give it to on_shell
+                         * with the shell request that follows. */
+                        int rc;
+                        if (s->on_shell == NULL) {
+                            rc = ssh_message_reply_default(msg);
+                        } else {
+                            ACTON_STORE(ch, ch->pty, session_pty_request(msg));
+                            rc = ssh_message_channel_request_reply_success(msg);
+                        }
+                        ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH pty request reply failed") != 0)
+                            return;
+                    } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
+                        if (s->on_shell == NULL) {
+                            int rc = ssh_message_reply_default(msg);
+                            ssh_message_free(msg);
+                            if (session_check_reply_rc(s, rc, "SSH shell reject failed") != 0)
+                                return;
+                        } else {
+                            ch->pending_req = msg;
+                            ch->pending_req_type = SCHAN_REQ_SHELL;
+                            $action3 f = ($action3)s->on_shell;
+                            SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
+                                               ch->pty ? ($WORD)ch->pty : ($WORD)B_None);
                             break;
                         }
                     } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM) {
@@ -4448,6 +4565,7 @@ $R sshQ_libQ_ServerSessionD__attachG_local(sshQ_libQ_ServerSession self, $Cont c
     ACTON_STORE(s, s->on_channel_open, ($action)self->_on_channel_open);
     ACTON_STORE(s, s->on_exec, (self->_on_exec == NULL) ? NULL : ($action3)self->_on_exec);
     ACTON_STORE(s, s->on_subsystem, (self->_on_subsystem == NULL) ? NULL : ($action3)self->_on_subsystem);
+    ACTON_STORE(s, s->on_shell, (self->_on_shell == NULL) ? NULL : ($action3)self->_on_shell);
     ACTON_STORE(s, s->on_close, (self->_on_close == NULL) ? NULL : ($action2)self->_on_close);
     s->auth_timeout = self->server->_auth_timeout;
     s->keepalive_interval = self->server->_keepalive_interval;
@@ -4507,7 +4625,8 @@ $R sshQ_libQ_ServerSessionD_reject_authG_local(sshQ_libQ_ServerSession self, $Co
 $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession self, $Cont c$cont, sshQ_libQ_ServerChannel channel,
                                                   $action on_data,
                                                   $action on_stderr,
-                                                  $action on_close) {
+                                                  $action on_close,
+                                                  $action on_window_change) {
     ssh_server_session_ctx *s = session_from_actor(self);
     if (s == NULL || s->pending_channel_open == NULL)
         return $R_CONT(c$cont, B_None);
@@ -4558,6 +4677,7 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
     ch->on_data = ($action2)on_data;
     ch->on_stderr = ($action2)on_stderr;
     ch->on_close = ($action2)on_close;
+    ch->on_window_change = ($action3)on_window_change;
     if (server_channel_setup_callbacks(ch) != SSH_OK) {
         server_channel_notify_close(ch, "Failed to set SSH channel callbacks");
         if (ch->channel != NULL)

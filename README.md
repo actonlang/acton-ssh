@@ -16,8 +16,9 @@ Acton server, to OpenSSH `sshd`, or be driven by the OpenSSH `ssh` client.
 - **Channels**: `exec`, `shell` (with optional PTY), and `subsystem` requests;
   stdout/stderr streaming; EOF, exit status, and close with a defined callback
   ordering. `RunCommand` is a convenience wrapper that buffers output.
-- **Server**: password and public-key auth callbacks, `exec`/`subsystem`
-  dispatch, per-channel data streaming, ephemeral-port binding, multiple
+- **Server**: password and public-key auth callbacks, `exec`/`subsystem`/`shell`
+  dispatch (a shell gets the client's terminal type and size), per-channel
+  data streaming, ephemeral-port binding, multiple
   in-memory host keys, and admission limits (max sessions / channels).
 - **Transport configuration**: exhaustive typed catalogs for ciphers, MACs, key
   exchange, host-key and public-key algorithms, plus zlib compression, rekey
@@ -239,12 +240,13 @@ the server generates an ephemeral in-memory key using `host_key_type` and
   `SshPipe` reports the same errors.
 - **`Channel(client, on_open, on_stdout, on_stderr, on_exit, on_close)`** —
   `request_exec(cmd)`, `request_shell(...)`, `request_subsystem(name)`,
-  `write(data)`, `send_eof()`, `close()`. `?bytes` callbacks deliver `None`
-  for EOF. Teardown order: `on_exit`, then stream EOFs, then `on_close`.
+  `change_pty_size(cols, rows)`, `write(data)`, `send_eof()`, `close()`.
+  `?bytes` callbacks deliver `None` for EOF. Teardown order: `on_exit`, then
+  stream EOFs, then `on_close`.
 - **`RunCommand(client, cmd, on_exit, timeout?)`** — buffers stdout/stderr and
   reports once: `on_exit(channel, code, signal?, stdout, stderr, error?)`.
 - **`Server(cap, host, port, on_listen, on_close, on_session, on_auth,
-  on_channel_open, on_exec?, on_subsystem?, on_session_close?, ...)`** —
+  on_channel_open, on_exec?, on_subsystem?, on_session_close?, on_shell?, ...)`** —
   `close()`, `bound_port()` (use `port=0` for an ephemeral port). Tunables
   include in-memory `host_keys`, generated-key fallback via
   `host_key_type`/`host_key_bits`, `transport`, the timeouts above, and
@@ -256,9 +258,14 @@ the server generates an ephemeral in-memory key using `host_key_type` and
   optional in-memory OpenSSH certificate.
 - **`ServerSession`** — `accept_auth()`, `reject_auth(reason)`,
   `accept_channel(ServerChannel)`, `reject_channel(reason)`, `close()`.
-- **`ServerChannel(session, on_data, on_stderr, on_close)`** —
+- **`ServerChannel(session, on_data, on_stderr, on_close, on_window_change?)`** —
   `accept_request()`, `reject_request(reason)`, `write(data)`,
   `write_stderr(data)`, `send_eof()`, `send_exit_status(status)`, `close()`.
+  `on_window_change(channel, cols, rows)` gets a new terminal size of a shell.
+- **`PtyRequest`** — the terminal that `on_shell(session, channel, pty)` gets:
+  `term`, `cols`, `rows`, `width_px`, `height_px`. `pty` is None when the
+  client asked for no terminal. Without `on_shell` the server refuses
+  terminal and shell requests.
 - **`AuthRequest`** — `method` ("password"/"publickey"), `user`, `password?`,
   `pubkey?` (an authorized_keys `"<type> <base64>"` line).
 - **`HostKeyInfo`** — `key_type`, `fingerprint`. Host-key states:
