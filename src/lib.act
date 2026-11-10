@@ -55,9 +55,9 @@ Callback ordering and semantics:
 
 Flow control:
   - Channel writes are buffered internally and flushed as the SSH window
-    opens. max_write_buffer (Client/Server) bounds the per-channel buffer;
-    when exceeded the channel is failed rather than buffering without bound.
-    A value of 0 disables the limit.
+    opens. The default max_write_buffer (Client/Server) of 0 sets no limit.
+    A value above 0 bounds the per-channel buffer: a write that would exceed
+    it fails the channel rather than buffering without bound.
 
 Notes:
   - Teardown is bounded: a graceful close that the peer stalls (unanswered
@@ -654,7 +654,7 @@ actor Client(cap: net.TCPConnectCap,
              keepalive_interval: float=30.0,
              keepalive_enabled: bool=True,
              close_timeout: float=5.0,
-             max_write_buffer: int=8388608,
+             max_write_buffer: int=0,
              ):
     """SSH Client
 
@@ -955,7 +955,7 @@ actor Server(cap: net.TCPListenCap,
              close_timeout: float=5.0,
              max_sessions: int=128,
              max_channels_per_session: int=32,
-             max_write_buffer: int=8388608,
+             max_write_buffer: int=0,
              ):
     """SSH Server
 
