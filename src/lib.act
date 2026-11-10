@@ -9,7 +9,7 @@ and integrated with Acton's libuv loop. The main actors are:
 - RunCommand: convenience wrapper that buffers stdout/stderr and reports exit.
 - Server: listens for incoming connections and creates ServerSession actors.
 - ServerSession: per-connection state; emits on_auth(AuthRequest),
-  on_channel_open, and optional on_exec/on_subsystem.
+  on_channel_open, and optional on_exec/on_subsystem/on_shell.
 - ServerChannel: server-side data stream for a single channel.
 
 Usage sketch (client):
@@ -617,6 +617,27 @@ class AuthRequest():
         self.pubkey = pubkey
 
 
+class PtyRequest():
+    """The terminal that a client asks for before it opens a shell.
+
+    term is the terminal type, for example "xterm-256color". cols and rows
+    are the size in characters. width_px and height_px are the size in
+    pixels, 0 when the client does not give them.
+    """
+    term: str
+    cols: int
+    rows: int
+    width_px: int
+    height_px: int
+
+    def __init__(self, term: str, cols: int, rows: int, width_px: int, height_px: int):
+        self.term = term
+        self.cols = cols
+        self.rows = rows
+        self.width_px = width_px
+        self.height_px = height_px
+
+
 actor Client(cap: net.TCPConnectCap,
              host: str,
              username: str,
@@ -912,6 +933,7 @@ actor Server(cap: net.TCPListenCap,
              on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
              on_session_close: ?action(ServerSession, str) -> None=None,
+             on_shell: ?action(ServerSession, ServerChannel, ?PtyRequest) -> None=None,
              host_keys: ?list[PrivateKey]=None,
              host_key_type: str="ed25519",
              host_key_bits: int=2048,
@@ -934,6 +956,11 @@ actor Server(cap: net.TCPListenCap,
     session.reject_auth(reason). Channel opens are delivered via
     on_channel_open(session); respond with
     session.accept_channel(ServerChannel(...)) or session.reject_channel().
+    Shell requests are delivered via on_shell(session, channel, pty); reply
+    with channel.accept_request() or channel.reject_request(reason), as for
+    on_exec. pty is the terminal the client asked for, or None when it asked
+    for no terminal. Without on_shell the server refuses terminal and shell
+    requests.
     host_keys are in-memory keys offered by key type; when omitted, one
     ephemeral key is generated from host_key_type/host_key_bits. transport
     contains the same shared negotiation and rekey settings used by Client.
@@ -1001,7 +1028,8 @@ actor Server(cap: net.TCPListenCap,
                       on_channel_open,
                       on_exec,
                       on_subsystem,
-                      on_session_close)
+                      on_session_close,
+                      on_shell)
 
     action def on_session_ready(session: ServerSession) -> None:
         on_session(session)
@@ -1013,7 +1041,8 @@ actor ServerSession(server: Server,
                     on_channel_open: action(ServerSession) -> None,
                     on_exec: ?action(ServerSession, ServerChannel, str) -> None=None,
                     on_subsystem: ?action(ServerSession, ServerChannel, str) -> None=None,
-                    on_close: ?action(ServerSession, str) -> None=None):
+                    on_close: ?action(ServerSession, str) -> None=None,
+                    on_shell: ?action(ServerSession, ServerChannel, ?PtyRequest) -> None=None):
     """SSH Server Session
 
     Represents one client connection on the server. Created internally by
@@ -1027,6 +1056,7 @@ actor ServerSession(server: Server,
     var _on_exec: ?action(ServerSession, ServerChannel, str) -> None = on_exec
     var _on_subsystem: ?action(ServerSession, ServerChannel, str) -> None = on_subsystem
     var _on_close: ?action(ServerSession, str) -> None = on_close
+    var _on_shell: ?action(ServerSession, ServerChannel, ?PtyRequest) -> None = on_shell
 
     proc def _pin_affinity() -> None:
         NotImplemented

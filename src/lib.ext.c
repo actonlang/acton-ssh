@@ -291,6 +291,7 @@ typedef enum {
     SCHAN_REQ_NONE = 0,
     SCHAN_REQ_EXEC,
     SCHAN_REQ_SUBSYSTEM,
+    SCHAN_REQ_SHELL,
 } schan_req_t;
 
 typedef struct server_write_chunk {
@@ -322,6 +323,8 @@ typedef struct ssh_server_channel_ctx {
     size_t write_buffered;
     ssh_message pending_req;
     schan_req_t pending_req_type;
+    /* The accepted pty-req, NULL until the client asks for a terminal. */
+    sshQ_libQ_PtyRequest pty;
     $action2 on_data;
     $action2 on_stderr;
     $action2 on_close;
@@ -363,6 +366,7 @@ typedef struct ssh_server_session_ctx {
     $action on_channel_open;
     $action3 on_exec;
     $action3 on_subsystem;
+    $action3 on_shell;
     $action2 on_close;
 } ssh_server_session_ctx;
 
@@ -3307,6 +3311,26 @@ static int session_check_reply_rc(ssh_server_session_ctx *s, int rc, const char 
     return -1;
 }
 
+/* Return the terminal of a pty-req message as a PtyRequest. The term
+ * string belongs to the libssh message, so it is copied. */
+static sshQ_libQ_PtyRequest session_pty_request(ssh_message msg) {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    const char *term = ssh_message_channel_request_pty_term(msg);
+    int cols = ssh_message_channel_request_pty_width(msg);
+    int rows = ssh_message_channel_request_pty_height(msg);
+    int width_px = ssh_message_channel_request_pty_pxwidth(msg);
+    int height_px = ssh_message_channel_request_pty_pxheight(msg);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+    return sshQ_libQ_PtyRequestG_new(to$str((char *)(term ? term : "")),
+                                     (int64_t)cols, (int64_t)rows,
+                                     (int64_t)width_px, (int64_t)height_px);
+}
+
 /* Render a presented public key as an OpenSSH authorized_keys line
  * ("<type> <base64>"), returned as B_bytes for AuthRequest.pubkey so the
  * application can compare it directly against authorized_keys entries.
@@ -3817,6 +3841,34 @@ static void session_drive(ssh_server_session_ctx *s) {
                             $action3 f = ($action3)s->on_exec;
                             SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
                                                to$str((char *)(cmd ? cmd : "")));
+                            break;
+                        }
+                    } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
+                        /* The terminal is only for a shell. Accept it here,
+                         * keep it on the channel, and give it to on_shell
+                         * with the shell request that follows. */
+                        int rc;
+                        if (s->on_shell == NULL) {
+                            rc = ssh_message_reply_default(msg);
+                        } else {
+                            ACTON_STORE(ch, ch->pty, session_pty_request(msg));
+                            rc = ssh_message_channel_request_reply_success(msg);
+                        }
+                        ssh_message_free(msg);
+                        if (session_check_reply_rc(s, rc, "SSH pty request reply failed") != 0)
+                            return;
+                    } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SHELL) {
+                        if (s->on_shell == NULL) {
+                            int rc = ssh_message_reply_default(msg);
+                            ssh_message_free(msg);
+                            if (session_check_reply_rc(s, rc, "SSH shell reject failed") != 0)
+                                return;
+                        } else {
+                            ch->pending_req = msg;
+                            ch->pending_req_type = SCHAN_REQ_SHELL;
+                            $action3 f = ($action3)s->on_shell;
+                            SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
+                                               ch->pty ? ($WORD)ch->pty : ($WORD)B_None);
                             break;
                         }
                     } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_SUBSYSTEM) {
@@ -4448,6 +4500,7 @@ $R sshQ_libQ_ServerSessionD__attachG_local(sshQ_libQ_ServerSession self, $Cont c
     ACTON_STORE(s, s->on_channel_open, ($action)self->_on_channel_open);
     ACTON_STORE(s, s->on_exec, (self->_on_exec == NULL) ? NULL : ($action3)self->_on_exec);
     ACTON_STORE(s, s->on_subsystem, (self->_on_subsystem == NULL) ? NULL : ($action3)self->_on_subsystem);
+    ACTON_STORE(s, s->on_shell, (self->_on_shell == NULL) ? NULL : ($action3)self->_on_shell);
     ACTON_STORE(s, s->on_close, (self->_on_close == NULL) ? NULL : ($action2)self->_on_close);
     s->auth_timeout = self->server->_auth_timeout;
     s->keepalive_interval = self->server->_keepalive_interval;
