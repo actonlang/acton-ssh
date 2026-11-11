@@ -136,6 +136,14 @@
 uv_loop_t *get_uv_loop(void);
 
 #define SSH_IO_PUMP_LIMIT 128
+/* Maximum number of bytes passed to one ssh_channel_write() call, whose
+ * length is a uint32_t. One call encrypts as much as the peer's window allows
+ * (OpenSSH: 2 MB), and what the kernel's socket buffer does not take right
+ * away waits in libssh's send buffer. We write again only once that buffer is
+ * empty, so the cap bounds it per connection, along with how long one call
+ * keeps the worker thread busy. 256 KiB was chosen empirically with 10,000
+ * connections as the best balance between throughput and memory use. */
+#define SSH_WRITE_CALL_MAX ((size_t)256 * 1024)
 #define SSH_ATTACH_TIMEOUT_SEC 5.0
 #define SSH_KEYEX_TIMEOUT_SEC 2.0
 #define SSH_SERVER_ACCEPT_LIMIT 64
@@ -1330,6 +1338,8 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
+        if (remaining > SSH_WRITE_CALL_MAX)
+            remaining = SSH_WRITE_CALL_MAX;
         int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
         if (rc > 0) {
             chunk->offset += (size_t)rc;
@@ -3197,6 +3207,8 @@ static void server_channel_try_write(ssh_server_session_ctx *s, ssh_server_chann
             return;
 
         size_t remaining = chunk->data->nbytes - chunk->offset;
+        if (remaining > SSH_WRITE_CALL_MAX)
+            remaining = SSH_WRITE_CALL_MAX;
         int rc;
         if (chunk->is_stderr) {
             rc = ssh_channel_write_stderr(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
