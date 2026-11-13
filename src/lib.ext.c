@@ -99,6 +99,10 @@
  *     net.TCPConnection. finalize() nulls the actor pointer and frees the
  *     handles, after which the actor becomes collectable; collection of an
  *     actor the app dropped runs __cleanup__ -> _cleanup_native -> close.
+ *     A channel context also holds the callbacks it delivers to, which refer
+ *     to the actor that uses the channel. Channel finalize nulls them too,
+ *     because the context stays on its client's or session's
+ *     retired_channels list until that client or session finalizes.
  *
  * Config & filesystem
  *   - libssh config processing is disabled. Private keys, host keys, and
@@ -1297,6 +1301,15 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     }
     channel_notify_close(ch, "closed");
     ch->actor = NULL;
+    /* ch stays on c->retired_channels until the client finalizes. Nothing
+     * is delivered after this point, so drop the callbacks: each refers to
+     * the consumer that created the channel (RunCommand, ScpPut, ...), which
+     * would otherwise stay alive as long as the client. */
+    ch->on_open = NULL;
+    ch->on_close = NULL;
+    ch->on_stdout = NULL;
+    ch->on_stderr = NULL;
+    ch->on_exit = NULL;
     (void)c;
 }
 
@@ -3182,6 +3195,14 @@ static void server_channel_finalize(ssh_server_channel_ctx *ch) {
     }
     server_channel_notify_close(ch, "closed");
     ch->actor = NULL;
+    /* ch stays on s->retired_channels until the session finalizes. Nothing
+     * is delivered after this point, so drop the callbacks: each refers to
+     * the application actor that handles the channel, which would otherwise
+     * stay alive as long as the session. */
+    ch->on_data = NULL;
+    ch->on_stderr = NULL;
+    ch->on_close = NULL;
+    ch->on_window_change = NULL;
 }
 
 static int server_channel_queue_write(ssh_server_session_ctx *s, ssh_server_channel_ctx *ch,
