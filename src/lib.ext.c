@@ -702,6 +702,21 @@ static void stop_timer(uv_timer_t **timer, uv_close_cb close_cb) {
     }
 }
 
+/* The text for a negative uv_poll status. libuv passes UV_EBADF for any
+ * POLLERR (src/unix/poll.c), whatever the socket's real error is: a failed
+ * nonblocking connect (no route to host, connection refused, timed out) or
+ * a reset on an open connection. The real error is in SO_ERROR, so use
+ * that when it is set. */
+static void poll_status_text(int fd, int status, char *buf, size_t len) {
+    if (status == UV_EBADF && fd >= 0) {
+        int err = 0;
+        socklen_t errlen = sizeof(err);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &errlen) == 0 && err != 0)
+            status = uv_translate_sys_error(err);
+    }
+    uv_strerror_r(status, buf, len);
+}
+
 static int fd_has_data(int fd) {
     if (fd < 0)
         return 0;
@@ -2178,7 +2193,7 @@ static void client_poll_cb(uv_poll_t *handle, int status, int events) {
     }
     if (status < 0) {
         char errmsg[256] = {0};
-        uv_strerror_r(status, errmsg + strlen(errmsg), sizeof(errmsg) - strlen(errmsg));
+        poll_status_text(c->fd, status, errmsg, sizeof(errmsg));
         client_fail(c, CLIENT_ERR_OS, errmsg);
         return;
     }
@@ -2301,9 +2316,17 @@ static int client_needs_write(ssh_client_ctx *c) {
              * them here would arm UV_WRITABLE on an always-writable
              * socket and hot-spin, starving the very actor that would
              * reply in loopback setups. */
-        } else {
-            if (ch->write_head != NULL)
+        } else if (ch->write_head != NULL) {
+            /* With the peer's window shut, only a WINDOW_ADJUST - a
+             * readable event, which sets write_wontblock again - lets the
+             * queue move; arming UV_WRITABLE on an always-writable socket
+             * would spin. With the window open but write_wontblock clear
+             * (a rekey, libssh's own buffer), writability is what
+             * restores write_wontblock. EOF and close wait for the queue. */
+            if (ch->write_wontblock ||
+                (ch->channel != NULL && ssh_channel_window_size(ch->channel) > 0))
                 return 1;
+        } else {
             if (ch->send_eof && !ch->eof_sent)
                 return 1;
             if (ch->close_requested && !ch->close_sent)
@@ -4004,7 +4027,9 @@ static void session_poll_cb(uv_poll_t *handle, int status, int events) {
     }
     if (status < 0) {
         char errmsg[256] = {0};
-        snprintf(errmsg, sizeof(errmsg), "SSH session poll error: %s", uv_strerror(status));
+        char reason[200] = {0};
+        poll_status_text(s->fd, status, reason, sizeof(reason));
+        snprintf(errmsg, sizeof(errmsg), "SSH session poll error: %s", reason);
         session_fail(s, errmsg);
         return;
     }
@@ -4041,7 +4066,9 @@ static void server_poll_cb(uv_poll_t *handle, int status, int events) {
         return;
     if (status < 0) {
         char errmsg[256] = {0};
-        snprintf(errmsg, sizeof(errmsg), "SSH server poll error: %s", uv_strerror(status));
+        char reason[200] = {0};
+        poll_status_text(s->fd, status, reason, sizeof(reason));
+        snprintf(errmsg, sizeof(errmsg), "SSH server poll error: %s", reason);
         server_fail(s, errmsg);
         return;
     }
