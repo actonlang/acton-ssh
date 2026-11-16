@@ -9,6 +9,11 @@
     instead of a file, and a missing target directory
   - a put larger than the Client's max_write_buffer fails and says so
   - two puts on one Client run at the same time on separate channels
+  - a get of a file of t.scale() MiB, once per t.loop() body. Ordinary
+    testing makes one 1 MiB get. acton test scale measures how the time
+    and the GC allocation of a get grow with the file size:
+
+        acton test scale --tag openssh --module test_scp --name ScpGetScaleTester
 
 sshd runs as the current user on 127.0.0.1, so the "remote" files are
 checked directly on the local disk. These spawn the host's OpenSSH tools
@@ -99,6 +104,8 @@ actor ScpTester(t: testing.EnvT, scenario: str):
     var local_path = ""
     var got = b""
     var puts_left = 0
+    var scale_iter: ?Iterator[int] = None
+    var scale_got = 0
 
     def stop_sshd():
         sp = sshd_proc
@@ -139,6 +146,10 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             pass
 
     def on_timeout():
+        # The t.loop() of get_scale runs as long as acton test perf or scale
+        # asks for, under the test runner's watchdog.
+        if scale_iter is not None:
+            return
         finish_error("timeout in SCP scenario " + scenario + " (sshd stderr: " + sshd_err.decode() + ")")
 
     def setup_fail(msg: str):
@@ -283,6 +294,9 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             on_hostkey,
             private_keys=[ssh.PrivateKey(private_key)],
             port=u16(sshd_port),
+            # get_scale's file is zeros, which compression would shrink
+            transport=ssh.TransportConfig(compression_algorithms=[ssh.compression.none])
+                      if scenario == "get_scale" else None,
             connect_timeout=10.0,
             auth_timeout=10.0,
             max_write_buffer=1024 if scenario == "too_big" else 8388608,
@@ -312,6 +326,8 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             puts_left = 2
             ssh.ScpPut(c, tmp + "/a.bin", _payload(300), parallel_a_done, timeout=20.0)
             ssh.ScpPut(c, tmp + "/b.bin", _payload(301), parallel_b_done, timeout=20.0)
+        elif scenario == "get_scale":
+            start_get_scale()
         else:
             finish_error("unknown scenario " + scenario)
 
@@ -417,6 +433,54 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             return
         parallel_check("b.bin", _payload(301))
 
+    # --- get_scale: one get of a t.scale() MiB file per t.loop() body
+
+    def scale_path() -> str:
+        return tmp + "/scale.bin"
+
+    def start_get_scale():
+        # With count=0, dd only sets the file's size, so the file is a hole
+        # that reads as zeros: the remote scp reads no disk blocks.
+        _Cmd(process,
+             ["dd", "if=/dev/zero", "of=" + scale_path(), "bs=1048576", "count=0",
+              "seek=" + str(t.scale())],
+             scale_file_done, setup_fail)
+
+    def scale_file_done(code: int, out: bytes, err: bytes):
+        if code != 0:
+            finish_error("setup: dd failed: " + err.decode())
+            return
+        scale_iter = t.loop()
+        scale_next()
+
+    def scale_next():
+        it = scale_iter
+        if it is not None:
+            # Not isinstance(next(it), just): the compiler calls that next()
+            # twice, which ends the body as soon as it starts.
+            n = next(it)
+            if isinstance(n, just):
+                c = client
+                if c is not None:
+                    scale_got = 0
+                    ssh.ScpGet(c, scale_path(), on_scale_data, on_scale_done)
+            else:
+                await async fs.remove(scale_path())
+                finish_ok()
+
+    def on_scale_data(op: ssh.ScpGet, chunk: bytes):
+        scale_got += len(chunk)
+
+    def on_scale_done(op: ssh.ScpGet, err: ?str):
+        if err is not None:
+            finish_error("get: " + err)
+            return
+        want = t.scale() * 1048576
+        if scale_got != want:
+            finish_error("get: got " + str(scale_got) + " bytes, want " + str(want))
+            return
+        scale_next()
+
     after 0: setup()
     after 25.0: on_timeout()
 
@@ -463,3 +527,9 @@ actor ScpParallelTester(t: testing.EnvT):
     t.require("openssh")
     t.timeout(30.0)
     ScpTester(t, "parallel")
+
+actor ScpGetScaleTester(t: testing.EnvT):
+    """ScpGet of a file of t.scale() MiB, once per t.loop() body"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "get_scale")
