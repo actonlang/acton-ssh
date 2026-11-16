@@ -15,6 +15,13 @@
 
         acton test scale --tag openssh --module test_scp --name ScpGetScaleTester
 
+  - t.scale() Clients each put the same 8 MB at once, once per t.loop()
+    body. Ordinary testing uses one Client. acton test scale measures how
+    the time, the GC allocation and the peak RSS grow with the number of
+    Clients:
+
+        acton test scale --tag openssh --module test_scp --name ScpFanoutScaleTester
+
 sshd runs as the current user on 127.0.0.1, so the "remote" files are
 checked directly on the local disk. These spawn the host's OpenSSH tools
 (`sshd`, `ssh-keygen`, `scp`), so they are gated on the "openssh"
@@ -72,6 +79,52 @@ def _payload(blocks: int) -> bytes:
     return b"".join(parts)
 
 
+# fanout_scale connects at most this many Clients at a time. sshd's listen
+# queue holds 128 connections, and macOS resets the ones past it.
+_FANOUT_CONNECTING_MAX = 64
+
+
+actor _FanoutClient(cap: net.TCPConnectCap,
+                    index: int,
+                    username: str,
+                    port: int,
+                    private_key: bytes,
+                    on_ready: action(int, ?str) -> None,
+                    on_done: action(int, ?str) -> None):
+    """One Client of fanout_scale. Reports on_ready(index, error) once
+    connected, puts when told to, and reports on_done(index, error)."""
+    var client: ?ssh.Client = None
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            on_ready(index, str(err))
+        else:
+            on_ready(index, None)
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        on_done(index, err)
+
+    action def put(remote_path: str, data: bytes) -> None:
+        c = client
+        if c is not None:
+            ssh.ScpPut(c, remote_path, data, on_put_done)
+
+    action def close() -> None:
+        c = client
+        if c is not None:
+            c.close()
+
+    client = ssh.Client(cap, "127.0.0.1", username, on_connect, on_close, on_hostkey,
+                        private_keys=[ssh.PrivateKey(private_key)], port=u16(port),
+                        connect_timeout=10.0, auth_timeout=10.0)
+
+
 def _error_mismatch(what: str, err: ?str, want: str) -> ?str:
     """None if err is an error containing want, else what went wrong."""
     if err is not None:
@@ -106,6 +159,12 @@ actor ScpTester(t: testing.EnvT, scenario: str):
     var puts_left = 0
     var scale_iter: ?Iterator[int] = None
     var scale_got = 0
+    var fanout_clients: list[_FanoutClient] = []
+    var fanout_data = b""
+    var fanout_key = b""
+    var fanout_connecting = 0
+    var fanout_connected = 0
+    var fanout_left = 0
 
     def stop_sshd():
         sp = sshd_proc
@@ -117,6 +176,8 @@ actor ScpTester(t: testing.EnvT, scenario: str):
         c = client
         if c is not None:
             c.close()
+        for fc in fanout_clients:
+            fc.close()
 
     def finish_error(msg: str):
         if done:
@@ -146,8 +207,8 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             pass
 
     def on_timeout():
-        # The t.loop() of get_scale runs as long as acton test perf or scale
-        # asks for, under the test runner's watchdog.
+        # The t.loop() of a scale scenario runs as long as acton test perf or
+        # scale asks for, under the test runner's watchdog.
         if scale_iter is not None:
             return
         finish_error("timeout in SCP scenario " + scenario + " (sshd stderr: " + sshd_err.decode() + ")")
@@ -169,6 +230,9 @@ actor ScpTester(t: testing.EnvT, scenario: str):
                 "PubkeyAuthentication yes",
                 "StrictModes no",
                 "UsePAM no",
+                # fanout_scale has up to _FANOUT_CONNECTING_MAX Clients
+                # connecting at once; the default refuses some past 10.
+                "MaxStartups 100",
                 "LogLevel ERROR"]
 
     def write_config(lines: list[str], cont: action() -> None):
@@ -328,6 +392,8 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             ssh.ScpPut(c, tmp + "/b.bin", _payload(301), parallel_b_done, timeout=20.0)
         elif scenario == "get_scale":
             start_get_scale()
+        elif scenario == "fanout_scale":
+            start_fanout()
         else:
             finish_error("unknown scenario " + scenario)
 
@@ -433,6 +499,18 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             return
         parallel_check("b.bin", _payload(301))
 
+    # --- the t.loop() of the scale scenarios
+
+    def loop_next() -> bool:
+        """Start the next t.loop() body, if there is one."""
+        it = scale_iter
+        if it is not None:
+            # Not isinstance(next(it), just): the compiler calls that next()
+            # twice, which ends the body as soon as it starts.
+            n = next(it)
+            return isinstance(n, just)
+        return False
+
     # --- get_scale: one get of a t.scale() MiB file per t.loop() body
 
     def scale_path() -> str:
@@ -454,19 +532,14 @@ actor ScpTester(t: testing.EnvT, scenario: str):
         scale_next()
 
     def scale_next():
-        it = scale_iter
-        if it is not None:
-            # Not isinstance(next(it), just): the compiler calls that next()
-            # twice, which ends the body as soon as it starts.
-            n = next(it)
-            if isinstance(n, just):
-                c = client
-                if c is not None:
-                    scale_got = 0
-                    ssh.ScpGet(c, scale_path(), on_scale_data, on_scale_done)
-            else:
-                await async fs.remove(scale_path())
-                finish_ok()
+        if loop_next():
+            c = client
+            if c is not None:
+                scale_got = 0
+                ssh.ScpGet(c, scale_path(), on_scale_data, on_scale_done)
+        else:
+            await async fs.remove(scale_path())
+            finish_ok()
 
     def on_scale_data(op: ssh.ScpGet, chunk: bytes):
         scale_got += len(chunk)
@@ -481,8 +554,58 @@ actor ScpTester(t: testing.EnvT, scenario: str):
             return
         scale_next()
 
+    # --- fanout_scale: t.scale() Clients each put the same data at once,
+    # once per t.loop() body
+
+    def start_fanout():
+        fanout_data = _payload(2048)
+        fanout_key = read_local(tmp + "/client_ed25519")
+        fanout_connect_more()
+
+    def fanout_connect_more():
+        while (len(fanout_clients) < t.scale()
+               and fanout_connecting < _FANOUT_CONNECTING_MAX):
+            fanout_clients.append(_FanoutClient(
+                net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                len(fanout_clients), username, sshd_port, fanout_key,
+                on_fanout_ready, on_fanout_done))
+            fanout_connecting += 1
+
+    def on_fanout_ready(index: int, err: ?str):
+        if done:
+            return
+        fanout_connecting -= 1
+        if err is not None:
+            finish_error("fanout Client " + str(index) + ": connect error: " + err)
+            return
+        fanout_connected += 1
+        if fanout_connected < t.scale():
+            fanout_connect_more()
+            return
+        scale_iter = t.loop()
+        fanout_next()
+
+    def fanout_next():
+        if loop_next():
+            fanout_left = len(fanout_clients)
+            for fc in fanout_clients:
+                fc.put("/dev/null", fanout_data)
+        else:
+            finish_ok()
+
+    def on_fanout_done(index: int, err: ?str):
+        if done:
+            return
+        if err is not None:
+            finish_error("fanout Client " + str(index) + ": put: " + err)
+            return
+        fanout_left -= 1
+        if fanout_left == 0:
+            fanout_next()
+
     after 0: setup()
-    after 25.0: on_timeout()
+    # fanout_scale connects t.scale() Clients before its t.loop()
+    after 25.0 + 0.1 * float(t.scale()): on_timeout()
 
 
 # --- Test entry points.
@@ -533,3 +656,9 @@ actor ScpGetScaleTester(t: testing.EnvT):
     t.require("openssh")
     t.timeout(30.0)
     ScpTester(t, "get_scale")
+
+actor ScpFanoutScaleTester(t: testing.EnvT):
+    """t.scale() Clients each ScpPut the same 8 MB at once, once per t.loop() body"""
+    t.require("openssh")
+    t.timeout(30.0)
+    ScpTester(t, "fanout_scale")
