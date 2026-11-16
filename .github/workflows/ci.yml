@@ -37,3 +37,17 @@ jobs:
         run: |
           acton build --fast
           ACTON_GC_CHECK=1 ./out/bin/fanout 32 50
+      # ScpGetScaleTester measured 1.02 to 1.03 GC bytes allocated per byte
+      # received, in 32 KiB chunks. The limit of 1.1 leaves room for noise and
+      # fails when each chunk costs about 2 KiB more than now. Smaller files
+      # are noisier, so the test runs at --scale 50 (MiB). acton test perf
+      # does not fail on a change, so jq checks the allocation in its report.
+      - name: "Check ScpGet's GC allocation per byte received"
+        timeout-minutes: 10
+        run: |
+          acton test perf --tag openssh --module test_scp --name ScpGetScaleTester \
+            --scale 50 --json > perf.json
+          ratio=$(jq '.tests[0].performance.measurements
+                      | .mem_usage_delta_avg / (.perf_info.scale * 1048576)' perf.json)
+          echo "ScpGet: $ratio GC bytes allocated per byte received"
+          jq -e -n --argjson r "$ratio" '$r <= 1.1' > /dev/null
