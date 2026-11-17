@@ -134,7 +134,10 @@ actor _ServerEnd(p: sshpipe.SshListenPipe, fill: bytes, on_error: action(str) ->
                     p.write(part)
                 replied += 1
 
-    p.read_cb(_read)
+    proc def __startup__():
+        p.read_cb(_read)
+
+    __startup__()
 
 
 actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
@@ -191,13 +194,15 @@ actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
                          password=ORDER_PASS, subsystem="test",
                          host_key_check=sshpipe.HOST_KEY_CHECK_NONE)
     cp = sp
-    sp.read_cb(_read)
+
+    proc def __startup__():
+        sp.read_cb(_read)
+
+    __startup__()
 
 
 actor PipeOrderTester(t: testing.EnvT):
     """Pipelined framed traffic over several pipes keeps every byte in order."""
-    # A run takes several seconds on slow machines.
-    t.timeout(60.0)
     log = logging.Logger(t.log_handler)
     fill = _fill()
     t0 = time.monotonic_ns()
@@ -262,4 +267,11 @@ actor PipeOrderTester(t: testing.EnvT):
         auth_check=_OrderAuth().check,
         subsystem="test",
         log_handler=t.log_handler)
-    after 50.0: on_timeout()
+
+    proc def __startup__():
+        # A run takes several seconds on slow machines.
+        t.timeout(60.0)
+
+        after 50.0: on_timeout()
+
+    __startup__()

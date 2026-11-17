@@ -802,7 +802,6 @@ actor Channel(client: Client,
 
     proc def _init() -> None:
         client.channel_create(self, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
-    _init()
 
     action def request_exec(cmd: str) -> None:
         """Request to execute a command"""
@@ -847,6 +846,11 @@ actor Channel(client: Client,
     action def __cleanup__() -> None:
         if _channel_id != 0:
             _cleanup_native()
+
+    proc def __startup__():
+        _init()
+
+    __startup__()
 
 
 actor RunCommand(client: Client,
@@ -925,18 +929,21 @@ actor RunCommand(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    if timeout is not None:
-        # TODO: cancel this timer in _finish once Acton supports cancelling
-        # timers. Until it fires, the pending timer keeps this actor alive, and
-        # with it out_buf and err_buf, up to timeout seconds after the command
-        # started.
-        def _on_timeout():
-            if _done:
-                return
-            _error = "timeout"
-            _finish(_channel)
-            _channel.close()
-        after timeout: _on_timeout()
+    proc def __startup__():
+        if timeout is not None:
+            # TODO: cancel this timer in _finish once Acton supports cancelling
+            # timers. Until it fires, the pending timer keeps this actor alive, and
+            # with it out_buf and err_buf, up to timeout seconds after the command
+            # started.
+            def _on_timeout():
+                if _done:
+                    return
+                _error = "timeout"
+                _finish(_channel)
+                _channel.close()
+            after timeout: _on_timeout()
+
+    __startup__()
 
 
 # SCP runs the server's scp program on an exec channel: `scp -t PATH` to
@@ -1169,17 +1176,20 @@ actor ScpPut(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    if timeout is not None:
-        # TODO: cancel this timer in _finish once Acton supports cancelling
-        # timers. Until it fires, the pending timer keeps this actor alive, and
-        # with it a reference to data, up to timeout seconds after the upload
-        # started.
-        def _on_timeout():
-            if _done:
-                return
-            _finish("timeout")
-            _channel.close()
-        after timeout: _on_timeout()
+    proc def __startup__():
+        if timeout is not None:
+            # TODO: cancel this timer in _finish once Acton supports cancelling
+            # timers. Until it fires, the pending timer keeps this actor alive, and
+            # with it a reference to data, up to timeout seconds after the upload
+            # started.
+            def _on_timeout():
+                if _done:
+                    return
+                _finish("timeout")
+                _channel.close()
+            after timeout: _on_timeout()
+
+    __startup__()
 
 
 actor ScpGet(client: Client,
@@ -1317,16 +1327,19 @@ actor ScpGet(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    if timeout is not None:
-        # TODO: cancel this timer in _finish once Acton supports cancelling
-        # timers. Until it fires, the pending timer keeps this actor alive, up
-        # to timeout seconds after the download started.
-        def _on_timeout():
-            if _done:
-                return
-            _finish("timeout")
-            _channel.close()
-        after timeout: _on_timeout()
+    proc def __startup__():
+        if timeout is not None:
+            # TODO: cancel this timer in _finish once Acton supports cancelling
+            # timers. Until it fires, the pending timer keeps this actor alive, up
+            # to timeout seconds after the download started.
+            def _on_timeout():
+                if _done:
+                    return
+                _finish("timeout")
+                _channel.close()
+            after timeout: _on_timeout()
+
+    __startup__()
 
 
 actor Server(cap: net.TCPListenCap,
@@ -1481,7 +1494,6 @@ actor ServerSession(server: Server,
             server.on_session_ready(self)
             _drive_attached()
 
-    after 0: _attach_ready()
 
     action def accept_auth() -> None:
         """Accept the pending authentication request"""
@@ -1538,6 +1550,11 @@ actor ServerSession(server: Server,
 
     action def channel_close(channel: ServerChannel) -> None:
         NotImplemented
+
+    proc def __startup__():
+        after 0: _attach_ready()
+
+    __startup__()
 
 
 actor ServerChannel(session: ServerSession,

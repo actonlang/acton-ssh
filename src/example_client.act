@@ -20,9 +20,6 @@ import lib as ssh
 
 
 actor main(env):
-    if len(env.argv) < 4:
-        print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
-        env.exit(2)
 
     host = env.argv[1]
     user = env.argv[2]
@@ -90,3 +87,10 @@ actor main(env):
         private_keys=private_keys,
         port=port,
     )
+
+    proc def __startup__():
+        if len(env.argv) < 4:
+            print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
+            env.exit(2)
+
+    __startup__()

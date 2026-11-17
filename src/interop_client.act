@@ -13,9 +13,6 @@ import lib as ssh
 
 
 actor main(env):
-    if len(env.argv) < 5:
-        print("usage: interop_client HOST PORT USER CMD [KEYFILE [PASSWORD]]")
-        env.exit(2)
 
     host = env.argv[1]
     port = u16(int(env.argv[2]))
@@ -81,3 +78,10 @@ actor main(env):
         connect_timeout=10.0,
         auth_timeout=10.0,
     )
+
+    proc def __startup__():
+        if len(env.argv) < 5:
+            print("usage: interop_client HOST PORT USER CMD [KEYFILE [PASSWORD]]")
+            env.exit(2)
+
+    __startup__()

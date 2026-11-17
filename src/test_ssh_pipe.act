@@ -136,7 +136,11 @@ actor PipeEchoTester(t: testing.EnvT):
         auth_check=_PipeAuth().check,
         subsystem="echo",
         log_handler=t.log_handler)
-    after 20.0: on_timeout()
+
+    proc def __startup__():
+        after 20.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeAuthRejectTester(t: testing.EnvT):
@@ -208,7 +212,11 @@ actor PipeAuthRejectTester(t: testing.EnvT):
         auth_check=_PipeAuth().check,
         subsystem="echo",
         log_handler=t.log_handler)
-    after 20.0: on_timeout()
+
+    proc def __startup__():
+        after 20.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeConnectTimeoutTester(t: testing.EnvT):
@@ -292,7 +300,11 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
                         "127.0.0.1", port, on_listen, on_accept)
 
     listen()
-    after 2.0: on_timeout()
+
+    proc def __startup__():
+        after 2.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeAuthTimeoutTester(t: testing.EnvT):
@@ -367,7 +379,11 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
         auth_check=_PipeAuthStall().check,
         subsystem="echo",
         log_handler=t.log_handler)
-    after 2.0: on_timeout()
+
+    proc def __startup__():
+        after 2.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeSubsystemRejectTester(t: testing.EnvT):
@@ -439,7 +455,11 @@ actor PipeSubsystemRejectTester(t: testing.EnvT):
         auth_check=_PipeAuth().check,
         subsystem="echo",
         log_handler=t.log_handler)
-    after 20.0: on_timeout()
+
+    proc def __startup__():
+        after 20.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeStrictHostKeyTester(t: testing.EnvT):
@@ -510,7 +530,11 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
         auth_check=_PipeAuth().check,
         subsystem="echo",
         log_handler=t.log_handler)
-    after 20.0: on_timeout()
+
+    proc def __startup__():
+        after 20.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
@@ -650,7 +674,11 @@ actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
         on_subsystem,
         on_session_close,
     )
-    after 20.0: on_timeout()
+
+    proc def __startup__():
+        after 20.0: on_timeout()
+
+    __startup__()
 
 
 actor PipeWriteWhileOpeningTester(t: testing.EnvT):
@@ -794,4 +822,8 @@ actor PipeWriteWhileOpeningTester(t: testing.EnvT):
         on_subsystem,
         on_session_close,
     )
-    after 2.5: on_timeout()
+
+    proc def __startup__():
+        after 2.5: on_timeout()
+
+    __startup__()

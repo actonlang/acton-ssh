@@ -60,11 +60,17 @@ actor _Cmd(process: EnvProcess,
     def _error(p: Process, error: str):
         on_fail(" ".join(cmd) + ": " + error)
 
-    _p = process.spawn(cmd, _out, _err, _exit, _error, None, env)
     sd = stdin_data
-    if sd is not None:
-        _p.write(sd)
-    _p.done_writing()
+
+    proc def __startup__():
+        _p = process.spawn(cmd, _out, _err, _exit, _error, None, env)
+
+        if sd is not None:
+            _p.write(sd)
+
+        _p.done_writing()
+
+    __startup__()
 
 
 actor OpensshClientTester(
@@ -358,8 +364,12 @@ actor OpensshClientTester(
             wrong_keypath = tmp + "/wrong_key"
             keygen(keypath, keygen_done)
 
-    after 0: setup()
-    after 30.0: on_timeout()
+    proc def __startup__():
+        after 0: setup()
+
+        after 30.0: on_timeout()
+
+    __startup__()
 
 
 actor SshdTester(
@@ -650,8 +660,12 @@ actor SshdTester(
             auth_timeout=10.0,
         )
 
-    after 0: setup()
-    after 30.0: on_timeout()
+    proc def __startup__():
+        after 0: setup()
+
+        after 30.0: on_timeout()
+
+    __startup__()
 
 
 def _payload_1000_lines() -> bytes:
