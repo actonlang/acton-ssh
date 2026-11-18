@@ -188,21 +188,20 @@ actor PipeRestartTester(t: testing.EnvT, restart_early: bool, strict: bool):
             phase = 2
             cp.restart()
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
-
     proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
         after 10.0: on_timeout()
 
     __startup__()
@@ -398,21 +397,20 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
         cp.read_cb(_client_read)
         after float(std.random.randint(0, max_delay_ms)) / 1000.0: next_restart()
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
-
     proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
         after 10.0: on_timeout()
 
     __startup__()
@@ -620,21 +618,20 @@ actor PipeRestartDuringChannelOpenTester(t: testing.EnvT):
         client_pipe = cp
         cp.read_cb(_client_read)
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
-
     proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
         after 10.0: on_timeout()
 
     __startup__()

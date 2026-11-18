@@ -9,9 +9,7 @@ import lib as ssh
 
 
 actor main(env):
-    var cycles = 2000
-    if len(env.argv) > 1:
-        cycles = int(env.argv[1])
+    cycles = int(env.argv[1]) if len(env.argv) > 1 else 2000
 
     var server: ?ssh.Server = None
     var port: u16 = 0
@@ -99,14 +97,15 @@ actor main(env):
             port=port,
         )
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-    )
+    proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+        )

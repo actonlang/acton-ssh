@@ -126,10 +126,11 @@ actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count
         else:
             finish(0)
 
-    client = ssh.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
-                        login.host, login.user, on_connect, on_close, on_hostkey,
-                        password=login.password, private_keys=login.private_keys,
-                        port=login.port, max_write_buffer=0)
+    proc def __startup__():
+        client = ssh.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+                            login.host, login.user, on_connect, on_close, on_hostkey,
+                            password=login.password, private_keys=login.private_keys,
+                            port=login.port, max_write_buffer=0)
 
 
 actor main(env):

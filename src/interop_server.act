@@ -16,11 +16,10 @@ import net
 import lib as ssh
 
 
-actor main(env):
+actor main(env: Env):
     USER = "interop"
     PASS = "interop-pass"
 
-    var server: ?ssh.Server = None
     # Per-channel mode, looked up by actor identity. A channel is "exec" or
     # "echo" once its request handler runs; until then it is "pending".
     var modes: list[(ssh.ServerChannel, str)] = []
@@ -73,7 +72,7 @@ actor main(env):
     # Optional authorized public key (authorized_keys "<type> <base64>" form,
     # no comment) provided via ACTON_SSH_AUTH_KEY. When set, publickey auth is
     # accepted for that key.
-    auth_key = env.vars.getenv("ACTON_SSH_AUTH_KEY")
+    var auth_key: ?str = None
 
     def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
         if req.method == "publickey":
@@ -135,16 +134,18 @@ actor main(env):
         else:
             ch.reject_request("unsupported subsystem")
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
+    proc def __startup__():
+        auth_key = env.vars.getenv("ACTON_SSH_AUTH_KEY")
+        ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )

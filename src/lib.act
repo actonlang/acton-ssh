@@ -402,13 +402,13 @@ _compression_supported_names = {str(value) for value in compression.supported}
 def _validated_algorithm_names(names: list[str], supported: set[str], kind: str) -> str:
     if not names:
         raise ValueError(f"TransportConfig {kind} cannot be empty")
-    seen: set[str] = set()
-    for name in names:
+    unique_names = {name for name in names}
+    for i in range(len(names)):
+        name = names[i]
         if name not in supported:
             raise ValueError(f"Unsupported SSH {kind}: {name}")
-        if name in seen:
+        if len(unique_names) < len(names) and name in names[:i]:
             raise ValueError(f"Duplicate SSH {kind}: {name}")
-        seen.add(name)
     return ",".join(names)
 
 
@@ -683,15 +683,10 @@ actor Client(cap: net.TCPConnectCap,
     var _client: u64 = 0
     var _host: str = host
     var _username: str = username
-    if private_keys is not None and len(private_keys) == 0:
-        raise ValueError("SSH private_keys cannot be empty")
-    if known_hosts is not None and known_hosts.find(b"\x00") >= 0:
-        raise ValueError("SSH known_hosts data cannot contain NUL bytes")
-    transport_snapshot = _native_transport_snapshot(transport)
-
     var _password: ?str = password
-    var _private_keys: ?list[PrivateKey] = list(private_keys) if private_keys is not None else None
-    var _known_hosts: ?bytes = known_hosts
+    var _private_keys: ?list[PrivateKey] = (list(private_keys) if len(private_keys) > 0 else raise ValueError("SSH private_keys cannot be empty")) if private_keys is not None else None
+    var _known_hosts: ?bytes = (known_hosts if known_hosts.find(b"\x00") < 0 else raise ValueError("SSH known_hosts data cannot contain NUL bytes")) if known_hosts is not None else None
+    transport_snapshot = _native_transport_snapshot(transport)
     var _ciphers: ?str = transport_snapshot.ciphers
     var _macs: ?str = transport_snapshot.macs
     var _key_exchanges: ?str = transport_snapshot.key_exchanges
@@ -714,12 +709,10 @@ actor Client(cap: net.TCPConnectCap,
 
     proc def _pin_affinity() -> None:
         NotImplemented
-    _pin_affinity()
 
     proc def _init() -> None:
         """Initialize the SSH client"""
         NotImplemented
-    _init()
 
     action def accept_hostkey() -> None:
         """Accept the currently pending host key (not persisted)"""
@@ -775,6 +768,10 @@ actor Client(cap: net.TCPConnectCap,
 
     action def channel_close(channel: Channel) -> None:
         NotImplemented
+
+    proc def __startup__():
+        _pin_affinity()
+        _init()
 
 
 actor Channel(client: Client,
@@ -1092,13 +1089,9 @@ actor ScpPut(client: Client,
     client's max_write_buffer (8 MiB by default, 0 for no limit). If timeout
     is given, the upload fails with error "timeout" after that many seconds.
     """
-    if not _scp_valid_mode(mode):
-        raise ValueError("SCP mode must be 3 or 4 octal digits: " + mode)
-    file_name = name if name is not None else _scp_basename(remote_path)
+    file_name = (name if name is not None else _scp_basename(remote_path)) if _scp_valid_mode(mode) else raise ValueError("SCP mode must be 3 or 4 octal digits: " + mode)
     name_error = _scp_name_error(file_name)
-    if name_error is not None:
-        raise ValueError(name_error)
-    header = _scp_header(mode, len(data), file_name)
+    header = _scp_header(mode, len(data), file_name) if name_error is None else raise ValueError(name_error)
 
     # "start": waiting for scp to be ready, "header": for the header's
     # reply, "data": for the reply to the data, "complete": for the close.
@@ -1389,12 +1382,9 @@ actor Server(cap: net.TCPListenCap,
     var _server: u64 = 0
     var _bound_port: u16 = 0
     var _host: str = host
-    if host_keys is not None and len(host_keys) == 0:
-        raise ValueError("SSH host_keys cannot be empty")
-    transport_snapshot = _native_transport_snapshot(transport)
-
     var _port: u16 = port
-    var _host_keys: ?list[PrivateKey] = list(host_keys) if host_keys is not None else None
+    var _host_keys: ?list[PrivateKey] = (list(host_keys) if len(host_keys) > 0 else raise ValueError("SSH host_keys cannot be empty")) if host_keys is not None else None
+    transport_snapshot = _native_transport_snapshot(transport)
     var _host_key_type: str = host_key_type
     var _host_key_bits: int = host_key_bits
     var _ciphers: ?str = transport_snapshot.ciphers
@@ -1419,12 +1409,10 @@ actor Server(cap: net.TCPListenCap,
 
     proc def _pin_affinity() -> None:
         NotImplemented
-    _pin_affinity()
 
     proc def _init() -> None:
         """Initialize the SSH server"""
         NotImplemented
-    _init()
 
     action def close() -> None:
         """Close the SSH server"""
@@ -1454,6 +1442,10 @@ actor Server(cap: net.TCPListenCap,
     action def on_session_ready(session: ServerSession) -> None:
         on_session(session)
 
+    proc def __startup__():
+        _pin_affinity()
+        _init()
+
 
 actor ServerSession(server: Server,
                     session_id: u64,
@@ -1480,7 +1472,6 @@ actor ServerSession(server: Server,
 
     proc def _pin_affinity() -> None:
         NotImplemented
-    _pin_affinity()
 
     proc def _attach(session_id: u64) -> None:
         NotImplemented
@@ -1493,7 +1484,6 @@ actor ServerSession(server: Server,
         if _session_id != 0:
             server.on_session_ready(self)
             _drive_attached()
-
 
     action def accept_auth() -> None:
         """Accept the pending authentication request"""
@@ -1552,6 +1542,7 @@ actor ServerSession(server: Server,
         NotImplemented
 
     proc def __startup__():
+        _pin_affinity()
         after 0: _attach_ready()
 
     __startup__()
