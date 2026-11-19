@@ -32,7 +32,7 @@ capability tag and skipped by default:
 
 import file
 import net
-import random
+import std.random
 import lib as ssh
 import testing
 
@@ -251,7 +251,7 @@ actor ScpTester(t: testing.EnvT, scenario: str):
 
     def setup():
         tmp = await async fs.mktmpdir("acton-ssh-scp")
-        sshd_port = random.randint(20000, 39999)
+        sshd_port = std.random.randint(20000, 39999)
         # Empty output and exit 1 when no executable sshd exists, so
         # resolve_done skips instead of failing later on a bad path.
         _Cmd(process,

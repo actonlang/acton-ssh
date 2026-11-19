@@ -30,8 +30,8 @@ Examples:
   ./out/bin/example_scp_client --key ~/.ssh/id_rsa get example.com alice notes.txt ./notes.txt
 """
 
-import argparse
-import crypto.hash.md5
+import std.argparse
+import std.crypto.hash.md5
 import file
 import net
 import lib as ssh
@@ -140,7 +140,7 @@ actor main(env):
             print("MD5 check failed: md5sum exited with " + str(code) + ":", first_line(err))
             finish(1)
         else:
-            want = crypto.hash.md5.hash(data).hex()
+            want = std.crypto.hash.md5.hash(data).hex()
             got = md5_from_output(out)
             if got == "":
                 print("MD5 check failed: unexpected md5sum output:", first_line(out))
@@ -152,19 +152,19 @@ actor main(env):
                 print("MD5 matches:", got)
                 finish(0)
 
-    def cmd_put(args: argparse.Args):
+    def cmd_put(args: std.argparse.Args):
         put = True
         src = args.get_str("local_file")
         dst = args.get_str("remote_path")
         connect(args)
 
-    def cmd_get(args: argparse.Args):
+    def cmd_get(args: std.argparse.Args):
         put = False
         src = args.get_str("remote_file")
         dst = args.get_str("local_file")
         connect(args)
 
-    def connect(args: argparse.Args):
+    def connect(args: std.argparse.Args):
         host = args.get_str("host")
         user = args.get_str("user")
         remote_md5 = args.get_bool("remote-md5")
@@ -200,8 +200,8 @@ actor main(env):
             max_write_buffer=0,
         )
 
-    def _parse_args() -> argparse.Args:
-        p = argparse.Parser()
+    def _parse_args() -> std.argparse.Args:
+        p = std.argparse.Parser()
         p.add_option("port", "int", default=22, help="SSH server port (default 22)")
         p.add_option("password", "str", help="Log in with this password")
         p.add_option("key", "str", help="Without --password, log in with this private key file (default ~/.ssh/id_ed25519)")
@@ -227,10 +227,10 @@ actor main(env):
             else:
                 print("give a command, put or get; --help shows the usage", err=True)
                 env.exit(2)
-        except argparse.PrintUsage as exc:
+        except std.argparse.PrintUsage as exc:
             print(exc.error_message)
             env.exit(0)
-        except argparse.ArgumentError as exc:
+        except std.argparse.ArgumentError as exc:
             print(exc.error_message, err=True)
             env.exit(2)
 

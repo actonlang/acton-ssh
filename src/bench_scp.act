@@ -20,7 +20,7 @@ The heap figures are for this client process. Host keys are accepted
 unchecked.
 """
 
-import argparse
+import std.argparse
 import file
 import net
 import time
@@ -133,7 +133,7 @@ actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count
 
 
 actor main(env):
-    def login(args: argparse.Args) -> ?Login:
+    def login(args: std.argparse.Args) -> ?Login:
         """The Login that args give, or None after printing why there is none."""
         password: ?str = None
         private_keys: ?list[ssh.PrivateKey] = None
@@ -164,8 +164,8 @@ actor main(env):
         return Login(args.get_str("host"), args.get_str("user"), u16(args.get_int("port")),
                      password, private_keys)
 
-    def _parse_args() -> argparse.Args:
-        p = argparse.Parser()
+    def _parse_args() -> std.argparse.Args:
+        p = std.argparse.Parser()
         p.add_option("size", "int", default=50, help="MiB per upload (default 50)")
         p.add_option("count", "int", default=5, help="Uploads (default 5)")
         p.add_option("port", "int", default=22, help="SSH server port (default 22)")
@@ -188,10 +188,10 @@ actor main(env):
                 RetainBench(env, l, args.get_str("remote_path"), args.get_int("size"), args.get_int("count"))
             else:
                 env.exit(2)
-        except argparse.PrintUsage as exc:
+        except std.argparse.PrintUsage as exc:
             print(exc.error_message)
             env.exit(0)
-        except argparse.ArgumentError as exc:
+        except std.argparse.ArgumentError as exc:
             print(exc.error_message, err=True)
             env.exit(2)
 

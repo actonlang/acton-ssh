@@ -6,7 +6,7 @@ restart must still close the new SSH session.
 """
 
 import net
-import random
+import std.random
 import lib as ssh
 import testing
 
@@ -233,7 +233,7 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
     var client_pipe: ?sshpipe.SshPipe = None
     var live: list[ssh.ServerSession] = []
     var sessions_opened = 0
-    var restarts = random.randint(3, 10)
+    var restarts = std.random.randint(3, 10)
     var issued = 0
     var phase = 0
     var client_buf = b""
@@ -354,7 +354,7 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
             if issued >= restarts:
                 cp.read_cb(_final_read)
         if issued < restarts:
-            after float(random.randint(0, max_delay_ms)) / 1000.0: next_restart()
+            after float(std.random.randint(0, max_delay_ms)) / 1000.0: next_restart()
 
     def close_pipe():
         if done:
@@ -392,7 +392,7 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
             log_handler=t.log_handler)
         client_pipe = cp
         cp.read_cb(_client_read)
-        after float(random.randint(0, max_delay_ms)) / 1000.0: next_restart()
+        after float(std.random.randint(0, max_delay_ms)) / 1000.0: next_restart()
 
     server = ssh.Server(
         net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),

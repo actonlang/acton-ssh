@@ -2,7 +2,7 @@
 
 import logging
 import net
-import random
+import std.random
 import lib as ssh
 import testing
 
@@ -287,7 +287,7 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
 
     def listen():
         # TCPListener cannot report an ephemeral port, so pick one at random
-        port = random.randint(20000, 39999)
+        port = std.random.randint(20000, 39999)
         net.TCPListener(net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
                         "127.0.0.1", port, on_listen, on_accept)
 
