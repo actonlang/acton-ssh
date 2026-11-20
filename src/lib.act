@@ -847,7 +847,6 @@ actor Channel(client: Client,
     proc def __startup__():
         _init()
 
-    __startup__()
 
 
 actor RunCommand(client: Client,
@@ -940,7 +939,6 @@ actor RunCommand(client: Client,
                 _channel.close()
             after timeout: _on_timeout()
 
-    __startup__()
 
 
 # SCP runs the server's scp program on an exec channel: `scp -t PATH` to
@@ -1182,7 +1180,6 @@ actor ScpPut(client: Client,
                 _channel.close()
             after timeout: _on_timeout()
 
-    __startup__()
 
 
 actor ScpGet(client: Client,
@@ -1332,7 +1329,6 @@ actor ScpGet(client: Client,
                 _channel.close()
             after timeout: _on_timeout()
 
-    __startup__()
 
 
 actor Server(cap: net.TCPListenCap,
@@ -1545,7 +1541,6 @@ actor ServerSession(server: Server,
         _pin_affinity()
         after 0: _attach_ready()
 
-    __startup__()
 
 
 actor ServerChannel(session: ServerSession,

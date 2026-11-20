@@ -64,7 +64,6 @@ actor _Cmd(process: EnvProcess,
 
         _p.done_writing()
 
-    __startup__()
 
 
 def _payload(blocks: int) -> bytes:
@@ -615,7 +614,6 @@ actor ScpTester(t: testing.EnvT, scenario: str):
         # fanout_scale connects t.scale() Clients before its t.loop()
         after 25.0 + 0.1 * float(t.scale()): on_timeout()
 
-    __startup__()
 
 
 # --- Test entry points.
@@ -632,7 +630,6 @@ actor ScpRoundTripTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "roundtrip")
 
-    __startup__()
 
 
 actor ScpEmptyFileTester(t: testing.EnvT):
@@ -642,7 +639,6 @@ actor ScpEmptyFileTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "empty")
 
-    __startup__()
 
 
 actor ScpDirectoryNameTester(t: testing.EnvT):
@@ -652,7 +648,6 @@ actor ScpDirectoryNameTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "dir_name")
 
-    __startup__()
 
 
 actor ScpErrorsTester(t: testing.EnvT):
@@ -662,7 +657,6 @@ actor ScpErrorsTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "errors")
 
-    __startup__()
 
 
 actor ScpTooBigTester(t: testing.EnvT):
@@ -672,7 +666,6 @@ actor ScpTooBigTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "too_big")
 
-    __startup__()
 
 
 actor ScpParallelTester(t: testing.EnvT):
@@ -682,7 +675,6 @@ actor ScpParallelTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "parallel")
 
-    __startup__()
 
 
 actor ScpGetScaleTester(t: testing.EnvT):
@@ -692,7 +684,6 @@ actor ScpGetScaleTester(t: testing.EnvT):
         t.timeout(30.0)
         ScpTester(t, "get_scale")
 
-    __startup__()
 
 
 actor ScpFanoutScaleTester(t: testing.EnvT):
@@ -701,5 +692,3 @@ actor ScpFanoutScaleTester(t: testing.EnvT):
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "fanout_scale")
-
-    __startup__()

@@ -149,5 +149,3 @@ actor main(env: Env):
             on_subsystem,
             on_session_close,
         )
-
-    __startup__()

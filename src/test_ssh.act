@@ -277,7 +277,6 @@ actor ExecTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_exec(t: testing.EnvT):
@@ -442,7 +441,6 @@ actor SubsystemTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_subsystem(t: testing.EnvT):
@@ -654,7 +652,6 @@ actor ShellTester(t: testing.EnvT,
         start_server()
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_shell_pty(t: testing.EnvT):
@@ -794,7 +791,6 @@ actor AuthRejectTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_auth_reject(t: testing.EnvT):
@@ -898,7 +894,6 @@ actor HostkeyRejectTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_hostkey_reject(t: testing.EnvT):
@@ -984,7 +979,6 @@ actor KexMismatchTester(t: testing.EnvT):
         )
         after 10.0: finish(Exception("timeout waiting for key exchange mismatch test"))
 
-    __startup__()
 
 
 def _test_kex_mismatch(t: testing.EnvT):
@@ -1152,7 +1146,6 @@ actor EchoPayloadTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_echo_payload(t: testing.EnvT):
@@ -1297,7 +1290,6 @@ actor ConcurrentChannelsTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_concurrent_channels(t: testing.EnvT):
@@ -1442,7 +1434,6 @@ actor ServerCloseTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_server_close(t: testing.EnvT):
@@ -1535,7 +1526,6 @@ actor ConnectRefusedTester(t: testing.EnvT):
     proc def __startup__():
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_connect_refused(t: testing.EnvT):
@@ -1701,7 +1691,6 @@ actor PubkeyAuthTester(t: testing.EnvT):
         start_server()
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_pubkey_auth(t: testing.EnvT):
@@ -1851,7 +1840,6 @@ actor WriteBufferLimitTester(t: testing.EnvT):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_write_buffer_limit(t: testing.EnvT):
@@ -1958,7 +1946,6 @@ actor HostkeyStallTester(t: testing.EnvT):
         )
         after 2.0: on_timeout()
 
-    __startup__()
 
 
 def _test_hostkey_stall(t: testing.EnvT):

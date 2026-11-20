@@ -140,7 +140,6 @@ actor PipeEchoTester(t: testing.EnvT):
             log_handler=t.log_handler)
         after 20.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeAuthRejectTester(t: testing.EnvT):
@@ -216,7 +215,6 @@ actor PipeAuthRejectTester(t: testing.EnvT):
             log_handler=t.log_handler)
         after 20.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeConnectTimeoutTester(t: testing.EnvT):
@@ -303,7 +301,6 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
         listen()
         after 2.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeAuthTimeoutTester(t: testing.EnvT):
@@ -382,7 +379,6 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
             log_handler=t.log_handler)
         after 2.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeSubsystemRejectTester(t: testing.EnvT):
@@ -458,7 +454,6 @@ actor PipeSubsystemRejectTester(t: testing.EnvT):
             log_handler=t.log_handler)
         after 20.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeStrictHostKeyTester(t: testing.EnvT):
@@ -533,7 +528,6 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
             log_handler=t.log_handler)
         after 20.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
@@ -676,7 +670,6 @@ actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
         )
         after 20.0: on_timeout()
 
-    __startup__()
 
 
 actor PipeWriteWhileOpeningTester(t: testing.EnvT):
@@ -822,5 +815,3 @@ actor PipeWriteWhileOpeningTester(t: testing.EnvT):
             on_session_close,
         )
         after 2.5: on_timeout()
-
-    __startup__()

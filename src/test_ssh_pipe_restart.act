@@ -204,7 +204,6 @@ actor PipeRestartTester(t: testing.EnvT, restart_early: bool, strict: bool):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_pipe_restart_after_connect(t: testing.EnvT):
@@ -413,7 +412,6 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
         )
         after 10.0: on_timeout()
 
-    __startup__()
 
 
 def _test_pipe_restart_storm(t: testing.EnvT):
@@ -633,5 +631,3 @@ actor PipeRestartDuringChannelOpenTester(t: testing.EnvT):
             on_session_close,
         )
         after 10.0: on_timeout()
-
-    __startup__()

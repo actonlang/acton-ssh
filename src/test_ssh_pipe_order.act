@@ -137,7 +137,6 @@ actor _ServerEnd(p: sshpipe.SshListenPipe, fill: bytes, on_error: action(str) ->
     proc def __startup__():
         p.read_cb(_read)
 
-    __startup__()
 
 
 actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
@@ -198,7 +197,6 @@ actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
         cp = sp
         sp.read_cb(_read)
 
-    __startup__()
 
 
 actor PipeOrderTester(t: testing.EnvT):
@@ -272,5 +270,3 @@ actor PipeOrderTester(t: testing.EnvT):
         t.timeout(60.0)
 
         after 50.0: on_timeout()
-
-    __startup__()

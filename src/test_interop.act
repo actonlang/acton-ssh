@@ -70,7 +70,6 @@ actor _Cmd(process: EnvProcess,
 
         _p.done_writing()
 
-    __startup__()
 
 
 actor OpensshClientTester(
@@ -369,7 +368,6 @@ actor OpensshClientTester(
 
         after 30.0: on_timeout()
 
-    __startup__()
 
 
 actor SshdTester(
@@ -665,7 +663,6 @@ actor SshdTester(
 
         after 30.0: on_timeout()
 
-    __startup__()
 
 
 def _payload_1000_lines() -> bytes:

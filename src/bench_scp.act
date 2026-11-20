@@ -24,7 +24,6 @@ import std.argparse
 import file
 import net
 import time
-import acton.rts
 import lib as ssh
 
 
@@ -47,10 +46,10 @@ def since_ms(t: int) -> int:
     return (time.monotonic_ns() - t) // 1000000
 
 
-def live_heap(cap: SysCap) -> int:
+def live_heap(rts: EnvRTS) -> int:
     """The GC heap in use right after a full collection."""
-    acton.rts.gc(cap)
-    return int(acton.rts.get_mem_usage(cap))
+    rts.gc()
+    return int(rts.gc_stats().mem_usage)
 
 
 class Login(object):
@@ -101,7 +100,7 @@ actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count
             fail("connect: " + str(err))
             return
         print("connected to " + login.host)
-        heap_start = live_heap(env.syscap)
+        heap_start = live_heap(env.rts)
         print(str(count) + " uploads of a new " + str(size_mib) + " MiB buffer each, timeout=600")
         print("  live GC heap before: " + mib(heap_start))
         upload_next()
@@ -119,7 +118,7 @@ actor RetainBench(env: Env, login: Login, remote_path: str, size_mib: int, count
             fail("upload " + str(step) + ": " + err)
             return
         ms = since_ms(t_step)
-        heap = live_heap(env.syscap)
+        heap = live_heap(env.rts)
         print("  upload " + str(step) + ": " + str(ms) + " ms, live GC heap after GC "
               + mib(heap) + " (" + mib(heap - heap_start) + " since the start)")
         if step < count:
@@ -199,5 +198,3 @@ actor main(env):
                 env.exit(2)
 
         after 0: start()
-
-    __startup__()
