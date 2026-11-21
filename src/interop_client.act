@@ -20,14 +20,6 @@ actor main(env):
         print("HOSTKEY", state, info.key_type, info.fingerprint)
         c.accept_hostkey()
 
-    def on_connect(cmd: str, c: ssh.Client, err: ?Exception):
-        if err is not None:
-            print("CONNECT-ERROR", err)
-            env.exit(1)
-            return
-        print("CONNECTED")
-        ssh.RunCommand(c, cmd, on_run_exit, timeout=15.0)
-
     def on_close(c: ssh.Client, reason: str):
         pass
 
@@ -67,11 +59,19 @@ actor main(env):
             private_keys = [ssh.PrivateKey(reader.read())]
             await async reader.close()
 
+        def on_connect(c: ssh.Client, err: ?Exception):
+            if err is not None:
+                print("CONNECT-ERROR", err)
+                env.exit(1)
+                return
+            print("CONNECTED")
+            ssh.RunCommand(c, cmd, on_run_exit, timeout=15.0)
+
         client = ssh.Client(
             net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
             host,
             user,
-            lambda c, err: on_connect(cmd, c, err),
+            on_connect,
             on_close,
             on_hostkey,
             password=password,
