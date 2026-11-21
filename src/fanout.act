@@ -16,14 +16,9 @@ import lib as ssh
 
 
 actor main(env):
-    var lanes = 32
-    var cycles = 50
-    if len(env.argv) > 1:
-        lanes = int(env.argv[1])
-    if len(env.argv) > 2:
-        cycles = int(env.argv[2])
+    lanes = int(env.argv[1]) if len(env.argv) > 1 else 32
+    cycles = int(env.argv[2]) if len(env.argv) > 2 else 50
 
-    var server: ?ssh.Server = None
     var port: u16 = 0
     var done_lanes = 0
     var ok = 0
@@ -114,8 +109,7 @@ actor main(env):
             connect_timeout=60.0,
             auth_timeout=60.0,
         )
-
-    server = ssh.Server(
+    var server: ?ssh.Server = ssh.Server(
         net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
         "127.0.0.1",
         u16(0),

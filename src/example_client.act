@@ -20,31 +20,6 @@ import lib as ssh
 
 
 actor main(env):
-    if len(env.argv) < 4:
-        print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
-        env.exit(2)
-
-    host = env.argv[1]
-    user = env.argv[2]
-    cmd = env.argv[3]
-    port = u16(22)
-    if len(env.argv) > 4:
-        port = u16(int(env.argv[4]))
-
-    var password: ?str = None
-    var key_file: ?str = None
-    if len(env.argv) > 5:
-        password = env.argv[5]
-    else:
-        home = env.vars.getenv("HOME")
-        if home is not None:
-            key_file = home + "/.ssh/id_ed25519"
-
-    var private_keys: ?list[ssh.PrivateKey] = None
-    if key_file is not None:
-        reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), key_file)
-        private_keys = [ssh.PrivateKey(reader.read())]
-        reader.close()
 
     var client: ?ssh.Client = None
 
@@ -53,13 +28,6 @@ actor main(env):
         # info.fingerprint against a known value before accepting.
         print("host key [" + state + "]", info.key_type, info.fingerprint)
         c.accept_hostkey()
-
-    def on_connect(c: ssh.Client, err: ?Exception):
-        if err is not None:
-            print("connect error:", err)
-            env.exit(1)
-            return
-        ssh.RunCommand(c, cmd, on_exit, timeout=30.0)
 
     def on_close(c: ssh.Client, reason: str):
         pass
@@ -79,14 +47,44 @@ actor main(env):
             client.close()
         env.exit(code)
 
-    client = ssh.Client(
-        net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
-        host,
-        user,
-        on_connect,
-        on_close,
-        on_hostkey,
-        password=password,
-        private_keys=private_keys,
-        port=port,
-    )
+    proc def __startup__():
+        if len(env.argv) < 4:
+            print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
+            env.exit(2)
+            return
+
+        host = env.argv[1]
+        user = env.argv[2]
+        cmd = env.argv[3]
+        port = u16(int(env.argv[4])) if len(env.argv) > 4 else u16(22)
+        password: ?str = env.argv[5] if len(env.argv) > 5 else None
+        key_file: ?str = None
+        if password is None:
+            home = env.vars.getenv("HOME")
+            if home is not None:
+                key_file = home + "/.ssh/id_ed25519"
+
+        private_keys: ?list[ssh.PrivateKey] = None
+        if key_file is not None:
+            reader = file.ReadFile(file.ReadFileCap(file.FileCap(env.cap)), key_file)
+            private_keys = [ssh.PrivateKey(reader.read())]
+            await async reader.close()
+
+        def on_connect(c: ssh.Client, err: ?Exception):
+            if err is not None:
+                print("connect error:", err)
+                env.exit(1)
+                return
+            ssh.RunCommand(c, cmd, on_exit, timeout=30.0)
+
+        client = ssh.Client(
+            net.TCPConnectCap(net.TCPCap(net.NetCap(env.cap))),
+            host,
+            user,
+            on_connect,
+            on_close,
+            on_hostkey,
+            password=password,
+            private_keys=private_keys,
+            port=port,
+        )

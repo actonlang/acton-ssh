@@ -33,6 +33,7 @@ actor PipeEchoTester(t: testing.EnvT):
     var client_buf = b""
     var listener: ?sshpipe.SshPipeListener = None
     var client_pipe: ?sshpipe.SshPipe = None
+
     var server_pipe: ?sshpipe.SshListenPipe = None
 
     def finish_error(msg: str):
@@ -127,16 +128,18 @@ actor PipeEchoTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    listener = sshpipe.SshPipeListener(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        address="127.0.0.1",
-        port=0,
-        on_listen=on_listen,
-        on_accept=on_accept,
-        auth_check=_PipeAuth().check,
-        subsystem="echo",
-        log_handler=t.log_handler)
-    after 20.0: on_timeout()
+    proc def __startup__():
+        listener = sshpipe.SshPipeListener(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=0,
+            on_listen=on_listen,
+            on_accept=on_accept,
+            auth_check=_PipeAuth().check,
+            subsystem="echo",
+            log_handler=t.log_handler)
+        after 20.0: on_timeout()
+
 
 
 actor PipeAuthRejectTester(t: testing.EnvT):
@@ -144,6 +147,7 @@ actor PipeAuthRejectTester(t: testing.EnvT):
     var done = False
     var connected = False
     var listener: ?sshpipe.SshPipeListener = None
+
     var client_pipe: ?sshpipe.SshPipe = None
 
     def _teardown():
@@ -199,16 +203,18 @@ actor PipeAuthRejectTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    listener = sshpipe.SshPipeListener(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        address="127.0.0.1",
-        port=0,
-        on_listen=on_listen,
-        on_accept=on_accept,
-        auth_check=_PipeAuth().check,
-        subsystem="echo",
-        log_handler=t.log_handler)
-    after 20.0: on_timeout()
+    proc def __startup__():
+        listener = sshpipe.SshPipeListener(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=0,
+            on_listen=on_listen,
+            on_accept=on_accept,
+            auth_check=_PipeAuth().check,
+            subsystem="echo",
+            log_handler=t.log_handler)
+        after 20.0: on_timeout()
+
 
 
 actor PipeConnectTimeoutTester(t: testing.EnvT):
@@ -291,8 +297,10 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
         net.TCPListener(net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
                         "127.0.0.1", port, on_listen, on_accept)
 
-    listen()
-    after 2.0: on_timeout()
+    proc def __startup__():
+        listen()
+        after 2.0: on_timeout()
+
 
 
 actor PipeAuthTimeoutTester(t: testing.EnvT):
@@ -300,6 +308,7 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
     var done = False
     var connected = False
     var listener: ?sshpipe.SshPipeListener = None
+
     var client_pipe: ?sshpipe.SshPipe = None
 
     def _teardown():
@@ -358,22 +367,25 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    listener = sshpipe.SshPipeListener(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        address="127.0.0.1",
-        port=0,
-        on_listen=on_listen,
-        on_accept=on_accept,
-        auth_check=_PipeAuthStall().check,
-        subsystem="echo",
-        log_handler=t.log_handler)
-    after 2.0: on_timeout()
+    proc def __startup__():
+        listener = sshpipe.SshPipeListener(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=0,
+            on_listen=on_listen,
+            on_accept=on_accept,
+            auth_check=_PipeAuthStall().check,
+            subsystem="echo",
+            log_handler=t.log_handler)
+        after 2.0: on_timeout()
+
 
 
 actor PipeSubsystemRejectTester(t: testing.EnvT):
     """Requesting a subsystem the listener does not serve fails the pipe."""
     var done = False
     var listener: ?sshpipe.SshPipeListener = None
+
     var client_pipe: ?sshpipe.SshPipe = None
 
     def _teardown():
@@ -430,22 +442,25 @@ actor PipeSubsystemRejectTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    listener = sshpipe.SshPipeListener(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        address="127.0.0.1",
-        port=0,
-        on_listen=on_listen,
-        on_accept=on_accept,
-        auth_check=_PipeAuth().check,
-        subsystem="echo",
-        log_handler=t.log_handler)
-    after 20.0: on_timeout()
+    proc def __startup__():
+        listener = sshpipe.SshPipeListener(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=0,
+            on_listen=on_listen,
+            on_accept=on_accept,
+            auth_check=_PipeAuth().check,
+            subsystem="echo",
+            log_handler=t.log_handler)
+        after 20.0: on_timeout()
+
 
 
 actor PipeStrictHostKeyTester(t: testing.EnvT):
     """host_key_check=strict rejects an unknown host key: connect fails."""
     var done = False
     var listener: ?sshpipe.SshPipeListener = None
+
     var client_pipe: ?sshpipe.SshPipe = None
 
     def _teardown():
@@ -501,16 +516,18 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    listener = sshpipe.SshPipeListener(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        address="127.0.0.1",
-        port=0,
-        on_listen=on_listen,
-        on_accept=on_accept,
-        auth_check=_PipeAuth().check,
-        subsystem="echo",
-        log_handler=t.log_handler)
-    after 20.0: on_timeout()
+    proc def __startup__():
+        listener = sshpipe.SshPipeListener(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            address="127.0.0.1",
+            port=0,
+            on_listen=on_listen,
+            on_accept=on_accept,
+            auth_check=_PipeAuth().check,
+            subsystem="echo",
+            log_handler=t.log_handler)
+        after 20.0: on_timeout()
+
 
 
 actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
@@ -637,20 +654,22 @@ actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
     def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
         ch.reject_request("exec disabled")
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
-    after 20.0: on_timeout()
+    proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+        after 20.0: on_timeout()
+
 
 
 actor PipeWriteWhileOpeningTester(t: testing.EnvT):
@@ -781,17 +800,18 @@ actor PipeWriteWhileOpeningTester(t: testing.EnvT):
     def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
         ch.reject_request("exec disabled")
 
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-        on_subsystem,
-        on_session_close,
-    )
-    after 2.5: on_timeout()
+    proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+            on_subsystem,
+            on_session_close,
+        )
+        after 2.5: on_timeout()

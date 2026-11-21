@@ -6,12 +6,9 @@ import time
 
 
 actor main(env):
-    payload_mb = 1
-    if len(env.argv) > 1:
-        pm = int(env.argv[1])
-        payload_mb = pm
+    payload_mb = int(env.argv[1]) if len(env.argv) > 1 else 1
 
-    var payload = b""
+    payload = bytes([i for i in range(256)]) * (payload_mb * 4096)
     var echoed_len = 0
     var server: ?ssh.Server = None
     var client: ?ssh.Client = None
@@ -120,20 +117,15 @@ actor main(env):
     def ch_close(ch: ssh.Channel, reason: str):
         pass
 
-    var pattern = b""
-    for i in range(256):
-        pattern += bytes([i])
-    for i in range(payload_mb * 4096):
-        payload += pattern
-
-    server = ssh.Server(
-        net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
-        "127.0.0.1",
-        u16(0),
-        on_listen,
-        on_server_close,
-        on_session,
-        on_auth,
-        on_channel_open,
-        on_exec,
-    )
+    proc def __startup__():
+        server = ssh.Server(
+            net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
+            "127.0.0.1",
+            u16(0),
+            on_listen,
+            on_server_close,
+            on_session,
+            on_auth,
+            on_channel_open,
+            on_exec,
+        )

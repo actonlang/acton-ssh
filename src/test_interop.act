@@ -60,11 +60,16 @@ actor _Cmd(process: EnvProcess,
     def _error(p: Process, error: str):
         on_fail(" ".join(cmd) + ": " + error)
 
-    _p = process.spawn(cmd, _out, _err, _exit, _error, None, env)
     sd = stdin_data
-    if sd is not None:
-        _p.write(sd)
-    _p.done_writing()
+
+    proc def __startup__():
+        _p = process.spawn(cmd, _out, _err, _exit, _error, None, env)
+
+        if sd is not None:
+            _p.write(sd)
+
+        _p.done_writing()
+
 
 
 actor OpensshClientTester(
@@ -358,8 +363,11 @@ actor OpensshClientTester(
             wrong_keypath = tmp + "/wrong_key"
             keygen(keypath, keygen_done)
 
-    after 0: setup()
-    after 30.0: on_timeout()
+    proc def __startup__():
+        after 0: setup()
+
+        after 30.0: on_timeout()
+
 
 
 actor SshdTester(
@@ -650,8 +658,11 @@ actor SshdTester(
             auth_timeout=10.0,
         )
 
-    after 0: setup()
-    after 30.0: on_timeout()
+    proc def __startup__():
+        after 0: setup()
+
+        after 30.0: on_timeout()
+
 
 
 def _payload_1000_lines() -> bytes:
@@ -675,78 +686,102 @@ def _payload_1000_lines() -> bytes:
 
 actor InteropExecPingTester(t: testing.EnvT):
     """OpenSSH client: exec 'ping' -> pong, exit 0"""
-    t.require("openssh")
-    OpensshClientTester(t, "password", "ping", expect_out=b"pong\n")
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "password", "ping", expect_out=b"pong\n")
+
 
 actor InteropExecUnknownTester(t: testing.EnvT):
     """OpenSSH client: unknown exec command -> exit 127 with stderr"""
-    t.require("openssh")
-    OpensshClientTester(t, "password", "bogus", expect_rc=127,
-                        expect_err_contains="unknown command")
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "password", "bogus", expect_rc=127,
+                            expect_err_contains="unknown command")
+
 
 actor InteropCompressionTester(t: testing.EnvT):
     """OpenSSH client asks for compression: zlib@openssh.com negotiated both ways"""
-    t.require("openssh")
-    OpensshClientTester(t, "password", "ping",
-                        extra_args=["-vv", "-o", "Compression=yes"],
-                        expect_out=b"pong\n",
-                        expect_err_pattern="compression: zlib@openssh.com",
-                        expect_err_count=2)
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "password", "ping",
+                            extra_args=["-vv", "-o", "Compression=yes"],
+                            expect_out=b"pong\n",
+                            expect_err_pattern="compression: zlib@openssh.com",
+                            expect_err_count=2)
+
 
 actor InteropWrongPasswordTester(t: testing.EnvT):
     """OpenSSH client: wrong password is rejected"""
-    t.require("openssh")
-    OpensshClientTester(t, "password-bad", "ping", expect_failure=True)
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "password-bad", "ping", expect_failure=True)
+
 
 actor InteropPubkeyAuthTester(t: testing.EnvT):
     """OpenSSH client: authorized public key is accepted"""
-    t.require("openssh")
-    OpensshClientTester(t, "pubkey", "ping", expect_out=b"pong\n")
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "pubkey", "ping", expect_out=b"pong\n")
+
 
 actor InteropPubkeyWrongKeyTester(t: testing.EnvT):
     """OpenSSH client: unauthorized public key is rejected"""
-    t.require("openssh")
-    OpensshClientTester(t, "pubkey-wrong", "ping", expect_failure=True)
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "pubkey-wrong", "ping", expect_failure=True)
+
 
 actor InteropSubsystemEchoTester(t: testing.EnvT):
     """OpenSSH client: subsystem 'echo' round-trips data, exit 0"""
-    t.require("openssh")
-    OpensshClientTester(t, "password", "echo", subsystem=True,
-                        stdin_data=b"marco\n", expect_out=b"marco\n")
+    proc def __startup__():
+        t.require("openssh")
+        OpensshClientTester(t, "password", "echo", subsystem=True,
+                            stdin_data=b"marco\n", expect_out=b"marco\n")
+
 
 actor InteropSubsystemPayloadTester(t: testing.EnvT):
     """OpenSSH client: subsystem 'echo' 1000-line payload integrity"""
-    t.require("openssh")
-    payload = _payload_1000_lines()
-    OpensshClientTester(t, "password", "echo", subsystem=True,
-                        stdin_data=payload, expect_out=payload)
+    proc def __startup__():
+        t.require("openssh")
+        payload = _payload_1000_lines()
+        OpensshClientTester(t, "password", "echo", subsystem=True,
+                            stdin_data=payload, expect_out=payload)
 
 
 # Direction B: Acton ssh.Client -> OpenSSH sshd
 
 actor InteropSshdExecTester(t: testing.EnvT):
     """Acton client: pubkey auth + exec against OpenSSH sshd"""
-    t.require("openssh")
-    SshdTester(t, "echo interop-ok", False, 0, "interop-ok", False)
+    proc def __startup__():
+        t.require("openssh")
+        SshdTester(t, "echo interop-ok", False, 0, "interop-ok", False)
+
 
 actor InteropSshdExitStatusTester(t: testing.EnvT):
     """Acton client: remote exit status propagates from OpenSSH sshd"""
-    t.require("openssh")
-    SshdTester(t, "exit 42", False, 42, None, False)
+    proc def __startup__():
+        t.require("openssh")
+        SshdTester(t, "exit 42", False, 42, None, False)
+
 
 actor InteropSshdWrongKeyTester(t: testing.EnvT):
     """Acton client: wrong key is rejected by OpenSSH sshd"""
-    t.require("openssh")
-    SshdTester(t, "echo nope", True, 0, None, True)
+    proc def __startup__():
+        t.require("openssh")
+        SshdTester(t, "echo nope", True, 0, None, True)
+
 
 actor InteropSshdShellPtyTester(t: testing.EnvT):
     """Acton SshPipe: interactive shell with a PTY against OpenSSH sshd"""
-    t.require("openssh")
-    SshdTester(t, "", False, 0, "/dev/", False,
-               shell_input=b"tty\nexit\n", shell_pty=True)
+    proc def __startup__():
+        t.require("openssh")
+        SshdTester(t, "", False, 0, "/dev/", False,
+                   shell_input=b"tty\nexit\n", shell_pty=True)
+
 
 actor InteropSshdShellNoPtyTester(t: testing.EnvT):
     """Acton SshPipe: interactive shell without a PTY against OpenSSH sshd"""
-    t.require("openssh")
-    SshdTester(t, "", False, 0, "not a tty", False,
-               shell_input=b"LC_ALL=C tty\nexit\n", shell_pty=False)
+    proc def __startup__():
+        t.require("openssh")
+        SshdTester(t, "", False, 0, "not a tty", False,
+                   shell_input=b"LC_ALL=C tty\nexit\n", shell_pty=False)
