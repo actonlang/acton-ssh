@@ -1016,7 +1016,7 @@ static int session_channel_limit_reached(ssh_server_session_ctx *s) {
 // --- Client implementation
 
 static B_BaseException client_error(client_err_t kind, const char *msg) {
-    B_str s = to$str((char *)msg);
+    B_str s = actStrFromCStringCopy(msg);
     switch (kind) {
     case CLIENT_ERR_SSH:
         return (B_BaseException)sshQ_libQ_SshErrorG_new(s);
@@ -1067,7 +1067,7 @@ static void client_notify_close(ssh_client_ctx *c, const char *reason) {
     sshQ_libQ_Client actor = client_actor_ref(c);
     if (c->on_close) {
         $action2 f = ($action2)c->on_close;
-        SSH_DELIVER(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, actStrFromCStringCopy(reason));
     }
     c->close_notified = 1;
 }
@@ -1091,7 +1091,7 @@ static void channel_notify_open(ssh_channel_ctx *ch, const char *err) {
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_open) {
         $action2 f = ($action2)ch->on_open;
-        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? actStrFromCStringCopy(err) : B_None);
     }
     ch->open_notified = 1;
     if (err == NULL)
@@ -1108,7 +1108,7 @@ static void channel_notify_close(ssh_channel_ctx *ch, const char *reason) {
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
-        SSH_DELIVER(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, actStrFromCStringCopy(reason));
     }
     ch->close_notified = 1;
 }
@@ -1140,7 +1140,7 @@ static int client_channel_data_cb(ssh_session session, ssh_channel channel, void
         return 0;
     if (len == 0)
         return 0;
-    B_bytes out = to$bytesD_len((char *)data, (size_t)len);
+    B_bytes out = actBytesFromCStringLengthCopy((const char *)data, len);
     sshQ_libQ_Channel actor = channel_actor_ref(ch);
     if (is_stderr) {
         if (ch->on_stderr) {
@@ -1268,7 +1268,7 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
             if (rc == SSH_OK) {
                 exit_status = (int)exit_code;
                 if (signal != NULL)
-                    exit_signal = to$str(signal);
+                    exit_signal = actStrFromCStringCopy(signal);
             }
             if (signal)
                 ssh_string_free_char(signal);
@@ -1610,9 +1610,9 @@ static int client_get_hostkey_info(ssh_client_ctx *c, B_str *key_type_out, B_str
     fingerprint = ssh_get_fingerprint_hash(SSH_PUBLICKEY_HASH_SHA256, hash, hash_len);
 
     if (key_type_out)
-        *key_type_out = to$str((char *)(key_type_str ? key_type_str : ""));
+        *key_type_out = actStrFromCString(key_type_str ? key_type_str : "");
     if (fingerprint_out)
-        *fingerprint_out = to$str((char *)(fingerprint ? fingerprint : ""));
+        *fingerprint_out = actStrFromCStringCopy(fingerprint ? fingerprint : "");
 
     ssh_clean_pubkey_hash(&hash);
     ssh_key_free(key);
@@ -2027,16 +2027,16 @@ static int client_check_hostkey(ssh_client_ctx *c) {
         return -1;
     }
 
-    B_str key_type = to$str((char *)"");
-    B_str fingerprint = to$str((char *)"");
+    B_str key_type = actStrFromCString("");
+    B_str fingerprint = actStrFromCString("");
     if (client_get_hostkey_info(c, &key_type, &fingerprint) != 0) {
-        key_type = to$str((char *)"");
-        fingerprint = to$str((char *)"");
+        key_type = actStrFromCString("");
+        fingerprint = actStrFromCString("");
     }
 
     sshQ_libQ_HostKeyInfo info = sshQ_libQ_HostKeyInfoG_new(key_type, fingerprint);
     $action3 f = ($action3)c->on_hostkey;
-    SSH_DELIVER(f, actor, to$str((char *)hostkey_state_str(state)), info);
+    SSH_DELIVER(f, actor, actStrFromCString(hostkey_state_str(state)), info);
     return 1;
 }
 
@@ -2600,7 +2600,7 @@ void sshQ_libQ___ext_init__() {
 }
 
 B_str sshQ_libQ_version() {
-    return to$str((char *)ssh_version(0));
+    return actStrFromCString(ssh_version(0));
 }
 
 B_NoneType sshQ_libQ__debug(B_str msg) {
@@ -2798,7 +2798,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
     if (c == NULL) {
         if (on_open) {
             $action2 f = ($action2)on_open;
-            SSH_DELIVER(f, channel, to$str((char *)"Client not initialized"));
+            SSH_DELIVER(f, channel, actStrFromCString("Client not initialized"));
         }
         return $R_CONT(c$cont, B_None);
     }
@@ -2806,7 +2806,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
         c->state == CLIENT_STATE_ERROR) {
         if (on_open) {
             $action2 f = ($action2)on_open;
-            SSH_DELIVER(f, channel, to$str((char *)"Client is closed"));
+            SSH_DELIVER(f, channel, actStrFromCString("Client is closed"));
         }
         return $R_CONT(c$cont, B_None);
     }
@@ -2819,7 +2819,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
     ch->pending_req = CHAN_REQ_NONE;
     ch->pty_pending = 0;
     ch->pty_done = 0;
-    ch->term = to$str((char *)"xterm-256color");
+    ch->term = actStrFromCString("xterm-256color");
     ch->cols = 80;
     ch->rows = 24;
     ch->width_px = 0;
@@ -3028,7 +3028,7 @@ static void server_notify_listen(ssh_server_ctx *s, const char *err) {
     sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_listen) {
         $action2 f = ($action2)s->on_listen;
-        SSH_DELIVER(f, actor, err ? to$str((char *)err) : B_None);
+        SSH_DELIVER(f, actor, err ? actStrFromCStringCopy(err) : B_None);
     }
     s->listen_notified = 1;
     if (err == NULL)
@@ -3043,7 +3043,7 @@ static void server_notify_close(ssh_server_ctx *s, const char *reason) {
     sshQ_libQ_Server actor = server_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
-        SSH_DELIVER(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, actStrFromCStringCopy(reason));
     }
     s->close_notified = 1;
 }
@@ -3054,7 +3054,7 @@ static void session_notify_close(ssh_server_session_ctx *s, const char *reason) 
     sshQ_libQ_ServerSession actor = session_actor_ref(s);
     if (s->on_close) {
         $action2 f = ($action2)s->on_close;
-        SSH_DELIVER(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, actStrFromCStringCopy(reason));
     }
     s->close_notified = 1;
 }
@@ -3065,7 +3065,7 @@ static void server_channel_notify_close(ssh_server_channel_ctx *ch, const char *
     sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (ch->on_close) {
         $action2 f = ($action2)ch->on_close;
-        SSH_DELIVER(f, actor, to$str((char *)reason));
+        SSH_DELIVER(f, actor, actStrFromCStringCopy(reason));
     }
     ch->close_notified = 1;
 }
@@ -3079,7 +3079,7 @@ static int server_channel_data_cb(ssh_session session, ssh_channel channel, void
         return 0;
     if (len == 0)
         return 0;
-    B_bytes out = to$bytesD_len((char *)data, (size_t)len);
+    B_bytes out = actBytesFromCStringLengthCopy((const char *)data, len);
     sshQ_libQ_ServerChannel actor = server_channel_actor_ref(ch);
     if (is_stderr) {
         if (ch->on_stderr) {
@@ -3416,7 +3416,7 @@ static sshQ_libQ_PtyRequest session_pty_request(ssh_message msg) {
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
-    return sshQ_libQ_PtyRequestG_new(to$str((char *)(term ? term : "")),
+    return sshQ_libQ_PtyRequestG_new(actStrFromCStringCopy(term ? term : ""),
                                      (int64_t)cols, (int64_t)rows,
                                      (int64_t)width_px, (int64_t)height_px);
 }
@@ -3458,7 +3458,7 @@ static B_bytes session_pubkey_authkeys_bytes(ssh_key key) {
         line[tlen] = ' ';
         memcpy(line + tlen + 1, b64, blen);
         line[total] = '\0';
-        out = to$bytesD_len(line, (int)total);
+        out = actBytesFromCStringLengthCopy(line, total);
         free(line);
     }
     ssh_string_free_char(b64);
@@ -3814,9 +3814,9 @@ static void session_drive(ssh_server_session_ctx *s) {
 #endif
                 s->pending_auth = msg;
                 sshQ_libQ_AuthRequest req = sshQ_libQ_AuthRequestG_new(
-                    to$str((char *)"password"),
-                    to$str((char *)(user ? user : "")),
-                    pass ? to$str((char *)(pass)) : B_None,
+                    actStrFromCString("password"),
+                    actStrFromCStringCopy(user ? user : ""),
+                    pass ? actStrFromCStringCopy(pass) : B_None,
                     B_None);
                 $action2 f = ($action2)s->on_auth;
                 SSH_DELIVER(f, session_actor_ref(s), req);
@@ -3869,8 +3869,8 @@ static void session_drive(ssh_server_session_ctx *s) {
                 B_bytes pkbytes = session_pubkey_authkeys_bytes(pubkey);
                 s->pending_auth = msg;
                 sshQ_libQ_AuthRequest req = sshQ_libQ_AuthRequestG_new(
-                    to$str((char *)"publickey"),
-                    to$str((char *)(pkuser ? pkuser : "")),
+                    actStrFromCString("publickey"),
+                    actStrFromCStringCopy(pkuser ? pkuser : ""),
                     B_None,
                     pkbytes);
                 $action2 f = ($action2)s->on_auth;
@@ -3961,7 +3961,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                             ch->pending_req_type = SCHAN_REQ_EXEC;
                             $action3 f = ($action3)s->on_exec;
                             SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
-                                               to$str((char *)(cmd ? cmd : "")));
+                                               actStrFromCStringCopy(cmd ? cmd : ""));
                             break;
                         }
                     } else if (ssh_message_subtype(msg) == SSH_CHANNEL_REQUEST_PTY) {
@@ -4004,7 +4004,7 @@ static void session_drive(ssh_server_session_ctx *s) {
                             ch->pending_req_type = SCHAN_REQ_SUBSYSTEM;
                             $action3 f = ($action3)s->on_subsystem;
                             SSH_DELIVER(f, session_actor_ref(s), server_channel_actor_ref(ch),
-                                               to$str((char *)(name ? name : "")));
+                                               actStrFromCStringCopy(name ? name : ""));
                             break;
                         }
                     } else {
@@ -4698,7 +4698,7 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
         s->pending_channel_open = NULL;
         if (on_close) {
             $action2 f = ($action2)on_close;
-            SSH_DELIVER(f, channel, to$str((char *)"Failed to accept channel open"));
+            SSH_DELIVER(f, channel, actStrFromCString("Failed to accept channel open"));
         }
         if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
             return $R_CONT(c$cont, B_None);
@@ -4713,7 +4713,7 @@ $R sshQ_libQ_ServerSessionD_accept_channel_openG_local(sshQ_libQ_ServerSession s
         s->pending_channel_open = NULL;
         if (on_close) {
             $action2 f = ($action2)on_close;
-            SSH_DELIVER(f, channel, to$str((char *)"Failed to accept channel open"));
+            SSH_DELIVER(f, channel, actStrFromCString("Failed to accept channel open"));
         }
         if (session_check_reply_rc(s, rc, "SSH channel open accept failed") != 0)
             return $R_CONT(c$cont, B_None);

@@ -14,8 +14,8 @@ zig_dependencies = {
 dependencies = {
     "acton_zlib": (
         repo_url="https://github.com/actonlang/acton-zlib.git",
-        url="https://github.com/actonlang/acton-zlib/archive/ef6fa1c75631b92ebee3cf01e9b6ace326a2db47.tar.gz",
-        hash="N-V-__8AANAWAADerAg0qsvk6lkPK5j6I59zQv_vbZ2WAOvy"
+        url="https://github.com/actonlang/acton-zlib/archive/159519d79c7ade4e5d24cd36d5ebeab865cc2a0a.tar.gz",
+        hash="N-V-__8AAEUaAAAhFEBtEPU3htMOXqCHTK2WfRgJ7EMUmPWN"
     ),
     "acton_pipe": (
         repo_url="https://github.com/actonlang/pipe.git",
