@@ -564,12 +564,12 @@ class PrivateKey(object):
         self.certificate = certificate
 
 
-def version() -> str:
+pure def version() -> str:
     """Get the libssh version"""
     NotImplemented
 
 
-def _debug(msg: str) -> None:
+mut def _debug(msg: str) -> None:
     """Internal debug logging (gated by ACTON_SSH_DEBUG)."""
     NotImplemented
 
@@ -769,7 +769,7 @@ actor Client(cap: net.TCPConnectCap,
     action def channel_close(channel: Channel) -> None:
         NotImplemented
 
-    proc def __startup__():
+    def __startup__():
         _pin_affinity()
         _init()
 
@@ -844,7 +844,7 @@ actor Channel(client: Client,
         if _channel_id != 0:
             _cleanup_native()
 
-    proc def __startup__():
+    def __startup__():
         _init()
 
 
@@ -925,7 +925,7 @@ actor RunCommand(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    proc def __startup__():
+    def __startup__():
         if timeout is not None:
             # TODO: cancel this timer in _finish once Acton supports cancelling
             # timers. Until it fires, the pending timer keeps this actor alive, and
@@ -1167,7 +1167,7 @@ actor ScpPut(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    proc def __startup__():
+    def __startup__():
         if timeout is not None:
             # TODO: cancel this timer in _finish once Acton supports cancelling
             # timers. Until it fires, the pending timer keeps this actor alive, and
@@ -1317,7 +1317,7 @@ actor ScpGet(client: Client,
 
     var _channel = Channel(client, _on_open, _on_stdout, _on_stderr, _on_exit, _on_close)
 
-    proc def __startup__():
+    def __startup__():
         if timeout is not None:
             # TODO: cancel this timer in _finish once Acton supports cancelling
             # timers. Until it fires, the pending timer keeps this actor alive, up
@@ -1438,7 +1438,7 @@ actor Server(cap: net.TCPListenCap,
     action def on_session_ready(session: ServerSession) -> None:
         on_session(session)
 
-    proc def __startup__():
+    def __startup__():
         _pin_affinity()
         _init()
 
@@ -1537,7 +1537,7 @@ actor ServerSession(server: Server,
     action def channel_close(channel: ServerChannel) -> None:
         NotImplemented
 
-    proc def __startup__():
+    def __startup__():
         _pin_affinity()
         after 0: _attach_ready()
 

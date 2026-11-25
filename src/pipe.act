@@ -533,7 +533,7 @@ actor SshPipeListener(listen_cap: net.TCPListenCap,
             s.close()
         server = None
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(listen_cap,
                             host=address,
                             port=u16(port),

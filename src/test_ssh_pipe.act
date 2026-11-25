@@ -128,7 +128,7 @@ actor PipeEchoTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
@@ -203,7 +203,7 @@ actor PipeAuthRejectTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
@@ -297,7 +297,7 @@ actor PipeConnectTimeoutTester(t: testing.EnvT):
         net.TCPListener(net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
                         "127.0.0.1", port, on_listen, on_accept)
 
-    proc def __startup__():
+    def __startup__():
         listen()
         after 2.0: on_timeout()
 
@@ -367,7 +367,7 @@ actor PipeAuthTimeoutTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
@@ -442,7 +442,7 @@ actor PipeSubsystemRejectTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
@@ -516,7 +516,7 @@ actor PipeStrictHostKeyTester(t: testing.EnvT):
         if cp is not None:
             cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
@@ -654,7 +654,7 @@ actor PipeChannelClosedOnOpenTester(t: testing.EnvT):
     def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
         ch.reject_request("exec disabled")
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -800,7 +800,7 @@ actor PipeWriteWhileOpeningTester(t: testing.EnvT):
     def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
         ch.reject_request("exec disabled")
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",

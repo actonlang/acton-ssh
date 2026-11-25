@@ -47,7 +47,7 @@ actor main(env):
             client.close()
         env.exit(code)
 
-    proc def __startup__():
+    def __startup__():
         if len(env.argv) < 4:
             print("usage: example_client HOST USER CMD [PORT] [PASSWORD]")
             env.exit(2)

@@ -17,7 +17,7 @@ import lib as ssh
 
 
 actor main(env: Env):
-    proc def __startup__():
+    def __startup__():
         USER = "interop"
         PASS = "interop-pass"
 

@@ -97,7 +97,7 @@ actor main(env):
             port=port,
         )
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(env.cap))),
             "127.0.0.1",

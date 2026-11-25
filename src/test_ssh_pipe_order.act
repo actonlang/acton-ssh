@@ -134,7 +134,7 @@ actor _ServerEnd(p: sshpipe.SshListenPipe, fill: bytes, on_error: action(str) ->
                     p.write(part)
                 replied += 1
 
-    proc def __startup__():
+    def __startup__():
         p.read_cb(_read)
 
 
@@ -190,7 +190,7 @@ actor _ClientEnd(cap: net.TCPConnectCap, port: int, pid: int, fill: bytes,
         if p is not None:
             p.close(None)
 
-    proc def __startup__():
+    def __startup__():
         sp = sshpipe.SshPipe(cap, address="127.0.0.1", port=port, username=ORDER_USER,
                              password=ORDER_PASS, subsystem="test",
                              host_key_check=sshpipe.HOST_KEY_CHECK_NONE)
@@ -256,7 +256,7 @@ actor PipeOrderTester(t: testing.EnvT):
         for pid in range(N_PIPES):
             clients.append(_ClientEnd(cap, port, pid, fill, on_connected, on_done, on_error))
 
-    proc def __startup__():
+    def __startup__():
         listener = sshpipe.SshPipeListener(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             address="127.0.0.1",
