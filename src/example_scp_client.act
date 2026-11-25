@@ -234,5 +234,5 @@ actor main(env):
             print(exc.error_message, err=True)
             env.exit(2)
 
-    proc def __startup__():
+    def __startup__():
         after 0: start()

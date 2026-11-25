@@ -188,7 +188,7 @@ actor PipeRestartTester(t: testing.EnvT, restart_early: bool, strict: bool):
             phase = 2
             cp.restart()
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -396,7 +396,7 @@ actor PipeRestartStormTester(t: testing.EnvT, max_delay_ms: int):
         cp.read_cb(_client_read)
         after float(std.random.randint(0, max_delay_ms)) / 1000.0: next_restart()
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",
@@ -616,7 +616,7 @@ actor PipeRestartDuringChannelOpenTester(t: testing.EnvT):
         client_pipe = cp
         cp.read_cb(_client_read)
 
-    proc def __startup__():
+    def __startup__():
         server = ssh.Server(
             net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
             "127.0.0.1",

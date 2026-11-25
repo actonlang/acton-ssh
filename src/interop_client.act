@@ -40,7 +40,7 @@ actor main(env):
             client.close()
         env.exit(code)
 
-    proc def __startup__():
+    def __startup__():
         if len(env.argv) < 5:
             print("usage: interop_client HOST PORT USER CMD [KEYFILE [PASSWORD]]")
             env.exit(2)

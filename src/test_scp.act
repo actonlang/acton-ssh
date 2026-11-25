@@ -59,7 +59,7 @@ actor _Cmd(process: EnvProcess,
     def _error(p: Process, error: str):
         on_fail(" ".join(cmd) + ": " + error)
 
-    proc def __startup__():
+    def __startup__():
         _p = process.spawn(cmd, _out, _err, _exit, _error)
 
         _p.done_writing()
@@ -124,7 +124,7 @@ actor _FanoutClient(cap: net.TCPConnectCap,
         if c is not None:
             c.close()
 
-    proc def __startup__():
+    def __startup__():
         client = ssh.Client(cap, "127.0.0.1", username, on_connect, on_close, on_hostkey,
                             private_keys=[ssh.PrivateKey(private_key)], port=u16(port),
                             connect_timeout=10.0, auth_timeout=10.0)
@@ -608,7 +608,7 @@ actor ScpTester(t: testing.EnvT, scenario: str):
         if fanout_left == 0:
             fanout_next()
 
-    proc def __startup__():
+    def __startup__():
         after 0: setup()
 
         # fanout_scale connects t.scale() Clients before its t.loop()
@@ -625,7 +625,7 @@ actor ScpTester(t: testing.EnvT, scenario: str):
 
 actor ScpRoundTripTester(t: testing.EnvT):
     """ScpPut then ScpGet of ~3.9 MB, more than a channel window, with mode 0600"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "roundtrip")
@@ -634,7 +634,7 @@ actor ScpRoundTripTester(t: testing.EnvT):
 
 actor ScpEmptyFileTester(t: testing.EnvT):
     """ScpPut then ScpGet of an empty file"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "empty")
@@ -643,7 +643,7 @@ actor ScpEmptyFileTester(t: testing.EnvT):
 
 actor ScpDirectoryNameTester(t: testing.EnvT):
     """ScpPut into an existing directory whose path has a quote and spaces"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "dir_name")
@@ -652,7 +652,7 @@ actor ScpDirectoryNameTester(t: testing.EnvT):
 
 actor ScpErrorsTester(t: testing.EnvT):
     """Errors from the remote scp reach on_done"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "errors")
@@ -661,7 +661,7 @@ actor ScpErrorsTester(t: testing.EnvT):
 
 actor ScpTooBigTester(t: testing.EnvT):
     """ScpPut larger than the Client's max_write_buffer fails with a hint"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "too_big")
@@ -670,7 +670,7 @@ actor ScpTooBigTester(t: testing.EnvT):
 
 actor ScpParallelTester(t: testing.EnvT):
     """Two ScpPuts on one Client at the same time both arrive intact"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "parallel")
@@ -679,7 +679,7 @@ actor ScpParallelTester(t: testing.EnvT):
 
 actor ScpGetScaleTester(t: testing.EnvT):
     """ScpGet of a file of t.scale() MiB, once per t.loop() body"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "get_scale")
@@ -688,7 +688,7 @@ actor ScpGetScaleTester(t: testing.EnvT):
 
 actor ScpFanoutScaleTester(t: testing.EnvT):
     """t.scale() Clients each ScpPut the same 8 MB at once, once per t.loop() body"""
-    proc def __startup__():
+    def __startup__():
         t.require("openssh")
         t.timeout(30.0)
         ScpTester(t, "fanout_scale")

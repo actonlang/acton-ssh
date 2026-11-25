@@ -11,11 +11,11 @@ _LIBSSH_MAC = 4
 _LIBSSH_COMPRESSION = 6
 
 
-def _libssh_supported_algorithms(method: int) -> str:
+pure def _libssh_supported_algorithms(method: int) -> str:
     NotImplemented
 
 
-def _libssh_default_algorithms(method: int) -> str:
+pure def _libssh_default_algorithms(method: int) -> str:
     NotImplemented
 
 
