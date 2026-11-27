@@ -1,8 +1,9 @@
 """SCP tests: ssh.ScpPut and ssh.ScpGet against OpenSSH sshd and its scp.
 
   - a payload larger than the channel window goes up and comes back down,
-    and the file on disk has the bytes and the mode that were sent
-  - an empty file goes up and comes back down
+    and the file on disk has the bytes and the mode that were sent. ScpPut
+    reports progress more than once, up to the payload's size
+  - an empty file goes up and comes back down, with no progress report
   - a path with spaces and a quote reaches scp as one word, and a put into
     an existing directory creates the file there under the given name
   - errors from the remote scp reach on_done: a missing file, a directory
@@ -161,6 +162,7 @@ actor ScpTester(t: testing.EnvT, scenario: str):
     var payload = b""
     var local_path = ""
     var got = b""
+    var progress: list[int] = []
     var puts_left = 0
     var scale_iter: ?Iterator[int] = None
     var scale_got = 0
@@ -406,11 +408,32 @@ actor ScpTester(t: testing.EnvT, scenario: str):
 
     def start_put(c: ssh.Client, remote: str, local: str, name: ?str, mode: str):
         local_path = local
-        ssh.ScpPut(c, remote, payload, on_put_done, mode=mode, name=name, timeout=20.0)
+        ssh.ScpPut(c, remote, payload, on_put_done, mode=mode, name=name, timeout=20.0,
+                   on_progress=on_put_progress)
+
+    def on_put_progress(op: ssh.ScpPut, n: int):
+        progress.append(n)
+
+    def progress_error() -> ?str:
+        """What is wrong with the progress reports of the put of payload."""
+        last = 0
+        for n in progress:
+            if n <= last or n > len(payload):
+                return "progress " + str(n) + " after " + str(last) + " of " + str(len(payload))
+            last = n
+        if last != len(payload):
+            return "last progress " + str(last) + ", want " + str(len(payload))
+        if scenario == "roundtrip" and len(progress) < 2:
+            return str(len(progress)) + " progress reports, want more than one"
+        return None
 
     def on_put_done(op: ssh.ScpPut, err: ?str):
         if err is not None:
             finish_error("put: " + err)
+            return
+        pe = progress_error()
+        if pe is not None:
+            finish_error("put: " + pe)
             return
         content = read_local(local_path)
         if content != payload:
