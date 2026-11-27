@@ -42,11 +42,19 @@ jobs:
       # fails when each chunk costs about 2 KiB more than now. Smaller files
       # are noisier, so the test runs at --scale 50 (MiB). acton test perf
       # does not fail on a change, so jq checks the allocation in its report.
+      # With --json, only the report says why the test failed or was skipped,
+      # and neither has measurements, so the step prints that first.
       - name: "Check ScpGet's GC allocation per byte received"
         timeout-minutes: 10
         run: |
+          rc=0
           acton test perf --tag openssh --module test_scp --name ScpGetScaleTester \
-            --scale 50 --json > perf.json
+            --scale 50 --json > perf.json || rc=$?
+          if [ "$(jq -r '.tests[0].status' perf.json)" != "OK" ]; then
+            jq -r '.tests[0] | "ScpGetScaleTester: \(.status): \(.skip_reason // .exception)"' perf.json
+            exit 1
+          fi
+          [ "$rc" -eq 0 ] || exit "$rc"
           ratio=$(jq '.tests[0].performance.measurements
                       | .mem_usage_delta_avg / (.perf_info.scale * 1048576)' perf.json)
           echo "ScpGet: $ratio GC bytes allocated per byte received"
