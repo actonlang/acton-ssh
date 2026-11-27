@@ -426,7 +426,7 @@ typedef struct ssh_server_ctx {
  * them. The receiver still runs whenever it is scheduled. */
 #define SSH_DELIVER(f, ...)                              \
     do {                                                 \
-        $Actor ssh_deliver_self_ = GET_SELF();           \
+        __typeof__(GET_SELF()) ssh_deliver_self_ = GET_SELF();           \
         SET_SELF(NULL);                                  \
         (f)->$class->__asyn__((f), __VA_ARGS__);         \
         SET_SELF(ssh_deliver_self_);                     \
