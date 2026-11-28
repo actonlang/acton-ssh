@@ -231,11 +231,14 @@ typedef struct ssh_channel_ctx {
     int open_succeeded;
     int close_notified;
     size_t write_buffered;
+    /* Bytes of all writes that ssh_channel_write has accepted so far. */
+    size_t write_sent;
     $action2 on_open;
     $action2 on_close;
     $action2 on_stdout;
     $action2 on_stderr;
     $action3 on_exit;
+    $action2 on_write_progress;
     write_chunk_t *write_head;
     write_chunk_t *write_tail;
 } ssh_channel_ctx;
@@ -1120,6 +1123,14 @@ static void channel_notify_error(ssh_channel_ctx *ch, const char *msg) {
         channel_notify_open(ch, msg);
 }
 
+static void channel_notify_write_progress(ssh_channel_ctx *ch) {
+    if (ch->on_write_progress == NULL)
+        return;
+    sshQ_libQ_Channel actor = channel_actor_ref(ch);
+    $action2 f = ($action2)ch->on_write_progress;
+    SSH_DELIVER(f, actor, toB_int((long)ch->write_sent));
+}
+
 static void channel_notify_exit(ssh_channel_ctx *ch, int exit_status, B_str signal) {
     if (ch->exit_sent)
         return;
@@ -1310,6 +1321,7 @@ static void channel_finalize(ssh_client_ctx *c, ssh_channel_ctx *ch) {
     ch->on_stdout = NULL;
     ch->on_stderr = NULL;
     ch->on_exit = NULL;
+    ch->on_write_progress = NULL;
     (void)c;
 }
 
@@ -1371,6 +1383,7 @@ static void channel_try_write(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         int rc = ssh_channel_write(ch->channel, chunk->data->str + chunk->offset, (uint32_t)remaining);
         if (rc > 0) {
             chunk->offset += (size_t)rc;
+            ch->write_sent += (size_t)rc;
             if (ch->write_buffered >= (size_t)rc)
                 ch->write_buffered -= (size_t)rc;
             else
@@ -1522,9 +1535,13 @@ static void channel_drive(ssh_client_ctx *c, ssh_channel_ctx *ch) {
         }
 
         if (ch->write_head != NULL) {
+            size_t sent = ch->write_sent;
             channel_try_write(c, ch);
             if (ch->state == CHAN_STATE_ERROR)
                 return;
+            /* One report per pass, however many writes the pass made. */
+            if (ch->write_sent != sent)
+                channel_notify_write_progress(ch);
         }
 
         if (ch->send_eof && !ch->eof_sent && ch->write_head == NULL &&
@@ -2793,7 +2810,8 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
                                       $action on_stdout,
                                       $action on_stderr,
                                       $action on_exit,
-                                      $action on_close) {
+                                      $action on_close,
+                                      $action on_write_progress) {
     ssh_client_ctx *c = client_from_actor(self);
     if (c == NULL) {
         if (on_open) {
@@ -2829,6 +2847,7 @@ $R sshQ_libQ_ClientD_channel_createG_local(sshQ_libQ_Client self, $Cont c$cont, 
     ch->on_stdout = ($action2)on_stdout;
     ch->on_stderr = ($action2)on_stderr;
     ch->on_exit = ($action3)on_exit;
+    ch->on_write_progress = ($action2)on_write_progress;
 
     ch->next = c->channels;
     ACTON_STORE(c, c->channels, ch);

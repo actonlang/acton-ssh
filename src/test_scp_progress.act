@@ -1,0 +1,229 @@
+"""Progress tests of ssh.ScpPut against an in-process ssh.Server that plays
+the remote `scp -t`.
+
+The progress reports grow, stay within the file and reach its size before the
+server answers the data; a file larger than the channel window gives several.
+The header and the final 0 byte do not count, so an empty file and a refused
+header give no report. The server holds its answer to the data until the test
+has seen a report of the whole file, so a transfer can only complete after it.
+These run by default; they need no OpenSSH tools.
+"""
+
+import net
+import lib as ssh
+import testing
+
+
+_USER = "testuser"
+_PASS = "testpass"
+_OK = b"\x00"
+
+
+actor ScpPutProgressTester(t: testing.EnvT,
+                           size: int,
+                           header_reply: bytes,
+                           data_reply: bytes,
+                           want_error: ?str,
+                           min_reports: int):
+    """ScpPut of size bytes to a fake `scp -t` on an in-process Server.
+
+    The fake answers the header with header_reply and the data with
+    data_reply. The test wants at least min_reports progress reports, the
+    last of size, and the fake answers the data only after that last one.
+    When min_reports is 0, the test wants no report.
+    want_error is a part of the error on_done reports, or None for success.
+    """
+    var done = False
+    var server: ?ssh.Server = None
+    var client: ?ssh.Client = None
+
+    # The fake scp: "header" waits for the file's header line, "data" for
+    # the file and its 0 byte, "answer" to answer the data, "done" for nothing.
+    var sink: ?ssh.ServerChannel = None
+    var sink_state = "header"
+    var sink_rx = b""
+    var sink_left = 0
+
+    var reports: list[int] = []
+
+    def finish(err: ?str):
+        if done:
+            return
+        done = True
+        c = client
+        if c is not None:
+            c.close()
+        s = server
+        if s is not None:
+            s.close()
+        if err is not None:
+            t.error(Exception(err))
+        else:
+            t.success()
+
+    def on_timeout():
+        finish("timeout, " + str(len(reports)) + " progress reports, fake scp in state " + sink_state)
+
+    # --- the fake scp
+
+    def answer_data():
+        """Answer the data once it is in and its progress reported."""
+        ch = sink
+        reported = len(reports) > 0 and reports[-1] == size
+        if ch is not None and sink_state == "answer" and (reported or min_reports == 0):
+            sink_state = "done"
+            ch.write(data_reply)
+            ch.send_exit_status(0 if data_reply == _OK else 1)
+            ch.close()
+
+    def srv_on_data(ch: ssh.ServerChannel, data: ?bytes):
+        if data is not None:
+            sink_rx += data
+            sink_advance(ch)
+
+    def sink_advance(ch: ssh.ServerChannel):
+        if sink_state == "header":
+            nl = sink_rx.find(b"\n")
+            if nl < 0:
+                return
+            # "C0644 <size> <name>"
+            parts = sink_rx[:nl].decode().split(" ")
+            sink_left = int(parts[1]) + 1
+            sink_rx = sink_rx[nl + 1:]
+            ch.write(header_reply)
+            if header_reply != _OK:
+                sink_state = "done"
+                ch.send_exit_status(1)
+                ch.close()
+                return
+            sink_state = "data"
+        if sink_state == "data":
+            n = len(sink_rx) if len(sink_rx) < sink_left else sink_left
+            sink_left -= n
+            sink_rx = sink_rx[n:]
+            if sink_left == 0:
+                sink_state = "answer"
+                answer_data()
+
+    def srv_on_stderr(ch: ssh.ServerChannel, data: ?bytes):
+        pass
+
+    def srv_on_close(ch: ssh.ServerChannel, reason: str):
+        pass
+
+    def on_exec(sess: ssh.ServerSession, ch: ssh.ServerChannel, cmd: str):
+        if not cmd.startswith("scp -t "):
+            ch.reject_request("not scp -t: " + cmd)
+            return
+        sink = ch
+        ch.accept_request()
+        ch.write(_OK)
+
+    def on_channel_open(sess: ssh.ServerSession):
+        sess.accept_channel(ssh.ServerChannel(sess, srv_on_data, srv_on_stderr, srv_on_close))
+
+    def on_auth(sess: ssh.ServerSession, req: ssh.AuthRequest):
+        if req.method == "password" and req.user == _USER and req.password == _PASS:
+            sess.accept_auth()
+        else:
+            sess.reject_auth("invalid credentials")
+
+    def on_session(sess: ssh.ServerSession):
+        pass
+
+    def on_server_close(s: ssh.Server, reason: str):
+        pass
+
+    def on_listen(s: ssh.Server, err: ?str):
+        if err is not None:
+            finish("server listen error: " + err)
+            return
+        port = await async s.bound_port()
+        client = ssh.Client(net.TCPConnectCap(net.TCPCap(net.NetCap(t.env.cap))),
+                            "127.0.0.1", _USER, on_connect, on_client_close, on_hostkey,
+                            password=_PASS, port=port)
+
+    # --- the client
+
+    def on_hostkey(c: ssh.Client, state: str, info: ssh.HostKeyInfo):
+        c.accept_hostkey()
+
+    def on_client_close(c: ssh.Client, reason: str):
+        pass
+
+    def on_connect(c: ssh.Client, err: ?Exception):
+        if err is not None:
+            finish("client connect error: " + str(err))
+            return
+        ssh.ScpPut(c, "/upload/f.bin", b"x" * size, on_put_done, timeout=20.0, on_progress=on_put_progress)
+
+    def on_put_progress(op: ssh.ScpPut, n: int):
+        if done:
+            return
+        if min_reports == 0:
+            finish("progress " + str(n) + " reported, want none")
+            return
+        if n < 1 or n > size:
+            finish("progress " + str(n) + " is outside 1.." + str(size))
+            return
+        if len(reports) > 0 and n <= reports[-1]:
+            finish("progress " + str(n) + " after " + str(reports[-1]) + ", want it to grow")
+            return
+        reports.append(n)
+        answer_data()
+
+    def on_put_done(op: ssh.ScpPut, err: ?str):
+        if min_reports > 0:
+            if len(reports) == 0 or reports[-1] != size:
+                finish("put done before a progress report of " + str(size) + " bytes")
+                return
+            if len(reports) < min_reports:
+                finish(str(len(reports)) + " progress reports, want at least " + str(min_reports))
+                return
+        want = want_error
+        if want is not None:
+            if err is not None:
+                if err.find(want) >= 0:
+                    finish(None)
+                else:
+                    finish("put error '" + err + "' does not contain '" + want + "'")
+            else:
+                finish("put succeeded, want an error with '" + want + "'")
+        elif err is not None:
+            finish("put error: " + err)
+        else:
+            finish(None)
+
+    def __startup__():
+        # on_timeout reports the state before the test runner gives up.
+        t.timeout(20.0)
+        server = ssh.Server(net.TCPListenCap(net.TCPCap(net.NetCap(t.env.cap))),
+                            "127.0.0.1", u16(0), on_listen, on_server_close, on_session,
+                            on_auth, on_channel_open, on_exec)
+        after 15.0: on_timeout()
+
+
+
+def _test_put_progress_large(t: testing.EnvT):
+    """2 MiB, more than libssh's channel window: progress reaches the size first"""
+    ScpPutProgressTester(t, 2097152, _OK, _OK, None, 2)
+
+
+def _test_put_progress_small(t: testing.EnvT):
+    """100 bytes: progress reaches the size first"""
+    ScpPutProgressTester(t, 100, _OK, _OK, None, 1)
+
+
+def _test_put_progress_empty(t: testing.EnvT):
+    """An empty file: no progress report"""
+    ScpPutProgressTester(t, 0, _OK, _OK, None, 0)
+
+
+def _test_put_progress_header_refused(t: testing.EnvT):
+    """The header refused: no data goes out, so no progress report"""
+    ScpPutProgressTester(t, 1000, b"\x01no space left\n", _OK, "no space left", 0)
+
+
+def _test_put_progress_write_failed(t: testing.EnvT):
+    """The data refused after it arrived: progress reaches the size, then the error"""
+    ScpPutProgressTester(t, 1000, _OK, b"\x01Write failed\n", "Write failed", 1)
